@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v10.1.0-native-warp-text-fix"
+VERSION="Love v10.2.0-precheck-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -4841,6 +4841,20 @@ love_allow_singbox_inbound_ports() {
 love_fix_hy2_now() {
   echo
   echo "================ Love HY2 Fix Now ================"
+
+  if [[ ! -x /usr/local/bin/sing-box ]]; then
+    warn "未检测到 /usr/local/bin/sing-box。当前系统还没有安装 sing-box。"
+    warn "请先回主菜单选择：3) Love sing-box 原生全协议 / 自选协议"
+    warn "如果只要 HY2，协议选择输入：c"
+    return 0
+  fi
+
+  if [[ ! -f /etc/sing-box/config.json ]]; then
+    warn "未检测到 /etc/sing-box/config.json。当前还没有生成 sing-box 配置。"
+    warn "请先回主菜单选择：3) Love sing-box 原生全协议 / 自选协议"
+    return 0
+  fi
+
   love_fix_singbox_112_config
   love_allow_singbox_inbound_ports
 
@@ -5266,7 +5280,7 @@ love_warp_download_menu() {
 love_warp_hint() {
   cat <<'EOF'
 
-================ Love Love 原生 WARP 说明 ================
+================ Love 原生 WARP 说明 ================
 
 V10 已经不再调用第三方 WARP 脚本，WARP 管理已内置在 Love 中。
 
