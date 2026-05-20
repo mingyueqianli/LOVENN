@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v9.4.0-singbox-domain-resolver-fix"
+VERSION="Love v9.5.0-singbox-112-hard-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1189,11 +1189,12 @@ EOF
           {port: [25,465,587], outbound: "block"},
           {protocol: "bittorrent", outbound: "block"}
         ],
-        final: "direct"
+        final: "direct",
+        default_domain_resolver: "cf"
       }
     }' > "${SINGBOX_CONF}"
 
-  "${SINGBOX_BIN}" check -c "${SINGBOX_CONF}"
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true "${SINGBOX_BIN}" check -c "${SINGBOX_CONF}"
 }
 
 write_singbox_service() {
@@ -1206,6 +1207,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
+Environment=ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true
+Environment=ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true
 ExecStart=${SINGBOX_BIN} run -c ${SINGBOX_CONF}
 Restart=on-failure
 RestartSec=5
@@ -3720,7 +3723,7 @@ v8_validate_all() {
   fi
 
   if [[ -x "${SINGBOX_BIN}" && -f "${SINGBOX_CONF}" ]]; then
-    "${SINGBOX_BIN}" check -c "${SINGBOX_CONF}" || fail=1
+    ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true "${SINGBOX_BIN}" check -c "${SINGBOX_CONF}" || fail=1
   else
     echo "[INFO] sing-box config not found"
   fi
