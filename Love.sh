@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v10.2.0-precheck-fix"
+VERSION="Love v10.3.0-warp-cli-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -5505,7 +5505,7 @@ main() {
       port_hopping_helper
       ;;
     warp)
-      warp_helper
+      love_warp_manager_menu
       ;;
     -n|n|node|nodes)
       show_node_info
@@ -5611,6 +5611,9 @@ main() {
       ;;
     warp-hint)
       love_warp_hint
+      ;;
+    warp-old-hint)
+      warp_helper
       ;;
     warp|warp-manager)
       love_warp_manager_menu
