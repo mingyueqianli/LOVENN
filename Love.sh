@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# sing-box 1.12+ compatibility fallback.
+# Real config generation is also adjusted below, but these envs prevent hard stop
+# when users run against transitional config snippets.
+export ENABLE_DEPRECATED_LEGACY_DNS_SERVERS="${ENABLE_DEPRECATED_LEGACY_DNS_SERVERS:-true}"
+export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER:-true}"
+
 # ==============================================================================
 # Love.sh / LOVENN_NATIVE_ALL
 # Self-contained all-in-one installer / manager
@@ -46,7 +52,7 @@ set -Eeuo pipefail
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v9.3.0-singbox-dns-fix"
+VERSION="Love v9.4.0-singbox-domain-resolver-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1915,7 +1921,7 @@ doctor_check() {
 
   echo "[Config validation]"
   [[ -x "${XRAY_BIN}" && -f "${XRAY_CONF}" ]] && "${XRAY_BIN}" run -test -config "${XRAY_CONF}" || true
-  [[ -x "${SINGBOX_BIN}" && -f "${SINGBOX_CONF}" ]] && "${SINGBOX_BIN}" check -c "${SINGBOX_CONF}" || true
+  [[ -x "${SINGBOX_BIN}" && -f "${SINGBOX_CONF}" ]] && ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true "${SINGBOX_BIN}" check -c "${SINGBOX_CONF}" || true
 }
 
 repair_apt_dpkg() {
@@ -2178,7 +2184,7 @@ hy2_realm_helper() {
       ;;
     *) return 0 ;;
   esac
-  if "${SINGBOX_BIN}" check -c "${SINGBOX_CONF}"; then
+  if ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true "${SINGBOX_BIN}" check -c "${SINGBOX_CONF}"; then
     systemctl restart sing-box
     log "HY2 Realm 操作完成。备份：${backup}"
   else
@@ -3229,7 +3235,7 @@ singbox_compat_check() {
   echo "- AnyTLS / Naive / ShadowTLS / Realm：字段变化较快，安装后必须 sing-box check"
   echo "- Love 会在生成配置后执行 sing-box check，失败应回滚。"
   echo
-  [[ -f "${SINGBOX_CONF}" ]] && sing-box check -c "${SINGBOX_CONF}" || true
+  [[ -f "${SINGBOX_CONF}" ]] && ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true sing-box check -c "${SINGBOX_CONF}" || true
 }
 
 support_matrix() {
