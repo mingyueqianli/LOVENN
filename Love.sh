@@ -46,7 +46,7 @@ set -Eeuo pipefail
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v8.0.0-project-panel"
+VERSION="Love v9.0.0-nginx-reverse"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -76,6 +76,7 @@ LOVE_STATUS_JSON="${LOVE_HOME}/status.json"
 LOVE_RELEASE="${LOVE_HOME}/release"
 LOVE_REPORT="${LOVE_HOME}/reports"
 LOVE_IMPORT="${LOVE_HOME}/import"
+LOVE_NGINX="${LOVE_HOME}/nginx"
 LOVE_SUB="${LOVE_HOME}/subscribe"
 LOVE_WEB="/var/www/love-admin"
 LOVE_UPDATE_URL="${LOVE_UPDATE_URL:-}"
@@ -103,7 +104,7 @@ need_root() {
 }
 
 prepare_dirs() {
-  mkdir -p "${LOVE_HOME}" "${LOVE_INFO}" "${LOVE_BACKUP}" "${LOVE_LOG}" "${LOVE_SUB}" "${LOVE_SNAPSHOT}" "${LOVE_RELEASE}" "${LOVE_REPORT}" "${LOVE_IMPORT}"
+  mkdir -p "${LOVE_HOME}" "${LOVE_INFO}" "${LOVE_BACKUP}" "${LOVE_LOG}" "${LOVE_SUB}" "${LOVE_SNAPSHOT}" "${LOVE_RELEASE}" "${LOVE_REPORT}" "${LOVE_IMPORT}" "${LOVE_NGINX}"
 }
 
 fix_hostname() {
@@ -2310,6 +2311,13 @@ C. 高级能力
   80. Love rotate token/Web 密码轮换
   81. Love test-suite 测试套件
   82. Love update-channel 更新通道
+  83. Love nginx Nginx 反代菜单
+  84. Love nginx-ws WS 反代 VLESS/VMess
+  85. Love nginx-grpc gRPC 反代
+  86. Love nginx-fallback 伪装站点
+  87. Love nginx-stream SNI passthrough 分流
+  88. Love nginx-status 反代状态
+  89. Love nginx-rollback Nginx 配置回滚
 
 ================================================
 
@@ -4100,6 +4108,536 @@ v8_menu() {
   done
 }
 
+
+# ------------------------------------------------------------------------------
+# V9 Nginx Reverse Proxy Edition
+# ------------------------------------------------------------------------------
+
+nginx_backup_conf() {
+  prepare_dirs
+  mkdir -p "${LOVE_NGINX}/backup"
+  local out="${LOVE_NGINX}/backup/nginx-$(date +%F-%H%M%S).tar.gz"
+  tar -czf "$out" /etc/nginx 2>/dev/null || true
+  log "Nginx 配置已备份：${out}"
+}
+
+nginx_test_reload() {
+  nginx -t || die "nginx -t 失败，配置未生效。"
+  systemctl enable nginx >/dev/null 2>&1 || true
+  systemctl reload nginx 2>/dev/null || systemctl restart nginx
+  log "Nginx 配置测试通过并已重载。"
+}
+
+nginx_443_strategy() {
+  echo
+  echo "================ Nginx 443 端口策略 ================"
+  if ss -lntp | awk '{print $4}' | grep -Eq '(^|:|\])443$'; then
+    warn "检测到 443/tcp 已被占用："
+    ss -lntp | grep ':443' || true
+    echo
+    echo "1) 停止 xray / sing-box，让 Nginx 占用 443"
+    echo "2) 不动现有服务，Nginx 改用 8443"
+    echo "3) 仅生成配置，不启动"
+    echo "0) 返回"
+    read -rp "请选择: " p
+    case "$p" in
+      1)
+        systemctl stop xray 2>/dev/null || true
+        systemctl stop sing-box 2>/dev/null || true
+        NGINX_LISTEN_PORT="443"
+        ;;
+      2)
+        NGINX_LISTEN_PORT="8443"
+        ;;
+      3)
+        NGINX_LISTEN_PORT="443"
+        NGINX_DRY_RUN="yes"
+        ;;
+      *) return 1 ;;
+    esac
+  else
+    NGINX_LISTEN_PORT="443"
+  fi
+  NGINX_DRY_RUN="${NGINX_DRY_RUN:-no}"
+  log "Nginx listen port: ${NGINX_LISTEN_PORT}"
+}
+
+nginx_make_fallback_site() {
+  local root="$1"
+  mkdir -p "$root"
+  cat > "${root}/index.html" <<'EOF'
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Welcome</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f6f7f8;color:#222;max-width:880px;margin:80px auto;line-height:1.7}
+.card{background:#fff;border-radius:18px;padding:32px;box-shadow:0 8px 28px rgba(0,0,0,.08)}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>Welcome</h1>
+<p>This site is running normally.</p>
+</div>
+</body>
+</html>
+EOF
+}
+
+nginx_cert_prepare() {
+  local domain="$1"
+  local email="$2"
+  local cert_dir="${LOVE_NGINX}/cert/${domain}"
+  mkdir -p "$cert_dir"
+
+  if [[ -f "${cert_dir}/cert.pem" && -f "${cert_dir}/key.pem" ]]; then
+    log "检测到已有证书：${cert_dir}"
+    echo "$cert_dir"
+    return 0
+  fi
+
+  echo
+  echo "证书方式："
+  echo "1) Let's Encrypt HTTP-01，推荐有真实域名"
+  echo "2) 使用已有证书路径"
+  echo "3) 自签证书，客户端需 insecure"
+  read -rp "请选择 [1]: " c
+  c="${c:-1}"
+
+  case "$c" in
+    1)
+      [[ -n "$email" ]] || read -rp "Let's Encrypt 邮箱: " email
+      issue_cert_generic "$domain" "$email" "$cert_dir" "root"
+      ;;
+    2)
+      read -rp "cert.pem/fullchain.pem 路径: " cpem
+      read -rp "key.pem/privkey.pem 路径: " kpem
+      [[ -f "$cpem" && -f "$kpem" ]] || die "证书路径不存在。"
+      install -m 640 "$cpem" "${cert_dir}/cert.pem"
+      install -m 640 "$kpem" "${cert_dir}/key.pem"
+      ;;
+    3)
+      make_selfsigned_generic "$domain" "$cert_dir" "root"
+      ;;
+    *)
+      die "无效选择。"
+      ;;
+  esac
+
+  echo "$cert_dir"
+}
+
+nginx_ws_reverse_proxy() {
+  echo
+  echo "================ Love Nginx WS Reverse Proxy ================"
+  warn "适合 VMess WS / VLESS WS TLS / Argo 回源。Reality/HY2/TUIC 不走普通 HTTP 反代。"
+
+  read -rp "域名，例如 node.example.com: " domain
+  [[ -n "$domain" ]] || die "域名不能为空。"
+  read -rp "邮箱，用于证书申请: " email
+  read -rp "VLESS WS 路径 [/vless]: " vless_path
+  vless_path="${vless_path:-/vless}"
+  read -rp "VLESS WS 本地端口 [10001]: " vless_port
+  vless_port="${vless_port:-10001}"
+  read -rp "VMess WS 路径 [/vmess]: " vmess_path
+  vmess_path="${vmess_path:-/vmess}"
+  read -rp "VMess WS 本地端口 [10002]: " vmess_port
+  vmess_port="${vmess_port:-10002}"
+
+  install_base
+  nginx_backup_conf
+  nginx_443_strategy || return 0
+
+  local cert_dir
+  cert_dir="$(nginx_cert_prepare "$domain" "$email")"
+  local root="/var/www/love-fallback/${domain}"
+  nginx_make_fallback_site "$root"
+
+  cat > "/etc/nginx/sites-available/love-ws-${domain}.conf" <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${domain};
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen ${NGINX_LISTEN_PORT} ssl http2;
+    listen [::]:${NGINX_LISTEN_PORT} ssl http2;
+    server_name ${domain};
+
+    ssl_certificate ${cert_dir}/cert.pem;
+    ssl_certificate_key ${cert_dir}/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    root ${root};
+    index index.html;
+
+    location = ${vless_path} {
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:${vless_port};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_read_timeout 3600s;
+    }
+
+    location = ${vmess_path} {
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:${vmess_port};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_read_timeout 3600s;
+    }
+
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+}
+EOF
+
+  ln -sf "/etc/nginx/sites-available/love-ws-${domain}.conf" "/etc/nginx/sites-enabled/love-ws-${domain}.conf"
+
+  if command -v ufw >/dev/null 2>&1; then
+    ufw allow 80/tcp || true
+    ufw allow "${NGINX_LISTEN_PORT}/tcp" || true
+  fi
+
+  if [[ "${NGINX_DRY_RUN}" == "yes" ]]; then
+    nginx -t
+    warn "已生成配置但未启动。"
+  else
+    nginx_test_reload
+  fi
+
+  cat > "${LOVE_NGINX}/ws-${domain}.txt" <<EOF
+Nginx WS Reverse Proxy
+
+Domain: ${domain}
+Listen: ${NGINX_LISTEN_PORT}
+VLESS WS:
+  Path: ${vless_path}
+  Upstream: 127.0.0.1:${vless_port}
+VMess WS:
+  Path: ${vmess_path}
+  Upstream: 127.0.0.1:${vmess_port}
+
+Client:
+  Address: ${domain}
+  Port: ${NGINX_LISTEN_PORT}
+  TLS: true
+  Host/SNI: ${domain}
+EOF
+  log "WS 反代配置完成：${LOVE_NGINX}/ws-${domain}.txt"
+}
+
+nginx_grpc_reverse_proxy() {
+  echo
+  echo "================ Love Nginx gRPC Reverse Proxy ================"
+  warn "适合 gRPC 节点反代。客户端 serviceName 要和路径/服务名一致。"
+
+  read -rp "域名，例如 grpc.example.com: " domain
+  [[ -n "$domain" ]] || die "域名不能为空。"
+  read -rp "邮箱，用于证书申请: " email
+  read -rp "gRPC serviceName [lovegrpc]: " service
+  service="${service:-lovegrpc}"
+  read -rp "gRPC 本地端口 [10003]: " grpc_port
+  grpc_port="${grpc_port:-10003}"
+
+  install_base
+  nginx_backup_conf
+  nginx_443_strategy || return 0
+
+  local cert_dir
+  cert_dir="$(nginx_cert_prepare "$domain" "$email")"
+  local root="/var/www/love-fallback/${domain}"
+  nginx_make_fallback_site "$root"
+
+  cat > "/etc/nginx/sites-available/love-grpc-${domain}.conf" <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${domain};
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen ${NGINX_LISTEN_PORT} ssl http2;
+    listen [::]:${NGINX_LISTEN_PORT} ssl http2;
+    server_name ${domain};
+
+    ssl_certificate ${cert_dir}/cert.pem;
+    ssl_certificate_key ${cert_dir}/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    root ${root};
+    index index.html;
+
+    location /${service} {
+        grpc_set_header Host \$host;
+        grpc_set_header X-Real-IP \$remote_addr;
+        grpc_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        grpc_read_timeout 3600s;
+        grpc_send_timeout 3600s;
+        grpc_pass grpc://127.0.0.1:${grpc_port};
+    }
+
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+}
+EOF
+
+  ln -sf "/etc/nginx/sites-available/love-grpc-${domain}.conf" "/etc/nginx/sites-enabled/love-grpc-${domain}.conf"
+
+  if command -v ufw >/dev/null 2>&1; then
+    ufw allow 80/tcp || true
+    ufw allow "${NGINX_LISTEN_PORT}/tcp" || true
+  fi
+
+  if [[ "${NGINX_DRY_RUN}" == "yes" ]]; then
+    nginx -t
+    warn "已生成配置但未启动。"
+  else
+    nginx_test_reload
+  fi
+
+  cat > "${LOVE_NGINX}/grpc-${domain}.txt" <<EOF
+Nginx gRPC Reverse Proxy
+
+Domain: ${domain}
+Listen: ${NGINX_LISTEN_PORT}
+ServiceName: ${service}
+Upstream: 127.0.0.1:${grpc_port}
+
+Client:
+  Address: ${domain}
+  Port: ${NGINX_LISTEN_PORT}
+  TLS: true
+  SNI: ${domain}
+  Transport: grpc
+  serviceName: ${service}
+EOF
+  log "gRPC 反代配置完成：${LOVE_NGINX}/grpc-${domain}.txt"
+}
+
+nginx_fallback_only() {
+  echo
+  echo "================ Love Nginx Fallback Site ================"
+  read -rp "域名，例如 site.example.com: " domain
+  [[ -n "$domain" ]] || die "域名不能为空。"
+  read -rp "邮箱，用于证书申请: " email
+
+  install_base
+  nginx_backup_conf
+  nginx_443_strategy || return 0
+
+  local cert_dir
+  cert_dir="$(nginx_cert_prepare "$domain" "$email")"
+  local root="/var/www/love-fallback/${domain}"
+  nginx_make_fallback_site "$root"
+
+  cat > "/etc/nginx/sites-available/love-fallback-${domain}.conf" <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${domain};
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen ${NGINX_LISTEN_PORT} ssl http2;
+    listen [::]:${NGINX_LISTEN_PORT} ssl http2;
+    server_name ${domain};
+
+    ssl_certificate ${cert_dir}/cert.pem;
+    ssl_certificate_key ${cert_dir}/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    root ${root};
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+}
+EOF
+
+  ln -sf "/etc/nginx/sites-available/love-fallback-${domain}.conf" "/etc/nginx/sites-enabled/love-fallback-${domain}.conf"
+
+  if [[ "${NGINX_DRY_RUN}" == "yes" ]]; then
+    nginx -t
+    warn "已生成配置但未启动。"
+  else
+    nginx_test_reload
+  fi
+
+  log "伪装站点已配置：https://${domain}:${NGINX_LISTEN_PORT}/"
+}
+
+nginx_stream_enable_include() {
+  if ! grep -q 'include /etc/nginx/stream-conf.d/\*.conf;' /etc/nginx/nginx.conf 2>/dev/null; then
+    cat >> /etc/nginx/nginx.conf <<'EOF'
+
+stream {
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+EOF
+  fi
+  mkdir -p /etc/nginx/stream-conf.d
+}
+
+nginx_stream_sni_passthrough() {
+  echo
+  echo "================ Love Nginx Stream SNI Passthrough ================"
+  warn "这是 TCP SNI 分流，不是 HTTP 反代。适合高级场景。"
+  warn "如果 Nginx 监听 443，Xray/sing-box 不能再直接占用 443。"
+
+  read -rp "监听端口 [443]: " listen_port
+  listen_port="${listen_port:-443}"
+  read -rp "默认后端，例如 127.0.0.1:1443: " default_backend
+  [[ -n "$default_backend" ]] || die "默认后端不能为空。"
+
+  local map_entries=""
+  local upstream_entries=""
+  while true; do
+    read -rp "添加 SNI 域名，留空结束: " sni
+    [[ -z "$sni" ]] && break
+    read -rp "该 SNI 后端，例如 127.0.0.1:2443: " backend
+    [[ -n "$backend" ]] || die "后端不能为空。"
+    local name
+    name="$(echo "$sni" | tr '.-' '__')"
+    map_entries+="    ${sni} ${name};"$'\n'
+    upstream_entries+="upstream ${name} { server ${backend}; }"$'\n'
+  done
+
+  install_base
+  nginx_backup_conf
+  nginx_stream_enable_include
+
+  cat > /etc/nginx/stream-conf.d/love-sni.conf <<EOF
+map \$ssl_preread_server_name \$love_backend {
+${map_entries}    default love_default;
+}
+
+upstream love_default { server ${default_backend}; }
+${upstream_entries}
+
+server {
+    listen ${listen_port} reuseport;
+    listen [::]:${listen_port} reuseport;
+    proxy_pass \$love_backend;
+    ssl_preread on;
+    proxy_connect_timeout 5s;
+    proxy_timeout 3600s;
+}
+EOF
+
+  command -v ufw >/dev/null 2>&1 && ufw allow "${listen_port}/tcp" || true
+  nginx_test_reload
+  log "Nginx stream SNI 分流已配置：/etc/nginx/stream-conf.d/love-sni.conf"
+}
+
+nginx_generate_local_inbound_notes() {
+  echo
+  echo "================ Love Nginx Local Upstream Notes ================"
+  mkdir -p "${LOVE_NGINX}"
+  cat > "${LOVE_NGINX}/local-upstream-examples.txt" <<'EOF'
+Nginx 反代模式下，建议服务端节点只监听本地 127.0.0.1：
+
+VLESS WS upstream:
+  listen: 127.0.0.1
+  port: 10001
+  path: /vless
+
+VMess WS upstream:
+  listen: 127.0.0.1
+  port: 10002
+  path: /vmess
+
+gRPC upstream:
+  listen: 127.0.0.1
+  port: 10003
+  serviceName: lovegrpc
+
+架构：
+Client -> Nginx 443 TLS -> 127.0.0.1:10001/10002/10003 -> sing-box/Xray
+
+注意：
+Reality / HY2 / TUIC 不建议走普通 Nginx HTTP 反代。
+EOF
+  cat "${LOVE_NGINX}/local-upstream-examples.txt"
+}
+
+nginx_rp_status() {
+  echo
+  echo "================ Love Nginx Reverse Proxy Status ================"
+  nginx -t 2>&1 || true
+  echo
+  systemctl status nginx --no-pager 2>/dev/null | sed -n '1,30p' || true
+  echo
+  echo "[sites-enabled]"
+  ls -lah /etc/nginx/sites-enabled 2>/dev/null || true
+  echo
+  echo "[stream-conf.d]"
+  ls -lah /etc/nginx/stream-conf.d 2>/dev/null || true
+  echo
+  echo "[listen]"
+  ss -tulpn | grep -E 'nginx|:80|:443|:8443|:1000' || true
+}
+
+nginx_rp_rollback() {
+  echo
+  echo "================ Love Nginx Rollback ================"
+  ls -lah "${LOVE_NGINX}/backup" 2>/dev/null || { warn "暂无备份。"; return 0; }
+  read -rp "输入要恢复的 nginx 备份完整路径: " file
+  [[ -f "$file" ]] || die "备份不存在。"
+  read -rp "确认恢复 Nginx 配置？[y/N]: " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || return 0
+  tar -xzf "$file" -C / 2>/dev/null || true
+  nginx_test_reload
+  log "Nginx 已回滚：${file}"
+}
+
+nginx_rp_menu() {
+  while true; do
+    echo
+    echo "================ Love V9 Nginx Reverse Proxy ================"
+    echo "1) WS 反代：VLESS WS / VMess WS"
+    echo "2) gRPC 反代"
+    echo "3) 仅创建伪装站点 fallback"
+    echo "4) Stream SNI passthrough 分流"
+    echo "5) 生成本地 upstream 示例"
+    echo "6) 443 端口策略检测"
+    echo "7) Nginx 反代状态"
+    echo "8) 回滚 Nginx 配置"
+    echo "0) 返回"
+    read -rp "请选择: " n
+    case "$n" in
+      1) nginx_ws_reverse_proxy ;;
+      2) nginx_grpc_reverse_proxy ;;
+      3) nginx_fallback_only ;;
+      4) nginx_stream_sni_passthrough ;;
+      5) nginx_generate_local_inbound_notes ;;
+      6) nginx_443_strategy ;;
+      7) nginx_rp_status ;;
+      8) nginx_rp_rollback ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
 github_publish_note() {
   cat <<'EOF'
 
@@ -4178,6 +4716,13 @@ github_publish_note() {
   Love rotate
   Love test-suite
   Love update-channel
+  Love nginx
+  Love nginx-ws
+  Love nginx-grpc
+  Love nginx-fallback
+  Love nginx-stream
+  Love nginx-status
+  Love nginx-rollback
 
 兼容小写：
   love
@@ -4214,10 +4759,11 @@ main_menu() {
     echo "14) v6 Project Tools：Web安全/推送/检测/备份/证书/Oracle/多用户"
     echo "15) v7 Stable Tools：预检/模式/快照/用户/日志/加固"
     echo "16) v8 Project Panel：验证/审计/发布/迁移/仪表盘"
-    echo "17) 查看状态"
-    echo "18) 备份配置"
-    echo "19) 卸载菜单"
-    echo "20) GitHub 发布说明"
+    echo "17) v9 Nginx Reverse Proxy：WS/gRPC/Stream/伪装站"
+    echo "18) 查看状态"
+    echo "19) 备份配置"
+    echo "20) 卸载菜单"
+    echo "21) GitHub 发布说明"
     echo "0) 退出"
     echo
     read -rp "请选择: " choice
@@ -4239,10 +4785,11 @@ main_menu() {
       14) v6_super_menu ;;
       15) v7_stable_menu ;;
       16) v8_menu ;;
-      17) show_status ;;
-      18) backup_configs ;;
-      19) uninstall_menu_v7 ;;
-      20) github_publish_note ;;
+      17) nginx_rp_menu ;;
+      18) show_status ;;
+      19) backup_configs ;;
+      20) uninstall_menu_v7 ;;
+      21) github_publish_note ;;
       0) exit 0 ;;
       *) warn "无效选择。" ;;
     esac
@@ -4343,6 +4890,27 @@ main() {
       ;;
     v8|panel|project-panel)
       v8_menu
+      ;;
+    v9|nginx|nginx-rp|reverse-proxy)
+      nginx_rp_menu
+      ;;
+    nginx-ws)
+      nginx_ws_reverse_proxy
+      ;;
+    nginx-grpc)
+      nginx_grpc_reverse_proxy
+      ;;
+    nginx-fallback)
+      nginx_fallback_only
+      ;;
+    nginx-stream)
+      nginx_stream_sni_passthrough
+      ;;
+    nginx-status)
+      nginx_rp_status
+      ;;
+    nginx-rollback)
+      nginx_rp_rollback
       ;;
     validate)
       v8_validate_all
