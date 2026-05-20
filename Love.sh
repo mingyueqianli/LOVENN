@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v10.7.0-warp-smart-split"
+VERSION="Love v10.8.0-warp-stack-menu"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -5525,9 +5525,9 @@ love_warp_compat_help() {
 
 已整合 FS 风格命令，但不是复制它的代码：
 
-  Love warp 4   添加 WARP IPv4 接口模式（wgcf/WireGuard，带回滚）
-  Love warp 6   添加 WARP IPv6 接口模式（wgcf/WireGuard，带回滚）
-  Love warp d   添加 WARP 双栈接口模式（wgcf/WireGuard，带回滚）
+  Love warp 4   IPv4 Only 单栈：添加 WARP IPv4 出站（wgcf/WireGuard，带回滚）
+  Love warp 6   IPv6 Only 单栈：添加 WARP IPv6 出站（wgcf/WireGuard，带回滚）
+  Love warp d   Dual Stack 双栈：添加 WARP IPv4 + IPv6 出站（wgcf/WireGuard，带回滚）
 
   Love warp c   Linux Client Proxy 模式：官方 WARP Proxy + sing-box socks 出站
   Love warp l   Linux Client WARP 模式：官方 WARP 全局模式，带回滚
@@ -5938,6 +5938,31 @@ love_singbox_restore_from_smart_split() {
   log "已恢复：移除 warp-socks 和 Smart Split 规则，route.final=direct。"
 }
 
+
+love_warp_stack_menu() {
+  while true; do
+    echo
+    echo "================ Love WARP 单栈 / 双栈模式 ================"
+    echo "1) IPv4 Only 单栈：添加 WARP IPv4 出站"
+    echo "2) IPv6 Only 单栈：添加 WARP IPv6 出站"
+    echo "3) Dual Stack 双栈：添加 WARP IPv4 + IPv6 出站"
+    echo "4) 查看当前 IPv4 / IPv6 出站状态"
+    echo "5) 查看 WARP 模式对比"
+    echo "0) 返回"
+    read -rp "请选择: " st
+    case "$st" in
+      1) love_warp_interface_mode 4 ;;
+      2) love_warp_interface_mode 6 ;;
+      3) love_warp_interface_mode d ;;
+      4) love_test_outbound_stack || true ;;
+      5) love_warp_compare_modes ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
 love_warp_smart_menu() {
   while true; do
     echo
@@ -6305,43 +6330,45 @@ love_warp_manager_menu() {
     echo "================ Love Native WARP Manager ================"
     echo "1) Smart Split：IPv6 direct，IPv4 走 WARP（推荐）"
     echo "2) Superior WARP Proxy：sing-box 全部出站走 WARP SOCKS"
-    echo "3) WARP 快速判断 / 修复建议"
-    echo "4) 安装 Cloudflare 官方 WARP 全局客户端"
-    echo "5) 安装 wgcf/WireGuard 备用方式"
-    echo "6) 查看 WARP 状态"
-    echo "7) 测试 IPv4 / IPv6 出站"
-    echo "8) sing-box prefer_ipv6 修复"
-    echo "9) 恢复 sing-box direct 出站"
-    echo "10) WARP 紧急关闭/恢复 SSH"
-    echo "11) 查看/取消 WARP 自动回滚"
-    echo "12) WARP 模式对比说明"
-    echo "13) 兼容模式：warp 4/6/d/c/l/w/g/s 说明"
-    echo "14) WARP 优先级设置 IPv4/IPv6/VPS 默认"
-    echo "15) V10.7 Smart WARP 高级菜单"
-    echo "16) 卸载/清理 WARP"
+    echo "3) WARP 单栈 / 双栈：IPv4 Only / IPv6 Only / Dual Stack"
+    echo "4) WARP 快速判断 / 修复建议"
+    echo "5) 安装 Cloudflare 官方 WARP 全局客户端"
+    echo "6) 安装 wgcf/WireGuard 备用方式"
+    echo "7) 查看 WARP 状态"
+    echo "8) 测试 IPv4 / IPv6 出站"
+    echo "9) sing-box prefer_ipv6 修复"
+    echo "10) 恢复 sing-box direct 出站"
+    echo "11) WARP 紧急关闭/恢复 SSH"
+    echo "12) 查看/取消 WARP 自动回滚"
+    echo "13) WARP 模式对比说明"
+    echo "14) 兼容模式：warp 4/6/d/c/l/w/g/s 说明"
+    echo "15) WARP 优先级设置 IPv4/IPv6/VPS 默认"
+    echo "16) V10.8 Smart WARP 高级菜单"
+    echo "17) 卸载/清理 WARP"
     echo "0) 返回"
     read -rp "请选择: " w
     case "$w" in
       1) love_singbox_smart_split_warp ;;
       2) love_warp_proxy_safe_install ;;
-      3) love_warp_quick_fix ;;
-      4) love_install_cloudflare_warp_official ;;
-      5) love_install_wgcf_wireguard ;;
-      6) love_warp_super_status ;;
-      7) love_warp_test ;;
-      8) love_fix_ipv6_only_outbound ;;
-      9) love_singbox_restore_direct_outbound ;;
-      10) love_warp_emergency_off ;;
-      11)
+      3) love_warp_stack_menu ;;
+      4) love_warp_quick_fix ;;
+      5) love_install_cloudflare_warp_official ;;
+      6) love_install_wgcf_wireguard ;;
+      7) love_warp_super_status ;;
+      8) love_warp_test ;;
+      9) love_fix_ipv6_only_outbound ;;
+      10) love_singbox_restore_direct_outbound ;;
+      11) love_warp_emergency_off ;;
+      12)
         love_warp_rollback_status
         read -rp "是否取消自动回滚？[y/N]: " c
         [[ "$c" =~ ^[Yy]$ ]] && love_warp_cancel_rollback
         ;;
-      12) love_warp_compare_modes ;;
-      13) love_warp_compat_help ;;
-      14) love_warp_set_priority ;;
-      15) love_warp_smart_menu ;;
-      16) love_warp_uninstall ;;
+      13) love_warp_compare_modes ;;
+      14) love_warp_compat_help ;;
+      15) love_warp_set_priority ;;
+      16) love_warp_smart_menu ;;
+      17) love_warp_uninstall ;;
       0) return 0 ;;
       *) warn "无效选择。" ;;
     esac
@@ -6506,6 +6533,10 @@ github_publish_note() {
   Love warp-proxy-auto
   Love warp-go-fallback
   Love warp-smart-restore
+  Love warp-stack
+  Love warp-single4
+  Love warp-single6
+  Love warp-dual-stack
 
 兼容小写：
   love
@@ -6817,6 +6848,18 @@ main() {
       ;;
     warp-smart-restore)
       love_singbox_restore_from_smart_split
+      ;;
+    warp-stack|warp-stack-menu)
+      love_warp_stack_menu
+      ;;
+    warp-single4|warp-ipv4-only|warp-v4-only)
+      love_warp_interface_mode 4
+      ;;
+    warp-single6|warp-ipv6-only|warp-v6-only)
+      love_warp_interface_mode 6
+      ;;
+    warp-dual-stack|warp-dual)
+      love_warp_interface_mode d
       ;;
     ipv6-outbound)
       love_ipv6_outbound_menu
