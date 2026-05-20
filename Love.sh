@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v10.6.0-warp-all-modes"
+VERSION="Love v10.7.0-warp-smart-split"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -5589,6 +5589,387 @@ love_warp_compat_command() {
 }
 
 
+
+# ------------------------------------------------------------------------------
+# V10.7 WARP Smart Split / Advanced Diagnostics
+# ------------------------------------------------------------------------------
+
+love_warp_trace_via_proxy() {
+  local port="${1:-40000}"
+  echo
+  echo "================ WARP Trace via SOCKS5 127.0.0.1:${port} ================"
+  curl -s --connect-timeout 10 --socks5-hostname "127.0.0.1:${port}" https://www.cloudflare.com/cdn-cgi/trace | grep -Ei 'ip=|warp=|colo=' || true
+}
+
+love_warp_ip_asn_region() {
+  echo
+  echo "================ Love WARP IP / ASN / Region ================"
+  echo "[direct IPv4]"
+  curl -4 -s --connect-timeout 8 https://ipinfo.io/json 2>/dev/null | jq -r '"ip=\(.ip // "-") country=\(.country // "-") region=\(.region // "-") city=\(.city // "-") org=\(.org // "-")"' 2>/dev/null || true
+  echo
+  echo "[direct IPv6]"
+  curl -6 -s --connect-timeout 8 https://ipinfo.io/json 2>/dev/null | jq -r '"ip=\(.ip // "-") country=\(.country // "-") region=\(.region // "-") city=\(.city // "-") org=\(.org // "-")"' 2>/dev/null || true
+  echo
+  echo "[warp socks 40000]"
+  curl -s --connect-timeout 8 --socks5-hostname 127.0.0.1:40000 https://ipinfo.io/json 2>/dev/null | jq -r '"ip=\(.ip // "-") country=\(.country // "-") region=\(.region // "-") city=\(.city // "-") org=\(.org // "-")"' 2>/dev/null || true
+  echo
+  echo "[warp socks 40001]"
+  curl -s --connect-timeout 8 --socks5-hostname 127.0.0.1:40001 https://ipinfo.io/json 2>/dev/null | jq -r '"ip=\(.ip // "-") country=\(.country // "-") region=\(.region // "-") city=\(.city // "-") org=\(.org // "-")"' 2>/dev/null || true
+}
+
+love_warp_unlock_check() {
+  echo
+  echo "================ Love WARP Unlock / Trace Check ================"
+  echo "[Cloudflare direct trace]"
+  curl -s --connect-timeout 8 https://www.cloudflare.com/cdn-cgi/trace | grep -Ei 'ip=|warp=|colo=' || true
+  echo
+  echo "[Cloudflare WARP SOCKS 40000 trace]"
+  curl -s --connect-timeout 8 --socks5-hostname 127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace | grep -Ei 'ip=|warp=|colo=' || true
+  echo
+  echo "[Cloudflare WARP SOCKS 40001 trace]"
+  curl -s --connect-timeout 8 --socks5-hostname 127.0.0.1:40001 https://www.cloudflare.com/cdn-cgi/trace | grep -Ei 'ip=|warp=|colo=' || true
+  echo
+  warn "这里的解锁检测以 Cloudflare trace 的 warp=on/plus 为准；流媒体完整解锁需另行测试。"
+}
+
+love_warp_full_report() {
+  echo
+  echo "================ Love Full WARP / Network Report ================"
+  echo "Time: $(date -Is)"
+  echo "Version: ${VERSION:-unknown}"
+  echo
+  love_warp_preflight || true
+  echo
+  love_test_outbound_stack || true
+  echo
+  love_warp_super_status || true
+  echo
+  love_warp_ip_asn_region || true
+  echo
+  love_warp_unlock_check || true
+  echo
+  echo "[sing-box inbound]"
+  jq -r '.inbounds[]? | [.tag, .type, .listen, .listen_port] | @tsv' /etc/sing-box/config.json 2>/dev/null || true
+  echo
+  echo "[sing-box route]"
+  jq '.route' /etc/sing-box/config.json 2>/dev/null || true
+}
+
+love_warp_detect_mtu() {
+  echo
+  echo "================ Love WARP MTU Detect ================"
+  local target="${1:-2606:4700:4700::1111}"
+  local mtu="1280"
+
+  if command -v tracepath >/dev/null 2>&1; then
+    local t
+    t="$(tracepath "$target" 2>/dev/null | awk '/pmtu/ {print $NF; exit}')"
+    [[ -n "$t" ]] && mtu="$t"
+  fi
+
+  if [[ -z "$mtu" || "$mtu" == "0" ]]; then
+    mtu="1280"
+  fi
+
+  echo "$mtu"
+}
+
+love_warp_apply_mtu() {
+  echo
+  echo "================ Love WARP MTU Apply ================"
+  read -rp "MTU 值，留空自动检测/默认 1280: " mtu
+  if [[ -z "$mtu" ]]; then
+    mtu="$(love_warp_detect_mtu | tail -n1)"
+  fi
+
+  [[ "$mtu" =~ ^[0-9]+$ ]] || die "MTU 无效：$mtu"
+
+  if [[ -f /etc/wireguard/wgcf.conf ]]; then
+    if grep -q '^MTU' /etc/wireguard/wgcf.conf; then
+      sed -i "s/^MTU.*/MTU = ${mtu}/" /etc/wireguard/wgcf.conf
+    else
+      sed -i "/^\[Interface\]/a MTU = ${mtu}" /etc/wireguard/wgcf.conf
+    fi
+    log "已写入 /etc/wireguard/wgcf.conf MTU=${mtu}"
+  fi
+
+  if [[ -f /etc/wireproxy/warp.conf ]]; then
+    if grep -q '^MTU' /etc/wireproxy/warp.conf; then
+      sed -i "s/^MTU.*/MTU = ${mtu}/" /etc/wireproxy/warp.conf
+    else
+      sed -i "/^\[Interface\]/a MTU = ${mtu}" /etc/wireproxy/warp.conf
+    fi
+    log "已写入 /etc/wireproxy/warp.conf MTU=${mtu}"
+  fi
+
+  systemctl restart wg-quick@wgcf 2>/dev/null || true
+  systemctl restart love-wireproxy.service 2>/dev/null || true
+}
+
+love_warp_endpoint_list() {
+  cat <<'EOF'
+engage.cloudflareclient.com:2408
+162.159.192.1:2408
+162.159.192.2:2408
+162.159.192.3:2408
+162.159.192.4:2408
+162.159.192.5:2408
+162.159.193.1:2408
+162.159.193.2:2408
+162.159.193.3:2408
+162.159.193.4:2408
+162.159.193.5:2408
+[2606:4700:d0::a29f:c001]:2408
+[2606:4700:d0::a29f:c002]:2408
+[2606:4700:d0::a29f:c003]:2408
+EOF
+}
+
+love_warp_endpoint_select() {
+  echo
+  echo "================ Love WARP Endpoint Select ================"
+  echo "1) 自动优选 endpoint"
+  echo "2) 固定手动 endpoint"
+  echo "3) 恢复默认 engage.cloudflareclient.com:2408"
+  echo "0) 返回"
+  read -rp "请选择: " e
+
+  local endpoint=""
+  case "$e" in
+    1)
+      endpoint="$(love_warp_endpoint_list | while read -r ep; do
+        host="${ep%:*}"
+        host="${host#[}"
+        host="${host%]}"
+        # TCP ping is not exact for WARP UDP, but gives a practical reachability hint.
+        if ping -c 1 -W 1 "$host" >/dev/null 2>&1; then
+          echo "$ep"
+          break
+        fi
+      done)"
+      endpoint="${endpoint:-engage.cloudflareclient.com:2408}"
+      ;;
+    2)
+      read -rp "输入 endpoint，例如 162.159.192.1:2408: " endpoint
+      [[ -n "$endpoint" ]] || die "endpoint 不能为空。"
+      ;;
+    3)
+      endpoint="engage.cloudflareclient.com:2408"
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  mkdir -p /opt/Love/warp
+  echo "$endpoint" > /opt/Love/warp/endpoint.txt
+  log "WARP endpoint 已设置：$endpoint"
+
+  for f in /etc/wireguard/wgcf.conf /etc/wireproxy/warp.conf /opt/Love/warp/wgcf-profile.conf; do
+    [[ -f "$f" ]] || continue
+    if grep -q '^Endpoint' "$f"; then
+      sed -i "s#^Endpoint.*#Endpoint = ${endpoint}#" "$f"
+      log "已更新 $f"
+    fi
+  done
+
+  systemctl restart wg-quick@wgcf 2>/dev/null || true
+  systemctl restart love-wireproxy.service 2>/dev/null || true
+}
+
+love_wireguard_go_fallback() {
+  echo
+  echo "================ Love WireGuard Kernel -> wireguard-go Fallback ================"
+  warn "这是 WireGuard userspace fallback，不调用第三方 WARP 脚本。"
+
+  apt update
+  apt install -y wireguard-tools wireguard-go resolvconf openresolv || true
+
+  if ! command -v wireguard-go >/dev/null 2>&1; then
+    warn "系统源没有 wireguard-go。将继续使用 wireguard-tools 或建议使用 WireProxy。"
+    return 1
+  fi
+
+  if [[ ! -f /etc/wireguard/wgcf.conf ]]; then
+    warn "未找到 /etc/wireguard/wgcf.conf，先生成 wgcf 配置。"
+    love_wgcf_prepare_profile
+    cp /opt/Love/warp/wgcf-profile.conf /etc/wireguard/wgcf.conf
+    chmod 600 /etc/wireguard/wgcf.conf
+    sed -i '/^DNS =/d' /etc/wireguard/wgcf.conf
+  fi
+
+  cat > /etc/systemd/system/love-wgcf-go.service <<'EOF'
+[Unit]
+Description=Love WARP wireguard-go fallback
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -lc 'ip link delete wgcf 2>/dev/null || true; wireguard-go wgcf; wg setconf wgcf <(wg-quick strip wgcf); ip link set mtu 1280 up dev wgcf; ip route replace default dev wgcf table 51820 || true'
+ExecStop=/bin/bash -lc 'ip link delete wgcf 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl daemon-reload
+  love_warp_create_rollback_timer 180 || true
+  systemctl restart love-wgcf-go.service || {
+    warn "wireguard-go fallback 启动失败，建议使用 Love warp w / Love warp c。"
+    return 1
+  }
+
+  sleep 3
+  love_warp_test
+}
+
+love_warp_go_fallback() {
+  echo
+  echo "================ Love warp-go fallback ================"
+  warn "当前 Love 不调用第三方 warp-go 脚本。这里提供本地 fallback 顺序："
+  echo "1) wireguard-go userspace fallback"
+  echo "2) WireProxy SOCKS5 fallback"
+  echo "3) Superior WARP Proxy fallback"
+  echo "0) 返回"
+  read -rp "请选择: " f
+  case "$f" in
+    1) love_wireguard_go_fallback || love_warp_wireproxy_mode ;;
+    2) love_warp_wireproxy_mode ;;
+    3) love_warp_proxy_safe_install ;;
+    *) return 0 ;;
+  esac
+}
+
+love_warp_proxy_auto_with_fallback() {
+  echo
+  echo "================ Love WARP Proxy Auto + WireProxy Fallback ================"
+  read -rp "WARP Proxy 端口 [40000]: " port
+  port="${port:-40000}"
+
+  love_warp_set_proxy_mode "$port" || true
+  sleep 2
+
+  if ss -lntp | grep -q ":${port}"; then
+    log "官方 WARP Proxy 可用：127.0.0.1:${port}"
+    love_singbox_route_via_warp_proxy "$port"
+    return 0
+  fi
+
+  warn "官方 WARP Proxy 未监听，自动切换 WireProxy fallback。"
+  love_warp_wireproxy_mode
+}
+
+love_singbox_smart_split_warp() {
+  echo
+  echo "================ Love Smart Split: IPv6 direct / IPv4 WARP ================"
+  warn "推荐模式：IPv6 保持 direct 高速，IPv4 走 WARP SOCKS。"
+  read -rp "WARP SOCKS 端口 [40000]: " port
+  port="${port:-40000}"
+
+  if ! ss -lntp | grep -q ":${port}"; then
+    warn "未检测到 127.0.0.1:${port}，先尝试官方 WARP Proxy，失败自动 WireProxy。"
+    love_warp_proxy_auto_with_fallback
+  fi
+
+  if ! ss -lntp | grep -q ":${port}"; then
+    warn "${port} 仍未监听，尝试检测 40001 WireProxy。"
+    if ss -lntp | grep -q ":40001"; then
+      port="40001"
+    else
+      die "没有可用 WARP SOCKS 端口。"
+    fi
+  fi
+
+  [[ -f /etc/sing-box/config.json ]] || die "未找到 /etc/sing-box/config.json"
+
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.smart-split.$(date +%F-%H%M%S)
+
+  jq --argjson port "$port" '
+    .outbounds = (.outbounds // []) |
+    .outbounds = (
+      [ .outbounds[]? | select(.tag != "warp-socks") ] +
+      [{
+        type: "socks",
+        tag: "warp-socks",
+        server: "127.0.0.1",
+        server_port: $port,
+        version: "5"
+      }]
+    ) |
+    .route = (.route // {}) |
+    .route.default_domain_resolver = {server:"cf", strategy:"prefer_ipv6"} |
+    .route.rules = (
+      [
+        {ip_is_private:true, outbound:"block"},
+        {port:[25,465,587], outbound:"block"},
+        {protocol:"bittorrent", outbound:"block"},
+        {ip_version:6, outbound:"direct"},
+        {ip_version:4, outbound:"warp-socks"},
+        {domain_suffix:["github.com","githubusercontent.com","githubassets.com","github.io","microsoft.com","windows.com","msftconnecttest.com"], outbound:"warp-socks"}
+      ] + ((.route.rules // []) | map(select((.ip_version? == 6 or .ip_version? == 4 or .domain_suffix? != null) | not)))
+    ) |
+    .route.final = "direct"
+  ' /etc/sing-box/config.json > /tmp/sing-box-smart-split.json && mv /tmp/sing-box-smart-split.json /etc/sing-box/config.json
+
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true /usr/local/bin/sing-box check -c /etc/sing-box/config.json
+  systemctl restart sing-box
+
+  log "Smart Split 已启用：IPv6 -> direct，IPv4/GitHub/Microsoft -> warp-socks:${port}"
+  warn "如果某些域名仍解析成 IPv4 且未走 WARP，请运行 Love warp-report 查看。"
+}
+
+love_singbox_restore_from_smart_split() {
+  echo
+  echo "================ Restore from Smart Split ================"
+  [[ -f /etc/sing-box/config.json ]] || die "未找到 /etc/sing-box/config.json"
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.smart-restore.$(date +%F-%H%M%S)
+
+  jq '
+    .outbounds = ([ .outbounds[]? | select(.tag != "warp-socks") ]) |
+    .route = (.route // {}) |
+    .route.rules = ((.route.rules // []) | map(select((.ip_version? == 6 or .ip_version? == 4 or .domain_suffix? != null) | not))) |
+    .route.final = "direct"
+  ' /etc/sing-box/config.json > /tmp/sing-box-smart-restore.json && mv /tmp/sing-box-smart-restore.json /etc/sing-box/config.json
+
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true /usr/local/bin/sing-box check -c /etc/sing-box/config.json
+  systemctl restart sing-box
+  log "已恢复：移除 warp-socks 和 Smart Split 规则，route.final=direct。"
+}
+
+love_warp_smart_menu() {
+  while true; do
+    echo
+    echo "================ Love V10.7 Smart WARP Menu ================"
+    echo "1) Smart Split：IPv6 direct，IPv4/GitHub/Microsoft 走 WARP"
+    echo "2) Proxy 自动安装，失败自动 WireProxy"
+    echo "3) Endpoint 自动优选 / 固定"
+    echo "4) MTU 自动检测与修正"
+    echo "5) Full Report：IPv4/IPv6/双栈/WARP/IP/ASN/Region"
+    echo "6) WARP 解锁 / Trace 检测"
+    echo "7) kernel WireGuard 失败 -> wireguard-go / WireProxy fallback"
+    echo "8) warp-go fallback 菜单"
+    echo "9) 恢复 direct，移除 Smart Split"
+    echo "0) 返回"
+    read -rp "请选择: " x
+    case "$x" in
+      1) love_singbox_smart_split_warp ;;
+      2) love_warp_proxy_auto_with_fallback ;;
+      3) love_warp_endpoint_select ;;
+      4) love_warp_apply_mtu ;;
+      5) love_warp_full_report ;;
+      6) love_warp_unlock_check ;;
+      7) love_wireguard_go_fallback || love_warp_wireproxy_mode ;;
+      8) love_warp_go_fallback ;;
+      9) love_singbox_restore_from_smart_split ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
 love_warp_status() {
   echo
   echo "================ Love Native WARP Status ================"
@@ -5922,41 +6303,45 @@ love_warp_manager_menu() {
   while true; do
     echo
     echo "================ Love Native WARP Manager ================"
-    echo "1) Superior WARP Proxy：最安全，sing-box 出站走 WARP SOCKS"
-    echo "2) WARP 快速判断 / 修复建议"
-    echo "3) 安装 Cloudflare 官方 WARP 全局客户端"
-    echo "4) 安装 wgcf/WireGuard 备用方式"
-    echo "5) 查看 WARP 状态"
-    echo "6) 测试 IPv4 / IPv6 出站"
-    echo "7) sing-box prefer_ipv6 修复"
-    echo "8) 恢复 sing-box direct 出站"
-    echo "9) WARP 紧急关闭/恢复 SSH"
-    echo "10) 查看/取消 WARP 自动回滚"
-    echo "11) WARP 模式对比说明"
-    echo "12) 兼容模式：warp 4/6/d/c/l/w/g/s 说明"
-    echo "13) WARP 优先级设置 IPv4/IPv6/VPS 默认"
-    echo "14) 卸载/清理 WARP"
+    echo "1) Smart Split：IPv6 direct，IPv4 走 WARP（推荐）"
+    echo "2) Superior WARP Proxy：sing-box 全部出站走 WARP SOCKS"
+    echo "3) WARP 快速判断 / 修复建议"
+    echo "4) 安装 Cloudflare 官方 WARP 全局客户端"
+    echo "5) 安装 wgcf/WireGuard 备用方式"
+    echo "6) 查看 WARP 状态"
+    echo "7) 测试 IPv4 / IPv6 出站"
+    echo "8) sing-box prefer_ipv6 修复"
+    echo "9) 恢复 sing-box direct 出站"
+    echo "10) WARP 紧急关闭/恢复 SSH"
+    echo "11) 查看/取消 WARP 自动回滚"
+    echo "12) WARP 模式对比说明"
+    echo "13) 兼容模式：warp 4/6/d/c/l/w/g/s 说明"
+    echo "14) WARP 优先级设置 IPv4/IPv6/VPS 默认"
+    echo "15) V10.7 Smart WARP 高级菜单"
+    echo "16) 卸载/清理 WARP"
     echo "0) 返回"
     read -rp "请选择: " w
     case "$w" in
-      1) love_warp_proxy_safe_install ;;
-      2) love_warp_quick_fix ;;
-      3) love_install_cloudflare_warp_official ;;
-      4) love_install_wgcf_wireguard ;;
-      5) love_warp_super_status ;;
-      6) love_warp_test ;;
-      7) love_fix_ipv6_only_outbound ;;
-      8) love_singbox_restore_direct_outbound ;;
-      9) love_warp_emergency_off ;;
-      10)
+      1) love_singbox_smart_split_warp ;;
+      2) love_warp_proxy_safe_install ;;
+      3) love_warp_quick_fix ;;
+      4) love_install_cloudflare_warp_official ;;
+      5) love_install_wgcf_wireguard ;;
+      6) love_warp_super_status ;;
+      7) love_warp_test ;;
+      8) love_fix_ipv6_only_outbound ;;
+      9) love_singbox_restore_direct_outbound ;;
+      10) love_warp_emergency_off ;;
+      11)
         love_warp_rollback_status
         read -rp "是否取消自动回滚？[y/N]: " c
         [[ "$c" =~ ^[Yy]$ ]] && love_warp_cancel_rollback
         ;;
-      11) love_warp_compare_modes ;;
-      12) love_warp_compat_help ;;
-      13) love_warp_set_priority ;;
-      14) love_warp_uninstall ;;
+      12) love_warp_compare_modes ;;
+      13) love_warp_compat_help ;;
+      14) love_warp_set_priority ;;
+      15) love_warp_smart_menu ;;
+      16) love_warp_uninstall ;;
       0) return 0 ;;
       *) warn "无效选择。" ;;
     esac
@@ -6112,6 +6497,15 @@ github_publish_note() {
   Love warp w
   Love warp g
   Love warp s
+  Love warp-smart
+  Love warp-report
+  Love warp-unlock
+  Love warp-ip
+  Love warp-endpoint
+  Love warp-mtu
+  Love warp-proxy-auto
+  Love warp-go-fallback
+  Love warp-smart-restore
 
 兼容小写：
   love
@@ -6393,6 +6787,36 @@ main() {
       ;;
     warp-s|warp-priority)
       love_warp_set_priority
+      ;;
+    warp-smart|smart-warp|smart-split)
+      love_singbox_smart_split_warp
+      ;;
+    warp-smart-menu)
+      love_warp_smart_menu
+      ;;
+    warp-report)
+      love_warp_full_report
+      ;;
+    warp-unlock)
+      love_warp_unlock_check
+      ;;
+    warp-ip)
+      love_warp_ip_asn_region
+      ;;
+    warp-endpoint)
+      love_warp_endpoint_select
+      ;;
+    warp-mtu)
+      love_warp_apply_mtu
+      ;;
+    warp-proxy-auto)
+      love_warp_proxy_auto_with_fallback
+      ;;
+    warp-go-fallback)
+      love_warp_go_fallback
+      ;;
+    warp-smart-restore)
+      love_singbox_restore_from_smart_split
       ;;
     ipv6-outbound)
       love_ipv6_outbound_menu
