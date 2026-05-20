@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v9.8.0-hy2-name-fix"
+VERSION="Love v10.0.0-native-warp"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -2379,6 +2379,10 @@ C. 高级能力
   91. Love fix-ipv6 IPv6-only 出站 prefer_ipv6 修复
   92. Love test-outbound 测试 IPv4 / IPv6 出站
   93. Love warp-hint WARP / IPv4 出站提示
+  94. Love warp WARP Manager
+  95. Love warp-install 安装 Cloudflare 官方 WARP 客户端
+  96. Love warp-status 查看 WARP 状态
+  97. Love warp-test 测试 WARP / IPv4 / IPv6 出站
 
 ================================================
 
@@ -4958,7 +4962,7 @@ love_warp_hint() {
 3. 需要 IPv4 出站时，可以考虑安装 WARP
 
 常用命令：
-  wget -N https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh
+  wget -N https://pkg.cloudflareclient.com/ && bash menu.sh
 
 安装后测试：
   curl -4 -I --connect-timeout 5 https://alive.github.com
@@ -4986,6 +4990,307 @@ love_ipv6_outbound_menu() {
     3) love_warp_hint ;;
     *) return 0 ;;
   esac
+}
+
+
+# ------------------------------------------------------------------------------
+# V10 Native WARP Manager
+# ------------------------------------------------------------------------------
+
+love_warp_status() {
+  echo
+  echo "================ Love Native WARP Status ================"
+
+  echo "[warp-cli]"
+  if command -v warp-cli >/dev/null 2>&1; then
+    warp-cli --accept-tos status 2>/dev/null || warp-cli status 2>/dev/null || true
+  else
+    echo "[INFO] warp-cli 未安装。"
+  fi
+
+  echo
+  echo "[warp-svc]"
+  systemctl status warp-svc --no-pager 2>/dev/null | sed -n '1,40p' || echo "[INFO] warp-svc 未安装。"
+
+  echo
+  echo "[wireguard/wgcf]"
+  systemctl status wg-quick@wgcf --no-pager 2>/dev/null | sed -n '1,35p' || true
+  command -v wg >/dev/null 2>&1 && wg show 2>/dev/null || true
+
+  echo
+  echo "[interface]"
+  ip addr show | grep -Ei 'warp|wgcf|wg[0-9]|cloudflare' -A4 || true
+
+  echo
+  echo "[route]"
+  ip route 2>/dev/null | grep -Ei 'warp|wgcf|default' || true
+  ip -6 route 2>/dev/null | grep -Ei 'warp|wgcf|default' || true
+}
+
+love_warp_test() {
+  echo
+  echo "================ Love WARP Outbound Test ================"
+  echo "[IPv4 GitHub]"
+  curl -4 -I --connect-timeout 8 https://github.com || true
+  echo
+  echo "[IPv6 GitHub]"
+  curl -6 -I --connect-timeout 8 https://github.com || true
+  echo
+  echo "[Cloudflare trace]"
+  curl -s --connect-timeout 8 https://www.cloudflare.com/cdn-cgi/trace | grep -Ei 'ip=|warp=|colo=' || true
+}
+
+love_install_cloudflare_warp_official() {
+  echo
+  echo "================ Love Native WARP：Cloudflare 官方客户端 ================"
+  warn "WARP 只解决 VPS 出站问题，不会给 IPv6-only VPS 提供公网 IPv4 入站。"
+  warn "安装过程中可能改变默认路由。建议保持当前 SSH 会话不要关闭。"
+  read -rp "确认安装 Cloudflare 官方 WARP 客户端？[y/N]: " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || return 0
+
+  if ! command -v apt >/dev/null 2>&1; then
+    die "当前系统不是 apt 系，官方 WARP 安装器暂只支持 Ubuntu/Debian。"
+  fi
+
+  apt update
+  apt install -y curl gpg lsb-release ca-certificates
+
+  local codename
+  codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+  [[ -n "$codename" ]] || codename="$(lsb_release -cs 2>/dev/null || true)"
+  [[ -n "$codename" ]] || die "无法识别系统 codename。"
+
+  mkdir -p /usr/share/keyrings
+  curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+
+  echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ ${codename} main" > /etc/apt/sources.list.d/cloudflare-client.list
+
+  if ! apt update; then
+    warn "Cloudflare 官方源 apt update 失败。可能该系统 codename 暂未被官方源支持。"
+    warn "你可以改用 V10 菜单里的 wgcf/WireGuard 备用方式，或换 Ubuntu 22.04 / Debian 12。"
+    return 1
+  fi
+
+  apt install -y cloudflare-warp
+
+  systemctl enable --now warp-svc || true
+  sleep 2
+
+  # Different warp-cli versions use slightly different verbs. Try compatible paths.
+  warp-cli --accept-tos registration new 2>/dev/null || \
+  warp-cli --accept-tos register 2>/dev/null || \
+  warp-cli registration new 2>/dev/null || \
+  warp-cli register 2>/dev/null || true
+
+  warp-cli --accept-tos mode warp 2>/dev/null || warp-cli mode warp 2>/dev/null || true
+
+  # Prefer full WARP outbound. If this fails, user can use official menu/status.
+  warp-cli --accept-tos connect 2>/dev/null || warp-cli connect 2>/dev/null || true
+
+  sleep 3
+  love_warp_status
+  love_warp_test
+
+  warn "如果 curl -4 仍然超时，进入 Love warp 菜单查看状态，或尝试 wgcf/WireGuard 备用方式。"
+}
+
+love_download_latest_wgcf() {
+  local arch asset url tmp
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64|amd64) arch="amd64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    armv7l|armv7*) arch="armv7" ;;
+    *) die "暂不支持该架构自动下载 wgcf：$(uname -m)" ;;
+  esac
+
+  tmp="/tmp/wgcf-download"
+  rm -rf "$tmp"
+  mkdir -p "$tmp"
+
+  url="$(curl -fsSL --connect-timeout 15 https://api.github.com/repos/ViRb3/wgcf/releases/latest | jq -r --arg arch "$arch" '
+    .assets[]
+    | select(.name | test("linux_" + $arch + "($|\\.|_|-)"))
+    | .browser_download_url
+  ' | head -n1)"
+
+  [[ -n "$url" && "$url" != "null" ]] || die "无法自动获取 wgcf 最新下载地址。"
+
+  curl -L --connect-timeout 20 -o "$tmp/wgcf.asset" "$url"
+
+  if file "$tmp/wgcf.asset" | grep -qi 'gzip compressed'; then
+    tar -xzf "$tmp/wgcf.asset" -C "$tmp" 2>/dev/null || gzip -dc "$tmp/wgcf.asset" > "$tmp/wgcf" || true
+  elif file "$tmp/wgcf.asset" | grep -qi 'Zip archive'; then
+    unzip -o "$tmp/wgcf.asset" -d "$tmp"
+  else
+    cp "$tmp/wgcf.asset" "$tmp/wgcf"
+  fi
+
+  asset="$(find "$tmp" -type f -name 'wgcf*' | head -n1)"
+  [[ -n "$asset" ]] || die "下载后未找到 wgcf 可执行文件。"
+
+  install -m 755 "$asset" /usr/local/bin/wgcf
+  /usr/local/bin/wgcf --version || true
+}
+
+love_install_wgcf_wireguard() {
+  echo
+  echo "================ Love Native WARP：wgcf/WireGuard 备用方式 ================"
+  warn "这是 Love 自带的备用安装逻辑，不调用 Native。"
+  warn "会生成 /etc/wireguard/wgcf.conf 并启动 wg-quick@wgcf。"
+  warn "WireGuard 路由可能影响 SSH，请保持当前窗口不要关闭。"
+  read -rp "确认继续？[y/N]: " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || return 0
+
+  apt update
+  apt install -y curl jq wireguard-tools iproute2 openresolv ca-certificates file unzip
+
+  if ! command -v wgcf >/dev/null 2>&1; then
+    love_download_latest_wgcf
+  fi
+
+  mkdir -p /etc/wireguard /opt/Love/warp
+  cd /opt/Love/warp
+
+  if [[ ! -f wgcf-account.toml ]]; then
+    yes | wgcf register
+  fi
+
+  wgcf generate
+
+  [[ -f wgcf-profile.conf ]] || die "wgcf-profile.conf 生成失败。"
+
+  cp wgcf-profile.conf /etc/wireguard/wgcf.conf
+  chmod 600 /etc/wireguard/wgcf.conf
+
+  # Safer server-side DNS handling: avoid breaking resolvconf if not available.
+  sed -i '/^DNS =/d' /etc/wireguard/wgcf.conf
+
+  systemctl enable wg-quick@wgcf
+  systemctl restart wg-quick@wgcf
+
+  sleep 3
+  love_warp_status
+  love_warp_test
+
+  warn "如果 SSH 断开，可能是默认路由被 WARP 改变。需要从控制台关闭 wg-quick@wgcf。"
+}
+
+love_warp_disconnect() {
+  echo
+  echo "================ Love WARP Disconnect ================"
+  if command -v warp-cli >/dev/null 2>&1; then
+    warp-cli --accept-tos disconnect 2>/dev/null || warp-cli disconnect 2>/dev/null || true
+  fi
+  systemctl stop wg-quick@wgcf 2>/dev/null || true
+  love_warp_status
+}
+
+love_warp_uninstall() {
+  echo
+  echo "================ Love WARP Uninstall ================"
+  warn "卸载/关闭 WARP 可能改变出站网络。"
+  read -rp "确认卸载/关闭 Love 原生 WARP 配置？[y/N]: " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || return 0
+
+  if command -v warp-cli >/dev/null 2>&1; then
+    warp-cli --accept-tos disconnect 2>/dev/null || warp-cli disconnect 2>/dev/null || true
+  fi
+
+  systemctl disable --now wg-quick@wgcf 2>/dev/null || true
+  rm -f /etc/wireguard/wgcf.conf
+
+  read -rp "是否同时卸载 cloudflare-warp 软件包？[y/N]: " purge
+  if [[ "$purge" =~ ^[Yy]$ ]]; then
+    apt purge -y cloudflare-warp 2>/dev/null || true
+    rm -f /etc/apt/sources.list.d/cloudflare-client.list
+  fi
+
+  systemctl daemon-reload || true
+  love_warp_status
+}
+
+love_warp_quick_fix() {
+  echo
+  echo "================ Love Native WARP Quick Fix ================"
+  love_test_outbound_stack || true
+  echo
+  warn "如果 IPv4 outbound=no、IPv6 outbound=yes，建议安装 WARP 出站。"
+  echo "1) 安装 Cloudflare 官方 WARP 客户端"
+  echo "2) 安装 wgcf/WireGuard 备用方式"
+  echo "3) 只应用 sing-box prefer_ipv6"
+  echo "0) 返回"
+  read -rp "请选择: " w
+  case "$w" in
+    1) love_install_cloudflare_warp_official ;;
+    2) love_install_wgcf_wireguard ;;
+    3) love_fix_ipv6_only_outbound ;;
+    *) return 0 ;;
+  esac
+}
+
+love_warp_manager_menu() {
+  while true; do
+    echo
+    echo "================ Love Native WARP Manager ================"
+    echo "1) WARP 快速判断 / 修复建议"
+    echo "2) 安装 Cloudflare 官方 WARP 客户端"
+    echo "3) 安装 wgcf/WireGuard 备用方式"
+    echo "4) 查看 WARP 状态"
+    echo "5) 测试 IPv4 / IPv6 出站"
+    echo "6) sing-box prefer_ipv6 修复"
+    echo "7) 断开 WARP"
+    echo "8) 卸载/清理 WARP"
+    echo "0) 返回"
+    read -rp "请选择: " w
+    case "$w" in
+      1) love_warp_quick_fix ;;
+      2) love_install_cloudflare_warp_official ;;
+      3) love_install_wgcf_wireguard ;;
+      4) love_warp_status ;;
+      5) love_warp_test ;;
+      6) love_fix_ipv6_only_outbound ;;
+      7) love_warp_disconnect ;;
+      8) love_warp_uninstall ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+# Backward compatible command name.
+love_warp_download_menu() {
+  love_install_cloudflare_warp_official
+}
+
+love_warp_hint() {
+  cat <<'EOF'
+
+================ Love Native WARP 说明 ================
+
+V10 已经不再调用 Native WARP 脚本。
+
+当前 Love 内置两种方式：
+1. Cloudflare 官方 Linux 客户端：
+   Love warp -> 2
+
+2. wgcf/WireGuard 备用方式：
+   Love warp -> 3
+
+适用场景：
+- IPv6-only VPS
+- curl -4 超时
+- V2RayN 日志出现 outbound/direct dial tcp IPv4 timeout
+- GitHub / Microsoft / 部分 IPv4 网站打不开
+
+注意：
+- WARP 解决 VPS 出站 IPv4。
+- WARP 不会给 IPv6-only VPS 提供公网 IPv4 入站。
+- 安装 WARP 可能改变默认路由，请保持 SSH 窗口不要关闭。
+
+=======================================================
+
+EOF
 }
 
 github_publish_note() {
@@ -5078,6 +5383,14 @@ github_publish_note() {
   Love test-outbound
   Love warp-hint
   Love ipv6-outbound
+  Love warp
+  Love warp-install
+  Love warp-status
+  Love warp-test
+  Love warp-official
+  Love warp-wgcf
+  Love warp-disconnect
+  Love warp-uninstall
 
 兼容小写：
   love
@@ -5117,10 +5430,11 @@ main_menu() {
     echo "17) v9 Nginx Reverse Proxy：WS/gRPC/Stream/伪装站"
     echo "18) HY2/sing-box 自动修复与订阅生成"
     echo "19) IPv6-only 出站修复 / WARP 提示"
-    echo "20) 查看状态"
-    echo "21) 备份配置"
-    echo "22) 卸载菜单"
-    echo "23) GitHub 发布说明"
+    echo "20) WARP Manager：安装/状态/测试/修复"
+    echo "21) 查看状态"
+    echo "22) 备份配置"
+    echo "23) 卸载菜单"
+    echo "24) GitHub 发布说明"
     echo "0) 退出"
     echo
     read -rp "请选择: " choice
@@ -5145,10 +5459,11 @@ main_menu() {
       17) nginx_rp_menu ;;
       18) love_fix_hy2_now ;;
       19) love_ipv6_outbound_menu ;;
-      20) show_status ;;
-      21) backup_configs ;;
-      22) uninstall_menu_v7 ;;
-      23) github_publish_note ;;
+      20) love_warp_manager_menu ;;
+      21) show_status ;;
+      22) backup_configs ;;
+      23) uninstall_menu_v7 ;;
+      24) github_publish_note ;;
       0) exit 0 ;;
       *) warn "无效选择。" ;;
     esac
@@ -5282,6 +5597,30 @@ main() {
       ;;
     warp-hint)
       love_warp_hint
+      ;;
+    warp|warp-manager)
+      love_warp_manager_menu
+      ;;
+    warp-install)
+      love_warp_download_menu
+      ;;
+    warp-status)
+      love_warp_status
+      ;;
+    warp-test)
+      love_warp_test
+      ;;
+    warp-official)
+      love_install_cloudflare_warp_official
+      ;;
+    warp-wgcf|warp-wireguard)
+      love_install_wgcf_wireguard
+      ;;
+    warp-disconnect)
+      love_warp_disconnect
+      ;;
+    warp-uninstall)
+      love_warp_uninstall
       ;;
     ipv6-outbound)
       love_ipv6_outbound_menu
