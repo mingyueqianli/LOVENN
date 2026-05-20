@@ -46,7 +46,7 @@ set -Eeuo pipefail
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v9.2.0-auto-endpoint"
+VERSION="Love v9.3.0-singbox-dns-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1167,8 +1167,8 @@ EOF
       log: {level: "warn", timestamp: true},
       dns: {
         servers: [
-          {tag: "cf", address: "2606:4700:4700::1111"},
-          {tag: "google", address: "2001:4860:4860::8888"}
+          {tag: "cf", type: "udp", server: "2606:4700:4700::1111"},
+          {tag: "google", type: "udp", server: "2001:4860:4860::8888"}
         ],
         final: "cf"
       },
