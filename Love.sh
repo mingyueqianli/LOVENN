@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v10.0.0-native-warp"
+VERSION="Love v10.1.0-native-warp-text-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -5266,11 +5266,11 @@ love_warp_download_menu() {
 love_warp_hint() {
   cat <<'EOF'
 
-================ Love Native WARP 说明 ================
+================ Love Love 原生 WARP 说明 ================
 
-V10 已经不再调用 Native WARP 脚本。
+V10 已经不再调用第三方 WARP 脚本，WARP 管理已内置在 Love 中。
 
-当前 Love 内置两种方式：
+当前 Love 自带两种 WARP 出站方案：
 1. Cloudflare 官方 Linux 客户端：
    Love warp -> 2
 
