@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v10.3.0-warp-cli-fix"
+VERSION="Love v10.6.0-warp-all-modes"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -5011,6 +5011,584 @@ love_ipv6_outbound_menu() {
 # V10 Native WARP Manager
 # ------------------------------------------------------------------------------
 
+
+love_warp_preflight() {
+  echo
+  echo "================ Love WARP Preflight ================"
+  echo "OS: $(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")"
+  echo "Arch: $(uname -m)"
+  echo "Kernel: $(uname -r)"
+  echo "Virtualization: $(systemd-detect-virt 2>/dev/null || true)"
+
+  echo
+  echo "[TUN]"
+  if [[ -c /dev/net/tun ]]; then
+    log "/dev/net/tun 存在"
+  else
+    warn "/dev/net/tun 不存在，官方 WARP/WireGuard 可能失败。"
+  fi
+
+  echo
+  echo "[WireGuard]"
+  if lsmod 2>/dev/null | grep -q '^wireguard'; then
+    log "wireguard 内核模块已加载"
+  else
+    modprobe wireguard 2>/dev/null || true
+    if lsmod 2>/dev/null | grep -q '^wireguard'; then
+      log "wireguard 内核模块已加载"
+    else
+      warn "wireguard 内核模块未加载。可用官方 WARP Proxy 模式或 wgcf fallback。"
+    fi
+  fi
+
+  echo
+  echo "[Outbound]"
+  love_test_outbound_stack || true
+}
+
+love_install_cloudflare_warp_package_only() {
+  if command -v warp-cli >/dev/null 2>&1; then
+    log "cloudflare-warp 已安装。"
+    return 0
+  fi
+
+  if ! command -v apt >/dev/null 2>&1; then
+    die "当前系统不是 apt 系。官方 WARP 安装器暂只支持 Ubuntu/Debian。"
+  fi
+
+  apt update
+  apt install -y curl gpg lsb-release ca-certificates
+
+  local codename
+  codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+  [[ -n "$codename" ]] || codename="$(lsb_release -cs 2>/dev/null || true)"
+  [[ -n "$codename" ]] || die "无法识别系统 codename。"
+
+  mkdir -p /usr/share/keyrings
+  curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+
+  echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ ${codename} main" > /etc/apt/sources.list.d/cloudflare-client.list
+
+  if ! apt update; then
+    warn "Cloudflare 官方源 apt update 失败。可能该系统 codename 暂未被官方源支持。"
+    return 1
+  fi
+
+  apt install -y cloudflare-warp
+  systemctl enable --now warp-svc || true
+  sleep 2
+}
+
+love_warp_register_if_needed() {
+  if ! command -v warp-cli >/dev/null 2>&1; then
+    die "warp-cli 不存在。"
+  fi
+
+  warp-cli --accept-tos registration show >/dev/null 2>&1 && return 0
+
+  warp-cli --accept-tos registration new 2>/dev/null || \
+  warp-cli --accept-tos register 2>/dev/null || \
+  warp-cli registration new 2>/dev/null || \
+  warp-cli register 2>/dev/null || true
+}
+
+love_warp_set_proxy_mode() {
+  local port="${1:-40000}"
+
+  love_install_cloudflare_warp_package_only
+  love_warp_register_if_needed
+
+  # New and legacy command compatibility.
+  warp-cli --accept-tos mode proxy 2>/dev/null || \
+  warp-cli mode proxy 2>/dev/null || \
+  warp-cli --accept-tos set-mode proxy 2>/dev/null || \
+  warp-cli set-mode proxy 2>/dev/null || true
+
+  warp-cli --accept-tos proxy port "$port" 2>/dev/null || \
+  warp-cli proxy port "$port" 2>/dev/null || \
+  warp-cli --accept-tos set-proxy-port "$port" 2>/dev/null || \
+  warp-cli set-proxy-port "$port" 2>/dev/null || true
+
+  warp-cli --accept-tos connect 2>/dev/null || warp-cli connect 2>/dev/null || true
+
+  sleep 3
+  warp-cli --accept-tos status 2>/dev/null || warp-cli status 2>/dev/null || true
+
+  if ss -lntp | grep -q ":${port}"; then
+    log "WARP Local Proxy 已监听：127.0.0.1:${port}"
+  else
+    warn "未检测到 ${port} 监听。请运行 Love warp-status 查看。"
+  fi
+}
+
+love_singbox_route_via_warp_proxy() {
+  local port="${1:-40000}"
+
+  [[ -f /etc/sing-box/config.json ]] || die "未找到 /etc/sing-box/config.json"
+
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.warp-proxy.$(date +%F-%H%M%S)
+
+  jq --argjson port "$port" '
+    .outbounds = (.outbounds // []) |
+    .outbounds = (
+      [ .outbounds[]? | select(.tag != "warp-socks") ] +
+      [{
+        type: "socks",
+        tag: "warp-socks",
+        server: "127.0.0.1",
+        server_port: $port,
+        version: "5"
+      }]
+    ) |
+    .route = (.route // {}) |
+    .route.final = "warp-socks" |
+    .route.default_domain_resolver = (
+      .route.default_domain_resolver // {server:"cf", strategy:"prefer_ipv6"}
+    )
+  ' /etc/sing-box/config.json > /tmp/sing-box-warp-proxy.json && mv /tmp/sing-box-warp-proxy.json /etc/sing-box/config.json
+
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true /usr/local/bin/sing-box check -c /etc/sing-box/config.json
+
+  systemctl restart sing-box
+  sleep 2
+  systemctl status sing-box --no-pager || true
+
+  log "sing-box 出站已切换为 WARP Local Proxy：warp-socks -> 127.0.0.1:${port}"
+  warn "这个模式不会修改系统默认路由，SSH 不容易失联。"
+}
+
+love_singbox_restore_direct_outbound() {
+  [[ -f /etc/sing-box/config.json ]] || die "未找到 /etc/sing-box/config.json"
+
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.restore-direct.$(date +%F-%H%M%S)
+
+  jq '
+    .outbounds = ([ .outbounds[]? | select(.tag != "warp-socks") ]) |
+    .route = (.route // {}) |
+    .route.final = "direct"
+  ' /etc/sing-box/config.json > /tmp/sing-box-direct.json && mv /tmp/sing-box-direct.json /etc/sing-box/config.json
+
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true /usr/local/bin/sing-box check -c /etc/sing-box/config.json
+  systemctl restart sing-box
+  log "sing-box 出站已恢复 direct。"
+}
+
+love_warp_proxy_safe_install() {
+  echo
+  echo "================ Love Superior WARP Proxy Mode ================"
+  warn "推荐模式：不改系统默认路由，不容易导致 SSH 失联。"
+  warn "原理：Cloudflare WARP 开本地 SOCKS5，sing-box 出站走 127.0.0.1:40000。"
+  read -rp "WARP Local Proxy 端口 [40000]: " port
+  port="${port:-40000}"
+
+  love_warp_preflight
+
+  read -rp "确认安装/启用 WARP Proxy，并让 sing-box 出站走它？[y/N]: " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || return 0
+
+  love_warp_set_proxy_mode "$port"
+  love_singbox_route_via_warp_proxy "$port"
+
+  echo
+  echo "[Test through VPS]"
+  curl -4 -I --connect-timeout 8 https://github.com || true
+  curl -6 -I --connect-timeout 8 https://github.com || true
+
+  echo
+  echo "[Cloudflare trace]"
+  curl -s --connect-timeout 8 --socks5-hostname "127.0.0.1:${port}" https://www.cloudflare.com/cdn-cgi/trace | grep -Ei 'ip=|warp=|colo=' || true
+
+  log "Superior WARP Proxy 模式完成。现在 V2RayN -> HY2 -> sing-box -> WARP socks 出站。"
+}
+
+love_warp_compare_modes() {
+  cat <<'EOF'
+
+================ Love WARP 模式对比 ================
+
+A. Love Superior Proxy Mode（推荐）
+   命令：Love warp-proxy
+   原理：warp-cli proxy mode -> 127.0.0.1:40000
+        sing-box outbound -> socks -> 127.0.0.1:40000
+   优点：不改系统默认路由，SSH 不容易失联
+   适合：你的 IPv6-only VPS，修 GitHub IPv4 出站
+
+B. Official WARP Full Tunnel
+   命令：Love warp-official
+   原理：warp-cli connect，系统默认路由可能被 WARP 接管
+   优点：系统全局出站都走 WARP
+   风险：可能导致 SSH 失联，需要 V10.4 自动回滚保护
+
+C. wgcf/WireGuard
+   命令：Love warp-wgcf
+   原理：WireGuard 接口
+   优点：兼容性强，可控性高
+   风险：路由配置不当也可能导致 SSH 失联
+
+D. prefer_ipv6
+   命令：Love fix-ipv6
+   原理：让 sing-box direct 优先 IPv6
+   优点：无 WARP，无路由风险
+   缺点：只有 IPv4 的网站仍打不开
+
+结论：
+你的 VPS 是 IPv6-only，最稳方案是 A：
+Love warp-proxy
+
+====================================================
+
+EOF
+}
+
+love_warp_super_status() {
+  echo
+  echo "================ Love WARP Super Status ================"
+  love_warp_status
+  echo
+  echo "[sing-box route final]"
+  jq -r '.route.final // empty' /etc/sing-box/config.json 2>/dev/null || true
+  echo
+  echo "[warp-socks outbound]"
+  jq '.outbounds[]? | select(.tag=="warp-socks")' /etc/sing-box/config.json 2>/dev/null || true
+  echo
+  echo "[proxy port listening]"
+  ss -lntp | grep -E ':(40000|40001|1080)' || true
+}
+
+
+
+# ------------------------------------------------------------------------------
+# V10.6 WARP All Modes: 4 / 6 / d / c / l / w / g / s
+# ------------------------------------------------------------------------------
+
+love_wgcf_prepare_profile() {
+  apt update
+  apt install -y curl jq wireguard-tools iproute2 openresolv ca-certificates file unzip
+
+  if ! command -v wgcf >/dev/null 2>&1; then
+    love_download_latest_wgcf
+  fi
+
+  mkdir -p /etc/wireguard /opt/Love/warp
+  cd /opt/Love/warp
+
+  if [[ ! -f wgcf-account.toml ]]; then
+    yes | wgcf register
+  fi
+
+  wgcf generate
+  [[ -f wgcf-profile.conf ]] || die "wgcf-profile.conf 生成失败。"
+}
+
+love_wgcf_apply_allowed_ips() {
+  local mode="$1"
+  local file="$2"
+
+  case "$mode" in
+    4)
+      sed -i 's#^AllowedIPs =.*#AllowedIPs = 0.0.0.0/0#' "$file"
+      ;;
+    6)
+      sed -i 's#^AllowedIPs =.*#AllowedIPs = ::/0#' "$file"
+      ;;
+    d|dual)
+      sed -i 's#^AllowedIPs =.*#AllowedIPs = 0.0.0.0/0, ::/0#' "$file"
+      ;;
+    *)
+      die "WARP interface mode 无效：$mode"
+      ;;
+  esac
+}
+
+love_warp_interface_mode() {
+  local mode="$1"
+  local label
+  case "$mode" in
+    4) label="IPv4 only interface" ;;
+    6) label="IPv6 only interface" ;;
+    d|dual) label="dual-stack interface" ;;
+    *) die "用法：Love warp 4 / 6 / d" ;;
+  esac
+
+  echo
+  echo "================ Love WARP Interface Mode: ${label} ================"
+  warn "这是 WireGuard 接口模式，会修改系统路由，可能影响 SSH。"
+  warn "Love 会创建 180 秒自动回滚，失联后尽量自动恢复。"
+  read -rp "确认启用 WARP ${label}？[y/N]: " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || return 0
+
+  love_wgcf_prepare_profile
+
+  cp /opt/Love/warp/wgcf-profile.conf /etc/wireguard/wgcf.conf
+  chmod 600 /etc/wireguard/wgcf.conf
+  sed -i '/^DNS =/d' /etc/wireguard/wgcf.conf
+  love_wgcf_apply_allowed_ips "$mode" /etc/wireguard/wgcf.conf
+
+  systemctl enable wg-quick@wgcf
+  love_warp_create_rollback_timer 180 || true
+  systemctl restart wg-quick@wgcf
+
+  sleep 5
+  love_warp_status
+  love_warp_test
+
+  echo
+  warn "如果 SSH 没断，并且网络符合预期，请输入 y 保留该 WARP 接口。"
+  read -t 60 -rp "保留当前 WARP interface 并取消自动回滚？[y/N]: " keep || keep=""
+  if [[ "$keep" =~ ^[Yy]$ ]]; then
+    love_warp_cancel_rollback
+    log "WARP interface ${label} 已保留。"
+  else
+    warn "未确认保留。180 秒后自动回滚会关闭 WARP interface。"
+  fi
+}
+
+love_download_latest_wireproxy() {
+  local arch url tmp asset
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64|amd64) arch="amd64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    armv7l|armv7*) arch="armv7" ;;
+    *) die "暂不支持该架构自动下载 wireproxy：$(uname -m)" ;;
+  esac
+
+  apt update
+  apt install -y curl jq ca-certificates file unzip tar
+
+  tmp="/tmp/wireproxy-download"
+  rm -rf "$tmp"
+  mkdir -p "$tmp"
+
+  url="$(curl -fsSL --connect-timeout 20 https://api.github.com/repos/octeep/wireproxy/releases/latest | jq -r --arg arch "$arch" '
+    .assets[]
+    | select(.name | test("linux.*" + $arch))
+    | .browser_download_url
+  ' | head -n1)"
+
+  [[ -n "$url" && "$url" != "null" ]] || die "无法自动获取 wireproxy 最新下载地址。"
+
+  curl -L --connect-timeout 30 -o "$tmp/wireproxy.asset" "$url"
+
+  if file "$tmp/wireproxy.asset" | grep -qi 'gzip compressed'; then
+    tar -xzf "$tmp/wireproxy.asset" -C "$tmp" 2>/dev/null || gzip -dc "$tmp/wireproxy.asset" > "$tmp/wireproxy" || true
+  elif file "$tmp/wireproxy.asset" | grep -qi 'Zip archive'; then
+    unzip -o "$tmp/wireproxy.asset" -d "$tmp"
+  else
+    cp "$tmp/wireproxy.asset" "$tmp/wireproxy"
+  fi
+
+  asset="$(find "$tmp" -type f -name 'wireproxy*' | head -n1)"
+  [[ -n "$asset" ]] || die "下载后未找到 wireproxy 可执行文件。"
+
+  install -m 755 "$asset" /usr/local/bin/wireproxy
+  /usr/local/bin/wireproxy --help >/dev/null 2>&1 || true
+}
+
+love_warp_wireproxy_mode() {
+  echo
+  echo "================ Love WireProxy SOCKS5 Mode ================"
+  warn "这是类似 FS warp w 的模式：WARP 变成本地 SOCKS5，不改系统默认路由。"
+  read -rp "WireProxy SOCKS5 端口 [40001]: " port
+  port="${port:-40001}"
+  read -rp "是否让 sing-box 出站自动走 WireProxy SOCKS？[Y/n]: " use_sb
+  use_sb="${use_sb:-Y}"
+
+  love_wgcf_prepare_profile
+
+  if ! command -v wireproxy >/dev/null 2>&1; then
+    love_download_latest_wireproxy
+  fi
+
+  mkdir -p /etc/wireproxy
+  cp /opt/Love/warp/wgcf-profile.conf /etc/wireproxy/warp.conf
+  sed -i '/^DNS =/d' /etc/wireproxy/warp.conf
+
+  cat >> /etc/wireproxy/warp.conf <<EOF
+
+[Socks5]
+BindAddress = 127.0.0.1:${port}
+EOF
+
+  cat > /etc/systemd/system/love-wireproxy.service <<EOF
+[Unit]
+Description=Love WireProxy WARP SOCKS5
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wireproxy -c /etc/wireproxy/warp.conf
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl daemon-reload
+  systemctl enable --now love-wireproxy.service
+  sleep 3
+
+  systemctl status love-wireproxy.service --no-pager || true
+  ss -lntp | grep ":${port}" || true
+
+  if [[ "$use_sb" =~ ^[Yy]$ ]]; then
+    love_singbox_route_via_warp_proxy "$port"
+  fi
+
+  echo
+  echo "[WireProxy trace]"
+  curl -s --connect-timeout 10 --socks5-hostname "127.0.0.1:${port}" https://www.cloudflare.com/cdn-cgi/trace | grep -Ei 'ip=|warp=|colo=' || true
+
+  log "WireProxy 模式完成：127.0.0.1:${port}"
+}
+
+love_warp_global_toggle_menu() {
+  echo
+  echo "================ Love WARP Global / Non-global ================"
+  echo "1) 非全局：Superior Proxy，推荐，sing-box 走 WARP SOCKS"
+  echo "2) 非全局：WireProxy SOCKS5"
+  echo "3) 全局：Cloudflare 官方 WARP Full Tunnel，有失联风险但带回滚"
+  echo "4) 全局：wgcf/WireGuard 双栈接口，有失联风险但带回滚"
+  echo "5) 恢复 sing-box direct，并断开 WARP"
+  echo "0) 返回"
+  read -rp "请选择: " g
+  case "$g" in
+    1) love_warp_proxy_safe_install ;;
+    2) love_warp_wireproxy_mode ;;
+    3) love_install_cloudflare_warp_official ;;
+    4) love_warp_interface_mode d ;;
+    5) love_singbox_restore_direct_outbound; love_warp_disconnect ;;
+    *) return 0 ;;
+  esac
+}
+
+love_warp_set_priority() {
+  echo
+  echo "================ Love WARP Priority / Strategy ================"
+  echo "1) IPv4 优先：prefer_ipv4"
+  echo "2) IPv6 优先：prefer_ipv6"
+  echo "3) VPS 默认：不强制 resolver strategy"
+  echo "4) sing-box 出站走 warp-socks"
+  echo "5) sing-box 出站恢复 direct"
+  echo "0) 返回"
+  read -rp "请选择: " p
+
+  [[ -f /etc/sing-box/config.json ]] || die "未找到 /etc/sing-box/config.json"
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.priority.$(date +%F-%H%M%S)
+
+  case "$p" in
+    1)
+      jq '
+        .route = (.route // {}) |
+        .route.default_domain_resolver = {server:"cf", strategy:"prefer_ipv4"} |
+        .outbounds = ((.outbounds // []) | map(if (.type=="direct" or .tag=="direct") then . + {domain_resolver:{server:"cf", strategy:"prefer_ipv4"}} else . end))
+      ' /etc/sing-box/config.json > /tmp/sing-box-priority.json
+      ;;
+    2)
+      jq '
+        .route = (.route // {}) |
+        .route.default_domain_resolver = {server:"cf", strategy:"prefer_ipv6"} |
+        .outbounds = ((.outbounds // []) | map(if (.type=="direct" or .tag=="direct") then . + {domain_resolver:{server:"cf", strategy:"prefer_ipv6"}} else . end))
+      ' /etc/sing-box/config.json > /tmp/sing-box-priority.json
+      ;;
+    3)
+      jq '
+        .route = (.route // {}) |
+        del(.route.default_domain_resolver) |
+        .outbounds = ((.outbounds // []) | map(if (.type=="direct" or .tag=="direct") then del(.domain_resolver) else . end))
+      ' /etc/sing-box/config.json > /tmp/sing-box-priority.json
+      ;;
+    4)
+      jq '.route = (.route // {}) | .route.final = "warp-socks"' /etc/sing-box/config.json > /tmp/sing-box-priority.json
+      ;;
+    5)
+      jq '.route = (.route // {}) | .route.final = "direct"' /etc/sing-box/config.json > /tmp/sing-box-priority.json
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  mv /tmp/sing-box-priority.json /etc/sing-box/config.json
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true /usr/local/bin/sing-box check -c /etc/sing-box/config.json
+  systemctl restart sing-box
+  log "WARP / DNS 优先级策略已应用。"
+}
+
+
+love_warp_compat_help() {
+  cat <<'EOF'
+
+================ Love WARP 兼容命令 ================
+
+已整合 FS 风格命令，但不是复制它的代码：
+
+  Love warp 4   添加 WARP IPv4 接口模式（wgcf/WireGuard，带回滚）
+  Love warp 6   添加 WARP IPv6 接口模式（wgcf/WireGuard，带回滚）
+  Love warp d   添加 WARP 双栈接口模式（wgcf/WireGuard，带回滚）
+
+  Love warp c   Linux Client Proxy 模式：官方 WARP Proxy + sing-box socks 出站
+  Love warp l   Linux Client WARP 模式：官方 WARP 全局模式，带回滚
+  Love warp w   WireProxy 模式：WARP 本地 SOCKS5，默认可接 sing-box
+  Love warp g   切换全局 / 非全局模式
+  Love warp s   设置 IPv4 / IPv6 / VPS 默认优先级
+
+推荐你的 IPv6-only HY2 VPS 使用：
+  Love warp c
+或：
+  Love warp w
+
+不推荐优先用：
+  Love warp l
+  Love warp d
+
+因为全局路由模式更容易导致 SSH 失联。
+
+====================================================
+
+EOF
+}
+
+love_warp_compat_command() {
+  local sub="${1:-}"
+  case "$sub" in
+    4)
+      love_warp_interface_mode 4
+      ;;
+    6)
+      love_warp_interface_mode 6
+      ;;
+    d|dual)
+      love_warp_interface_mode d
+      ;;
+    c)
+      love_warp_proxy_safe_install
+      ;;
+    l)
+      love_install_cloudflare_warp_official
+      ;;
+    w)
+      love_warp_wireproxy_mode
+      ;;
+    g)
+      love_warp_global_toggle_menu
+      ;;
+    s)
+      love_warp_set_priority
+      ;;
+    ""|menu)
+      love_warp_manager_menu
+      ;;
+    *)
+      warn "兼容命令：Love warp 4 / 6 / d / c / l / w / g / s"
+      love_warp_manager_menu
+      ;;
+  esac
+}
+
+
 love_warp_status() {
   echo
   echo "================ Love Native WARP Status ================"
@@ -5054,11 +5632,81 @@ love_warp_test() {
   curl -s --connect-timeout 8 https://www.cloudflare.com/cdn-cgi/trace | grep -Ei 'ip=|warp=|colo=' || true
 }
 
+
+love_warp_create_rollback_timer() {
+  local seconds="${1:-180}"
+
+  cat > /root/love-warp-rollback.sh <<'EOF'
+#!/usr/bin/env bash
+set +e
+logger -t Love "WARP rollback timer triggered: disconnecting WARP and restoring SSH"
+
+if command -v warp-cli >/dev/null 2>&1; then
+  warp-cli --accept-tos disconnect >/dev/null 2>&1 || warp-cli disconnect >/dev/null 2>&1 || true
+fi
+
+systemctl stop wg-quick@wgcf >/dev/null 2>&1 || true
+systemctl stop warp-go >/dev/null 2>&1 || true
+
+ufw allow 22/tcp >/dev/null 2>&1 || true
+ufw allow 22/tcp comment 'Love SSH rescue' >/dev/null 2>&1 || true
+ufw reload >/dev/null 2>&1 || true
+
+systemctl restart ssh >/dev/null 2>&1 || systemctl restart sshd >/dev/null 2>&1 || true
+EOF
+
+  chmod +x /root/love-warp-rollback.sh
+
+  systemctl stop love-warp-rollback.timer love-warp-rollback.service >/dev/null 2>&1 || true
+  systemd-run --unit=love-warp-rollback --on-active="${seconds}s" /root/love-warp-rollback.sh >/dev/null 2>&1 || {
+    warn "systemd-run 创建回滚定时器失败，将不会自动回滚。"
+    return 1
+  }
+
+  warn "已创建 WARP 自动回滚定时器：${seconds} 秒后若未确认，将自动断开 WARP 并恢复 SSH。"
+}
+
+love_warp_cancel_rollback() {
+  systemctl stop love-warp-rollback.timer love-warp-rollback.service >/dev/null 2>&1 || true
+  rm -f /root/love-warp-rollback.sh
+  log "已取消 WARP 自动回滚定时器。"
+}
+
+love_warp_rollback_status() {
+  echo
+  echo "================ Love WARP Rollback Timer ================"
+  systemctl status love-warp-rollback.timer --no-pager 2>/dev/null || echo "[INFO] 当前没有 WARP 自动回滚定时器。"
+  systemctl status love-warp-rollback.service --no-pager 2>/dev/null || true
+}
+
+love_warp_emergency_off() {
+  echo
+  echo "================ Love WARP Emergency OFF ================"
+  warn "将断开 WARP / 停止 wgcf，并恢复 SSH 22 端口。"
+
+  if command -v warp-cli >/dev/null 2>&1; then
+    warp-cli --accept-tos disconnect 2>/dev/null || warp-cli disconnect 2>/dev/null || true
+  fi
+
+  systemctl stop wg-quick@wgcf 2>/dev/null || true
+  systemctl stop warp-go 2>/dev/null || true
+
+  ufw allow 22/tcp || true
+  ufw reload || true
+
+  systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+
+  love_warp_cancel_rollback || true
+  love_warp_status
+}
+
+
 love_install_cloudflare_warp_official() {
   echo
   echo "================ Love Native WARP：Cloudflare 官方客户端 ================"
   warn "WARP 只解决 VPS 出站问题，不会给 IPv6-only VPS 提供公网 IPv4 入站。"
-  warn "安装过程中可能改变默认路由。建议保持当前 SSH 会话不要关闭。"
+  warn "安装/连接 WARP 可能改变默认路由，导致 SSH 失联。"
+  warn "V10.4 会先创建自动回滚定时器：如果连接后失联，会自动断开 WARP 并恢复 SSH。"
   read -rp "确认安装 Cloudflare 官方 WARP 客户端？[y/N]: " ok
   [[ "$ok" =~ ^[Yy]$ ]] || return 0
 
@@ -5098,12 +5746,26 @@ love_install_cloudflare_warp_official() {
 
   warp-cli --accept-tos mode warp 2>/dev/null || warp-cli mode warp 2>/dev/null || true
 
-  # Prefer full WARP outbound. If this fails, user can use official menu/status.
+  # Safe connect: create rollback timer first. If SSH drops, WARP will be disconnected automatically.
+  love_warp_create_rollback_timer 180 || true
+
   warp-cli --accept-tos connect 2>/dev/null || warp-cli connect 2>/dev/null || true
 
-  sleep 3
+  sleep 5
   love_warp_status
   love_warp_test
+
+  echo
+  warn "如果当前 SSH 没断，并且 curl -4 已经能通，请输入 y 保留 WARP。"
+  warn "如果不输入 y，180 秒自动回滚定时器会断开 WARP，避免服务器再次失联。"
+  read -t 60 -rp "保留当前 WARP 连接并取消回滚？[y/N]: " keep || keep=""
+
+  if [[ "$keep" =~ ^[Yy]$ ]]; then
+    love_warp_cancel_rollback
+    log "WARP 已保留。"
+  else
+    warn "未确认保留。请等待自动回滚，或手动执行：Love warp-emergency-off"
+  fi
 
   warn "如果 curl -4 仍然超时，进入 Love warp 菜单查看状态，或尝试 wgcf/WireGuard 备用方式。"
 }
@@ -5181,13 +5843,24 @@ love_install_wgcf_wireguard() {
   sed -i '/^DNS =/d' /etc/wireguard/wgcf.conf
 
   systemctl enable wg-quick@wgcf
+
+  love_warp_create_rollback_timer 180 || true
   systemctl restart wg-quick@wgcf
 
-  sleep 3
+  sleep 5
   love_warp_status
   love_warp_test
 
-  warn "如果 SSH 断开，可能是默认路由被 WARP 改变。需要从控制台关闭 wg-quick@wgcf。"
+  echo
+  warn "如果当前 SSH 没断，并且 curl -4 已经能通，请输入 y 保留 wgcf/WireGuard。"
+  read -t 60 -rp "保留当前 wgcf/WireGuard 并取消回滚？[y/N]: " keep || keep=""
+
+  if [[ "$keep" =~ ^[Yy]$ ]]; then
+    love_warp_cancel_rollback
+    log "wgcf/WireGuard 已保留。"
+  else
+    warn "未确认保留。请等待自动回滚，或手动执行：Love warp-emergency-off"
+  fi
 }
 
 love_warp_disconnect() {
@@ -5230,15 +5903,17 @@ love_warp_quick_fix() {
   love_test_outbound_stack || true
   echo
   warn "如果 IPv4 outbound=no、IPv6 outbound=yes，建议安装 WARP 出站。"
-  echo "1) 安装 Cloudflare 官方 WARP 客户端"
-  echo "2) 安装 wgcf/WireGuard 备用方式"
-  echo "3) 只应用 sing-box prefer_ipv6"
+  echo "1) Superior WARP Proxy：推荐，不改系统默认路由"
+  echo "2) 安装 Cloudflare 官方 WARP 全局客户端"
+  echo "3) 安装 wgcf/WireGuard 备用方式"
+  echo "4) 只应用 sing-box prefer_ipv6"
   echo "0) 返回"
   read -rp "请选择: " w
   case "$w" in
-    1) love_install_cloudflare_warp_official ;;
-    2) love_install_wgcf_wireguard ;;
-    3) love_fix_ipv6_only_outbound ;;
+    1) love_warp_proxy_safe_install ;;
+    2) love_install_cloudflare_warp_official ;;
+    3) love_install_wgcf_wireguard ;;
+    4) love_fix_ipv6_only_outbound ;;
     *) return 0 ;;
   esac
 }
@@ -5247,25 +5922,41 @@ love_warp_manager_menu() {
   while true; do
     echo
     echo "================ Love Native WARP Manager ================"
-    echo "1) WARP 快速判断 / 修复建议"
-    echo "2) 安装 Cloudflare 官方 WARP 客户端"
-    echo "3) 安装 wgcf/WireGuard 备用方式"
-    echo "4) 查看 WARP 状态"
-    echo "5) 测试 IPv4 / IPv6 出站"
-    echo "6) sing-box prefer_ipv6 修复"
-    echo "7) 断开 WARP"
-    echo "8) 卸载/清理 WARP"
+    echo "1) Superior WARP Proxy：最安全，sing-box 出站走 WARP SOCKS"
+    echo "2) WARP 快速判断 / 修复建议"
+    echo "3) 安装 Cloudflare 官方 WARP 全局客户端"
+    echo "4) 安装 wgcf/WireGuard 备用方式"
+    echo "5) 查看 WARP 状态"
+    echo "6) 测试 IPv4 / IPv6 出站"
+    echo "7) sing-box prefer_ipv6 修复"
+    echo "8) 恢复 sing-box direct 出站"
+    echo "9) WARP 紧急关闭/恢复 SSH"
+    echo "10) 查看/取消 WARP 自动回滚"
+    echo "11) WARP 模式对比说明"
+    echo "12) 兼容模式：warp 4/6/d/c/l/w/g/s 说明"
+    echo "13) WARP 优先级设置 IPv4/IPv6/VPS 默认"
+    echo "14) 卸载/清理 WARP"
     echo "0) 返回"
     read -rp "请选择: " w
     case "$w" in
-      1) love_warp_quick_fix ;;
-      2) love_install_cloudflare_warp_official ;;
-      3) love_install_wgcf_wireguard ;;
-      4) love_warp_status ;;
-      5) love_warp_test ;;
-      6) love_fix_ipv6_only_outbound ;;
-      7) love_warp_disconnect ;;
-      8) love_warp_uninstall ;;
+      1) love_warp_proxy_safe_install ;;
+      2) love_warp_quick_fix ;;
+      3) love_install_cloudflare_warp_official ;;
+      4) love_install_wgcf_wireguard ;;
+      5) love_warp_super_status ;;
+      6) love_warp_test ;;
+      7) love_fix_ipv6_only_outbound ;;
+      8) love_singbox_restore_direct_outbound ;;
+      9) love_warp_emergency_off ;;
+      10)
+        love_warp_rollback_status
+        read -rp "是否取消自动回滚？[y/N]: " c
+        [[ "$c" =~ ^[Yy]$ ]] && love_warp_cancel_rollback
+        ;;
+      11) love_warp_compare_modes ;;
+      12) love_warp_compat_help ;;
+      13) love_warp_set_priority ;;
+      14) love_warp_uninstall ;;
       0) return 0 ;;
       *) warn "无效选择。" ;;
     esac
@@ -5284,7 +5975,7 @@ love_warp_hint() {
 
 V10 已经不再调用第三方 WARP 脚本，WARP 管理已内置在 Love 中。
 
-当前 Love 自带两种 WARP 出站方案：
+当前 Love 自带三种 WARP 出站方案，优先推荐 Superior Proxy 模式：
 1. Cloudflare 官方 Linux 客户端：
    Love warp -> 2
 
@@ -5405,6 +6096,22 @@ github_publish_note() {
   Love warp-wgcf
   Love warp-disconnect
   Love warp-uninstall
+  Love warp-emergency-off
+  Love warp-keep
+  Love warp-rollback-status
+  Love warp-proxy
+  Love warp-direct
+  Love warp-modes
+  Love warp-super-status
+  Love warp-preflight
+  Love warp 4
+  Love warp 6
+  Love warp d
+  Love warp c
+  Love warp l
+  Love warp w
+  Love warp g
+  Love warp s
 
 兼容小写：
   love
@@ -5505,7 +6212,7 @@ main() {
       port_hopping_helper
       ;;
     warp)
-      love_warp_manager_menu
+      love_warp_compat_command "${2:-}"
       ;;
     -n|n|node|nodes)
       show_node_info
@@ -5638,6 +6345,54 @@ main() {
       ;;
     warp-uninstall)
       love_warp_uninstall
+      ;;
+    warp-emergency-off|warp-off|warp-rescue)
+      love_warp_emergency_off
+      ;;
+    warp-keep|warp-cancel-rollback)
+      love_warp_cancel_rollback
+      ;;
+    warp-rollback-status)
+      love_warp_rollback_status
+      ;;
+    warp-proxy|warp-safe|warp-super)
+      love_warp_proxy_safe_install
+      ;;
+    warp-direct)
+      love_singbox_restore_direct_outbound
+      ;;
+    warp-modes)
+      love_warp_compare_modes
+      ;;
+    warp-super-status)
+      love_warp_super_status
+      ;;
+    warp-preflight)
+      love_warp_preflight
+      ;;
+    warp4|warp-ipv4)
+      love_warp_interface_mode 4
+      ;;
+    warp6|warp-ipv6)
+      love_warp_interface_mode 6
+      ;;
+    warpd|warp-dual)
+      love_warp_interface_mode d
+      ;;
+    warp-c|warp-client-proxy)
+      love_warp_proxy_safe_install
+      ;;
+    warp-l|warp-linux-client)
+      love_install_cloudflare_warp_official
+      ;;
+    warp-w|wireproxy)
+      love_warp_wireproxy_mode
+      ;;
+    warp-g|warp-global)
+      love_warp_global_toggle_menu
+      ;;
+    warp-s|warp-priority)
+      love_warp_set_priority
       ;;
     ipv6-outbound)
       love_ipv6_outbound_menu
