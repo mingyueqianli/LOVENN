@@ -46,7 +46,7 @@ set -Eeuo pipefail
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v9.1.0-nginx-reverse-fix"
+VERSION="Love v9.2.0-auto-endpoint"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -285,6 +285,51 @@ ask_preferred_endpoint() {
 
   info "服务端真实地址：${default_addr}:${default_port}"
   info "客户端连接地址：${CLIENT_ADDR}:${CLIENT_PORT}"
+}
+
+
+auto_detect_endpoint() {
+  local ep=""
+
+  ep="$(curl -6 -s --max-time 5 https://ifconfig.co 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ -n "$ep" && "$ep" == *:* ]]; then
+    echo "[$ep]"
+    return 0
+  fi
+
+  ep="$(curl -4 -s --max-time 5 https://ifconfig.co 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ -n "$ep" ]]; then
+    echo "$ep"
+    return 0
+  fi
+
+  ep="$(hostname -I 2>/dev/null | awk '{print $1}' | tr -d '\r\n' || true)"
+  if [[ -n "$ep" ]]; then
+    if [[ "$ep" == *:* ]]; then
+      echo "[$ep]"
+    else
+      echo "$ep"
+    fi
+    return 0
+  fi
+
+  return 1
+}
+
+read_node_addr_with_default() {
+  local node_addr_var="$1"
+  local auto_addr
+
+  auto_addr="$(auto_detect_endpoint || true)"
+  if [[ -n "$auto_addr" ]]; then
+    read -rp "连接地址，可填 IPv4 / IPv6 / 临时域名 [${auto_addr}]: " node_addr_input
+    node_addr_input="${node_addr_input:-$auto_addr}"
+  else
+    read -rp "连接地址，可填 IPv4 / IPv6 / 临时域名: " node_addr_input
+  fi
+
+  [[ -n "${node_addr_input}" ]] || die "连接地址不能为空。自动检测失败，请手动填写 VPS 公网 IP / IPv6。"
+  printf -v "$node_addr_var" '%s' "$node_addr_input"
 }
 
 random_uuid() {
@@ -796,8 +841,7 @@ install_xray_stable() {
     [[ "${hy2_choice}" =~ ^[Yy]$ ]] && enable_hy2="yes" || enable_hy2="no"
     hy2_sni="${domain}"
   else
-    read -rp "连接地址，可填 IPv4 / IPv6 / 临时域名: " node_addr
-    [[ -n "${node_addr}" ]] || die "连接地址不能为空。"
+    read_node_addr_with_default node_addr
 
     warn "无域名默认 Reality-only。HY2 自签需要客户端 insecure=1。"
     read -rp "是否强行安装 HY2 自签模式？[y/N]: " hy2_self
@@ -1291,8 +1335,7 @@ install_singbox_native() {
     [[ -n "${email}" ]] || die "邮箱不能为空。"
     cert_needed="yes"
   else
-    read -rp "连接地址，可填 IPv4 / IPv6 / 临时域名: " node_addr
-    [[ -n "${node_addr}" ]] || die "连接地址不能为空。"
+    read_node_addr_with_default node_addr
     read -rp "自签证书 SNI [self.local]: " tls_sni
     tls_sni="${tls_sni:-self.local}"
     insecure="1"
