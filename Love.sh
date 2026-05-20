@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v9.5.0-singbox-112-hard-fix"
+VERSION="Love v9.8.0-hy2-name-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1253,7 +1253,7 @@ save_singbox_info() {
 
   if [[ "$INSTALL_HY2" == "yes" ]]; then
     echo "HY2:" >> "${SINGBOX_INFO}"
-    echo "hy2://${SB_HY2_PASS}@${h}:${SB_HY2_PORT}/?sni=${tls_sni}&insecure=${insecure}#LOVE-SB-HY2" >> "${SINGBOX_INFO}"
+    echo "hy2://${SB_HY2_PASS}@${h}:${SB_HY2_PORT}/?sni=${tls_sni}&insecure=${insecure}#LOVE-HY2" >> "${SINGBOX_INFO}"
     echo >> "${SINGBOX_INFO}"
   fi
 
@@ -1821,6 +1821,9 @@ generate_client_exports() {
 }
 export_subscription() {
   prepare_dirs
+  if [[ ! -s "${LOVE_SUB}/all.txt" && -f /etc/sing-box/config.json ]]; then
+    love_generate_hy2_subscription_from_config >/dev/null 2>&1 || true
+  fi
   mkdir -p "${LOVE_SUB}"
 
   local raw="${LOVE_SUB}/all.txt"
@@ -2372,6 +2375,10 @@ C. 高级能力
   87. Love nginx-stream SNI passthrough 分流
   88. Love nginx-status 反代状态
   89. Love nginx-rollback Nginx 配置回滚
+  90. Love fix-hy2 修复 sing-box 1.12 / 自动放行端口 / 生成 HY2 订阅
+  91. Love fix-ipv6 IPv6-only 出站 prefer_ipv6 修复
+  92. Love test-outbound 测试 IPv4 / IPv6 出站
+  93. Love warp-hint WARP / IPv4 出站提示
 
 ================================================
 
@@ -4692,6 +4699,295 @@ nginx_rp_menu() {
   done
 }
 
+
+# ------------------------------------------------------------------------------
+# V9.6 HY2 subscribe / firewall hard fix
+# ------------------------------------------------------------------------------
+
+love_get_public_addr() {
+  local ep=""
+  ep="$(curl -6 -s --max-time 5 https://ifconfig.co 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ -n "$ep" && "$ep" == *:* ]]; then
+    echo "[$ep]"
+    return 0
+  fi
+
+  ep="$(curl -4 -s --max-time 5 https://ifconfig.co 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ -n "$ep" ]]; then
+    echo "$ep"
+    return 0
+  fi
+
+  ep="$(hostname -I 2>/dev/null | awk '{print $1}' | tr -d '\r\n' || true)"
+  if [[ -n "$ep" ]]; then
+    if [[ "$ep" == *:* ]]; then
+      echo "[$ep]"
+    else
+      echo "$ep"
+    fi
+    return 0
+  fi
+
+  return 1
+}
+
+love_fix_singbox_112_config() {
+  [[ -f /etc/sing-box/config.json ]] || return 0
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.$(date +%F-%H%M%S) 2>/dev/null || true
+
+  jq '
+    .dns = (.dns // {}) |
+    .dns.servers = (
+      (.dns.servers // []) |
+      map(
+        if type == "string" then
+          {tag: ("dns-" + (tostring)), type: "udp", server: .}
+        elif has("address") then
+          . + {type: "udp", server: .address} | del(.address)
+        else
+          .
+        end
+      )
+    ) |
+    if (.dns.servers | length) == 0 then
+      .dns.servers = [
+        {tag: "cf", type: "udp", server: "1.1.1.1"},
+        {tag: "google", type: "udp", server: "8.8.8.8"}
+      ]
+    else
+      .
+    end |
+    .route = (.route // {}) |
+    .route.default_domain_resolver = "cf"
+  ' /etc/sing-box/config.json > /tmp/sing-box-love-fix.json && mv /tmp/sing-box-love-fix.json /etc/sing-box/config.json
+
+  mkdir -p /etc/systemd/system/sing-box.service.d
+  cat > /etc/systemd/system/sing-box.service.d/10-love-singbox-compat.conf <<'EOF'
+[Service]
+Environment=ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true
+Environment=ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true
+EOF
+
+  systemctl daemon-reload || true
+}
+
+love_generate_hy2_subscription_from_config() {
+  prepare_dirs
+  mkdir -p "${LOVE_SUB}"
+
+  [[ -f /etc/sing-box/config.json ]] || {
+    warn "未找到 /etc/sing-box/config.json，无法生成 HY2 订阅。"
+    return 0
+  }
+
+  if ! jq -e '.inbounds[]? | select(.type=="hysteria2")' /etc/sing-box/config.json >/dev/null 2>&1; then
+    warn "当前 sing-box 配置里没有 hysteria2 inbound。"
+    return 0
+  fi
+
+  local pass port sni addr tag line
+  pass="$(jq -r '.inbounds[]? | select(.type=="hysteria2") | .users[0].password // empty' /etc/sing-box/config.json | head -n1)"
+  port="$(jq -r '.inbounds[]? | select(.type=="hysteria2") | .listen_port // empty' /etc/sing-box/config.json | head -n1)"
+  sni="$(jq -r '.inbounds[]? | select(.type=="hysteria2") | .tls.server_name // "self.local"' /etc/sing-box/config.json | head -n1)"
+  addr="$(love_get_public_addr || true)"
+
+  [[ -n "$pass" && -n "$port" && -n "$addr" ]] || {
+    warn "HY2 信息不完整，无法生成订阅。pass/port/addr 缺失。"
+    return 0
+  }
+
+  tag="LOVE-HY2"
+  line="hysteria2://${pass}@${addr}:${port}?sni=${sni}&insecure=1&allowInsecure=1&alpn=h3#${tag}"
+
+  touch "${LOVE_SUB}/all.txt"
+  grep -v 'LOVE-HY2' "${LOVE_SUB}/all.txt" > "${LOVE_SUB}/all.txt.tmp" 2>/dev/null || true
+  mv "${LOVE_SUB}/all.txt.tmp" "${LOVE_SUB}/all.txt"
+  echo "$line" >> "${LOVE_SUB}/all.txt"
+
+  base64 -w0 "${LOVE_SUB}/all.txt" > "${LOVE_SUB}/all_base64.txt" 2>/dev/null || true
+
+  log "HY2 订阅已生成：${LOVE_SUB}/all.txt"
+  echo "$line"
+}
+
+love_allow_singbox_inbound_ports() {
+  [[ -f /etc/sing-box/config.json ]] || return 0
+
+  if ! command -v ufw >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local row proto port
+  jq -r '.inbounds[]? | [.type, (.listen_port|tostring)] | @tsv' /etc/sing-box/config.json | while IFS=$'\t' read -r proto port; do
+    [[ -n "$port" && "$port" != "null" ]] || continue
+
+    case "$proto" in
+      hysteria2|tuic|naive)
+        ufw allow "${port}/udp" || true
+        ;;
+      *)
+        ufw allow "${port}/tcp" || true
+        ;;
+    esac
+  done
+
+  ufw reload || true
+}
+
+love_fix_hy2_now() {
+  echo
+  echo "================ Love HY2 Fix Now ================"
+  love_fix_singbox_112_config
+  love_allow_singbox_inbound_ports
+
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true /usr/local/bin/sing-box check -c /etc/sing-box/config.json
+
+  systemctl restart sing-box
+  sleep 2
+  systemctl status sing-box --no-pager || true
+  ss -lunp | grep sing-box || true
+
+  love_generate_hy2_subscription_from_config
+}
+
+
+# ------------------------------------------------------------------------------
+# V9.7 IPv6-only outbound fixer
+# ------------------------------------------------------------------------------
+
+love_test_outbound_stack() {
+  echo
+  echo "================ Love IPv4 / IPv6 Outbound Test ================"
+  local v4_ok="no"
+  local v6_ok="no"
+
+  if curl -4 -I --connect-timeout 5 https://alive.github.com >/dev/null 2>&1; then
+    v4_ok="yes"
+  fi
+
+  if curl -6 -I --connect-timeout 5 https://alive.github.com >/dev/null 2>&1; then
+    v6_ok="yes"
+  fi
+
+  echo "IPv4 outbound: ${v4_ok}"
+  echo "IPv6 outbound: ${v6_ok}"
+
+  if [[ "$v4_ok" == "no" && "$v6_ok" == "yes" ]]; then
+    warn "检测到 IPv6-only 出站：建议 direct 出站使用 prefer_ipv6。"
+    return 6
+  elif [[ "$v4_ok" == "yes" && "$v6_ok" == "yes" ]]; then
+    log "双栈出站正常。"
+    return 0
+  elif [[ "$v4_ok" == "yes" && "$v6_ok" == "no" ]]; then
+    warn "仅 IPv4 出站正常。"
+    return 4
+  else
+    warn "IPv4 / IPv6 出站都异常，请检查 VPS 网络。"
+    return 1
+  fi
+}
+
+love_fix_ipv6_only_outbound() {
+  echo
+  echo "================ Love IPv6-only Outbound Fix ================"
+  [[ -f /etc/sing-box/config.json ]] || die "未找到 /etc/sing-box/config.json"
+
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.ipv6.$(date +%F-%H%M%S)
+
+  jq '
+    .dns = (.dns // {}) |
+    .dns.servers = (
+      (.dns.servers // []) |
+      map(
+        if type == "string" then
+          {tag: ("dns-" + (tostring)), type: "udp", server: .}
+        elif has("address") then
+          . + {type: "udp", server: .address} | del(.address)
+        else
+          .
+        end
+      )
+    ) |
+    if (.dns.servers | length) == 0 then
+      .dns.servers = [
+        {tag: "cf", type: "udp", server: "2606:4700:4700::1111"},
+        {tag: "google", type: "udp", server: "2001:4860:4860::8888"}
+      ]
+    else . end |
+    .route = (.route // {}) |
+    .route.default_domain_resolver = "cf" |
+    .outbounds = (
+      (.outbounds // []) |
+      map(
+        if (.type == "direct" or .tag == "direct") then
+          . + {domain_strategy: "prefer_ipv6"}
+        else
+          .
+        end
+      )
+    )
+  ' /etc/sing-box/config.json > /tmp/sing-box-ipv6.json && mv /tmp/sing-box-ipv6.json /etc/sing-box/config.json
+
+  mkdir -p /etc/systemd/system/sing-box.service.d
+  cat > /etc/systemd/system/sing-box.service.d/10-love-singbox-compat.conf <<'EOF'
+[Service]
+Environment=ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true
+Environment=ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true
+EOF
+
+  systemctl daemon-reload
+
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true /usr/local/bin/sing-box check -c /etc/sing-box/config.json
+
+  systemctl restart sing-box
+  sleep 2
+  systemctl status sing-box --no-pager || true
+
+  log "IPv6-only 出站修复完成：direct.domain_strategy=prefer_ipv6"
+  warn "如果目标网站只有 IPv4，没有 AAAA 记录，IPv6-only VPS 仍然需要 WARP/NAT64/中转才能访问。"
+}
+
+love_warp_hint() {
+  cat <<'EOF'
+
+================ WARP / IPv4 出站提示 ================
+
+你的 VPS 如果是 IPv6-only：
+1. prefer_ipv6 可以减少 IPv4 timeout
+2. 但只有 IPv4 的网站仍然可能打不开
+3. 需要 IPv4 出站时，可以考虑安装 WARP
+
+常用命令：
+  wget -N https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh
+
+安装后测试：
+  curl -4 -I --connect-timeout 5 https://alive.github.com
+  curl -6 -I --connect-timeout 5 https://alive.github.com
+
+注意：
+  WARP 只改善服务器出站，不会给 IPv6-only VPS 提供公网 IPv4 入站。
+
+=======================================================
+
+EOF
+}
+
+love_ipv6_outbound_menu() {
+  echo
+  echo "================ Love IPv6-only Outbound Menu ================"
+  echo "1) 测试 IPv4 / IPv6 出站"
+  echo "2) 修复 sing-box direct 为 prefer_ipv6"
+  echo "3) WARP / IPv4 出站提示"
+  echo "0) 返回"
+  read -rp "请选择: " i
+  case "$i" in
+    1) love_test_outbound_stack || true ;;
+    2) love_fix_ipv6_only_outbound ;;
+    3) love_warp_hint ;;
+    *) return 0 ;;
+  esac
+}
+
 github_publish_note() {
   cat <<'EOF'
 
@@ -4777,6 +5073,11 @@ github_publish_note() {
   Love nginx-stream
   Love nginx-status
   Love nginx-rollback
+  Love fix-hy2
+  Love fix-ipv6
+  Love test-outbound
+  Love warp-hint
+  Love ipv6-outbound
 
 兼容小写：
   love
@@ -4814,10 +5115,12 @@ main_menu() {
     echo "15) v7 Stable Tools：预检/模式/快照/用户/日志/加固"
     echo "16) v8 Project Panel：验证/审计/发布/迁移/仪表盘"
     echo "17) v9 Nginx Reverse Proxy：WS/gRPC/Stream/伪装站"
-    echo "18) 查看状态"
-    echo "19) 备份配置"
-    echo "20) 卸载菜单"
-    echo "21) GitHub 发布说明"
+    echo "18) HY2/sing-box 自动修复与订阅生成"
+    echo "19) IPv6-only 出站修复 / WARP 提示"
+    echo "20) 查看状态"
+    echo "21) 备份配置"
+    echo "22) 卸载菜单"
+    echo "23) GitHub 发布说明"
     echo "0) 退出"
     echo
     read -rp "请选择: " choice
@@ -4840,10 +5143,12 @@ main_menu() {
       15) v7_stable_menu ;;
       16) v8_menu ;;
       17) nginx_rp_menu ;;
-      18) show_status ;;
-      19) backup_configs ;;
-      20) uninstall_menu_v7 ;;
-      21) github_publish_note ;;
+      18) love_fix_hy2_now ;;
+      19) love_ipv6_outbound_menu ;;
+      20) show_status ;;
+      21) backup_configs ;;
+      22) uninstall_menu_v7 ;;
+      23) github_publish_note ;;
       0) exit 0 ;;
       *) warn "无效选择。" ;;
     esac
@@ -4965,6 +5270,21 @@ main() {
       ;;
     nginx-rollback)
       nginx_rp_rollback
+      ;;
+    fix-hy2|hy2-fix|fix-singbox)
+      love_fix_hy2_now
+      ;;
+    fix-ipv6|ipv6-out|ipv6-fix)
+      love_fix_ipv6_only_outbound
+      ;;
+    test-outbound|outbound-test)
+      love_test_outbound_stack || true
+      ;;
+    warp-hint)
+      love_warp_hint
+      ;;
+    ipv6-outbound)
+      love_ipv6_outbound_menu
       ;;
     validate)
       v8_validate_all
