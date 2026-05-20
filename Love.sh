@@ -46,7 +46,7 @@ set -Eeuo pipefail
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v9.0.0-nginx-reverse"
+VERSION="Love v9.1.0-nginx-reverse-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -969,18 +969,20 @@ EOF
   INSTALL_NAIVE="no"
   INSTALL_SHADOWTLS="no"
 
-  [[ "$proto" == *b* ]] && INSTALL_REALITY="yes"
-  [[ "$proto" == *c* ]] && INSTALL_HY2="yes"
-  [[ "$proto" == *d* ]] && INSTALL_TUIC="yes"
-  [[ "$proto" == *e* ]] && INSTALL_SS="yes"
-  [[ "$proto" == *f* ]] && INSTALL_TROJAN="yes"
-  [[ "$proto" == *g* ]] && INSTALL_VMESS_WS="yes"
-  [[ "$proto" == *h* ]] && INSTALL_VLESS_WS_TLS="yes"
-  [[ "$proto" == *i* ]] && INSTALL_H2_REALITY="yes"
-  [[ "$proto" == *j* ]] && INSTALL_GRPC_REALITY="yes"
-  [[ "$proto" == *k* ]] && INSTALL_ANYTLS="yes"
-  [[ "$proto" == *l* ]] && INSTALL_NAIVE="yes"
-  [[ "$proto" == *m* ]] && INSTALL_SHADOWTLS="yes"
+  [[ "$proto" == *b* ]] && INSTALL_REALITY="yes" || true
+  [[ "$proto" == *c* ]] && INSTALL_HY2="yes" || true
+  [[ "$proto" == *d* ]] && INSTALL_TUIC="yes" || true
+  [[ "$proto" == *e* ]] && INSTALL_SS="yes" || true
+  [[ "$proto" == *f* ]] && INSTALL_TROJAN="yes" || true
+  [[ "$proto" == *g* ]] && INSTALL_VMESS_WS="yes" || true
+  [[ "$proto" == *h* ]] && INSTALL_VLESS_WS_TLS="yes" || true
+  [[ "$proto" == *i* ]] && INSTALL_H2_REALITY="yes" || true
+  [[ "$proto" == *j* ]] && INSTALL_GRPC_REALITY="yes" || true
+  [[ "$proto" == *k* ]] && INSTALL_ANYTLS="yes" || true
+  [[ "$proto" == *l* ]] && INSTALL_NAIVE="yes" || true
+  [[ "$proto" == *m* ]] && INSTALL_SHADOWTLS="yes" || true
+
+  return 0
 }
 
 gen_singbox_values() {
