@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.7.0-cfip-client-test-pack-final"
+VERSION="Love v13.8.0-xray-preselect-menu-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -10576,6 +10576,199 @@ cfip_helper() {
         read -rp "确认清空优选列表？[y/N]: " y
         [[ "$y" =~ ^[Yy]$ ]] && : > "$(love_cfip_file)"
         ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v13.8 Xray Preselect Menu Final
+# Main menu option 2 now shows node choices before asking domain/config.
+# ==============================================================================
+
+love_xray_install_core_v138() {
+  local mode="${1:-wizard}"
+  local node_addr="" domain="" email="" enable_hy2="no" hy2_sni="" insecure="0" has_domain="N"
+  local reality_sni
+
+  love_menu_title "Love Xray 安装配置" "$mode"
+
+  case "$mode" in
+    reality_only)
+      echo "模式：VLESS + REALITY + Vision，TCP 443。"
+      echo "说明：不需要域名证书；客户端地址可以是 VPS IP / IPv6 / 域名。"
+      read_node_addr_with_default node_addr
+      has_domain="N"
+      enable_hy2="no"
+      ;;
+    reality_hy2_domain)
+      echo "模式：VLESS + REALITY + Vision TCP 443 + HY2 UDP 443。"
+      echo "说明：HY2 使用 Let's Encrypt 证书，需要你自己的域名解析到 VPS。"
+      read -rp "节点域名，例如 node.example.com，输入 0 返回: " domain
+      [[ "$domain" == "0" ]] && return 0
+      [[ -n "$domain" ]] || { warn "域名不能为空，已返回 Xray 菜单。"; return 0; }
+      node_addr="$domain"
+      has_domain="Y"
+      enable_hy2="yes"
+      hy2_sni="$domain"
+      read -rp "Let's Encrypt 邮箱，输入 0 返回: " email
+      [[ "$email" == "0" ]] && return 0
+      [[ -n "$email" ]] || { warn "邮箱不能为空，已返回 Xray 菜单。"; return 0; }
+      ;;
+    reality_hy2_self)
+      echo "模式：VLESS + REALITY + Vision TCP 443 + HY2 UDP 443 自签证书。"
+      echo "说明：无域名可用；HY2 客户端需要 insecure=1。"
+      read_node_addr_with_default node_addr
+      has_domain="N"
+      enable_hy2="yes"
+      insecure="1"
+      read -rp "HY2 自签 SNI [self.local]: " hy2_sni
+      hy2_sni="${hy2_sni:-self.local}"
+      ;;
+    domain_reality)
+      echo "模式：有域名，但只安装 VLESS + REALITY + Vision，不安装 HY2。"
+      read -rp "节点域名，例如 node.example.com，输入 0 返回: " domain
+      [[ "$domain" == "0" ]] && return 0
+      [[ -n "$domain" ]] || { warn "域名不能为空，已返回 Xray 菜单。"; return 0; }
+      node_addr="$domain"
+      has_domain="Y"
+      enable_hy2="no"
+      ;;
+    wizard|*)
+      echo "模式：旧版 Xray 稳定向导。"
+      read -rp "有自己的节点域名吗？[Y/n/0返回]: " has_domain
+      has_domain="${has_domain:-Y}"
+      [[ "$has_domain" == "0" ]] && return 0
+      if [[ "${has_domain}" =~ ^[Yy]$ ]]; then
+        read -rp "节点域名，例如 node.example.com，输入 0 返回: " domain
+        [[ "$domain" == "0" ]] && return 0
+        [[ -n "${domain}" ]] || { warn "域名不能为空，已返回 Xray 菜单。"; return 0; }
+        node_addr="${domain}"
+
+        read -rp "安装 HY2 / Hysteria2？[Y/n]: " hy2_choice
+        hy2_choice="${hy2_choice:-Y}"
+        if [[ "${hy2_choice}" =~ ^[Yy]$ ]]; then
+          enable_hy2="yes"
+          hy2_sni="${domain}"
+          read -rp "Let's Encrypt 邮箱，输入 0 返回: " email
+          [[ "$email" == "0" ]] && return 0
+          [[ -n "${email}" ]] || { warn "邮箱不能为空，已返回 Xray 菜单。"; return 0; }
+        else
+          enable_hy2="no"
+          hy2_sni=""
+        fi
+      else
+        read_node_addr_with_default node_addr
+        warn "无域名默认 Reality-only。HY2 自签需要客户端 insecure=1。"
+        read -rp "是否强行安装 HY2 自签模式？[y/N]: " hy2_self
+        if [[ "${hy2_self}" =~ ^[Yy]$ ]]; then
+          enable_hy2="yes"
+          insecure="1"
+          read -rp "HY2 自签 SNI [self.local]: " hy2_sni
+          hy2_sni="${hy2_sni:-self.local}"
+        else
+          enable_hy2="no"
+          hy2_sni=""
+        fi
+      fi
+      ;;
+  esac
+
+  echo
+  printf "%b即将安装：%b\n" "$(lc green)" "$(lc reset)"
+  echo "  Xray Reality: yes"
+  echo "  VLESS Vision: yes"
+  echo "  HY2: ${enable_hy2}"
+  echo "  Client Address: ${node_addr}"
+  [[ -n "$hy2_sni" ]] && echo "  HY2 SNI: ${hy2_sni}"
+  [[ "$insecure" == "1" ]] && echo "  HY2 insecure: 1"
+  echo
+
+  read -rp "确认继续安装？[Y/n]: " ok
+  ok="${ok:-Y}"
+  [[ "$ok" =~ ^[Yy]$ ]] || return 0
+
+  read -rp "Reality SNI [www.cloudflare.com]: " reality_sni
+  reality_sni="${reality_sni:-www.cloudflare.com}"
+
+  ask_preferred_endpoint "${node_addr}" "443"
+  ask_ssh_port
+
+  install_base
+  setup_ufw "$([[ "${has_domain}" =~ ^[Yy]$ && "${enable_hy2}" == "yes" ]] && echo yes || echo no)" yes "$([[ "${enable_hy2}" == "yes" ]] && echo yes || echo no)" no
+  install_xray_core
+  gen_xray_keys
+  test_reality_sni "${reality_sni}"
+
+  if [[ "${enable_hy2}" == "yes" ]]; then
+    if [[ "${has_domain}" =~ ^[Yy]$ ]]; then
+      issue_cert_generic "${domain}" "${email}" "${XRAY_CONF_DIR}" "xray"
+      mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+      cat > /etc/letsencrypt/renewal-hooks/deploy/love-xray-copy-cert.sh <<EOF
+#!/usr/bin/env bash
+set -e
+DOMAIN="${domain}"
+if echo " \$RENEWED_DOMAINS " | grep -q " \$DOMAIN "; then
+  install -m 640 -o root -g xray "/etc/letsencrypt/live/\$DOMAIN/fullchain.pem" "${XRAY_CONF_DIR}/cert.pem"
+  install -m 640 -o root -g xray "/etc/letsencrypt/live/\$DOMAIN/privkey.pem" "${XRAY_CONF_DIR}/key.pem"
+  systemctl restart xray || true
+fi
+EOF
+      chmod +x /etc/letsencrypt/renewal-hooks/deploy/love-xray-copy-cert.sh
+    else
+      make_selfsigned_generic "${hy2_sni}" "${XRAY_CONF_DIR}" "xray"
+    fi
+  fi
+
+  write_xray_config "${node_addr}" "${reality_sni}" "${enable_hy2}" "${hy2_sni}"
+  write_xray_service
+
+  "${XRAY_BIN}" run -test -config "${XRAY_CONF}"
+  systemctl enable xray
+  systemctl restart xray
+
+  sleep 2
+  systemctl status xray --no-pager || true
+  ss -lntp | grep ':443' || true
+  ss -lunp | grep ':443' || true
+
+  save_xray_info "${node_addr}" "${reality_sni}" "${enable_hy2}" "${hy2_sni}" "${insecure}" "${CLIENT_ADDR}" "${CLIENT_PORT}"
+  love_after_node_generated_exports
+  log "Xray 稳定模式安装完成。"
+}
+
+install_xray_stable() {
+  while true; do
+    love_menu_title "Love Xray Reality 节点选择" "先选节点类型，再填写域名/地址"
+
+    printf "%b当前 Xray 稳定模式实际包含：%b\n" "$(lc green)" "$(lc reset)"
+    echo "  - VLESS + REALITY + Vision，TCP 443"
+    echo "  - 可选 HY2 / Hysteria2，UDP 443"
+    echo
+    printf "%b不在这里的协议：%bTUIC / Naive / ShadowTLS / AnyTLS / VMess / Trojan 等请用 3) sing-box 全协议。\n" "$(lc yellow)" "$(lc reset)"
+    echo
+
+    love_menu2 "1) VLESS Reality Vision【无域名/IP可用】" "5) 旧版完整 Xray 向导"
+    love_menu2 "2) VLESS Reality + HY2【有域名/证书】" "6) 跳转 sing-box 全协议"
+    love_menu2 "3) VLESS Reality + HY2【无域名/自签】" "7) 查看当前节点信息"
+    love_menu2 "4) 有域名但只装 Reality【不装HY2】" "0) 返回"
+
+    echo
+    love_ui_tip "建议：只要稳定节点选 1；有域名并想加 UDP 高速 HY2 选 2；无域名想强行 HY2 选 3。"
+    echo
+
+    read -rp "$(printf "%b请选择节点类型:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) love_xray_install_core_v138 reality_only ;;
+      2) love_xray_install_core_v138 reality_hy2_domain ;;
+      3) love_xray_install_core_v138 reality_hy2_self ;;
+      4) love_xray_install_core_v138 domain_reality ;;
+      5) love_xray_install_core_v138 wizard ;;
+      6) install_singbox_native ;;
+      7) show_node_info ;;
       0) return 0 ;;
       *) warn "无效选择。" ;;
     esac
