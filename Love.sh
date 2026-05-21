@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v10.9.0-wireproxy-deps-fix"
+VERSION="Love v11.0.0-wireproxy-direct-download"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -5359,29 +5359,32 @@ love_download_latest_wireproxy() {
   case "$arch" in
     x86_64|amd64) arch="amd64" ;;
     aarch64|arm64) arch="arm64" ;;
-    armv7l|armv7*) arch="armv7" ;;
+    armv7l|armv7*|armhf) arch="arm" ;;
+    i386|i686) arch="386" ;;
     *) die "暂不支持该架构自动下载 wireproxy：$(uname -m)" ;;
   esac
 
-  apt update
-  apt install -y curl jq ca-certificates file unzip tar
+  apt update || true
+  apt install -y curl jq ca-certificates file unzip tar || true
 
   tmp="/tmp/wireproxy-download"
   rm -rf "$tmp"
   mkdir -p "$tmp"
 
-  url="$(curl -fsSL --connect-timeout 20 https://api.github.com/repos/octeep/wireproxy/releases/latest | jq -r --arg arch "$arch" '
-    .assets[]
-    | select(.name | test("linux.*" + $arch))
-    | .browser_download_url
-  ' | head -n1)"
+  url="https://github.com/whyvl/wireproxy/releases/download/v1.0.9/wireproxy_linux_${arch}.tar.gz"
 
-  [[ -n "$url" && "$url" != "null" ]] || die "无法自动获取 wireproxy 最新下载地址。"
-
-  curl -L --connect-timeout 30 -o "$tmp/wireproxy.asset" "$url"
+  warn "尝试直接下载 WireProxy：$url"
+  if ! curl -6 -L --connect-timeout 25 --retry 2 -o "$tmp/wireproxy.asset" "$url"; then
+    warn "IPv6 直连下载失败，尝试普通连接。"
+    curl -L --connect-timeout 25 --retry 2 -o "$tmp/wireproxy.asset" "$url" || {
+      warn "WireProxy 直接下载失败。"
+      warn "当前 VPS 无法访问 GitHub release；可以在本地电脑下载对应文件后 scp 上传到 /usr/local/bin/wireproxy。"
+      return 1
+    }
+  fi
 
   if file "$tmp/wireproxy.asset" | grep -qi 'gzip compressed'; then
-    tar -xzf "$tmp/wireproxy.asset" -C "$tmp" 2>/dev/null || gzip -dc "$tmp/wireproxy.asset" > "$tmp/wireproxy" || true
+    tar -xzf "$tmp/wireproxy.asset" -C "$tmp"
   elif file "$tmp/wireproxy.asset" | grep -qi 'Zip archive'; then
     unzip -o "$tmp/wireproxy.asset" -d "$tmp"
   else
@@ -5392,7 +5395,8 @@ love_download_latest_wireproxy() {
   [[ -n "$asset" ]] || die "下载后未找到 wireproxy 可执行文件。"
 
   install -m 755 "$asset" /usr/local/bin/wireproxy
-  /usr/local/bin/wireproxy --help >/dev/null 2>&1 || true
+  /usr/local/bin/wireproxy --version 2>/dev/null || /usr/local/bin/wireproxy --help | head -n 3 || true
+  log "WireProxy 已安装到 /usr/local/bin/wireproxy"
 }
 
 love_warp_wireproxy_mode() {
@@ -6833,6 +6837,9 @@ main() {
       apt update || true
       apt install -y curl jq wireguard-tools iproute2 ca-certificates file unzip tar
       love_install_optional_dns_resolver
+      ;;
+    wireproxy-install|warp-wireproxy-install)
+      love_download_latest_wireproxy
       ;;
     warp-g|warp-global)
       love_warp_global_toggle_menu
