@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v12.9.0-force-color-two-column-update-link-final"
+VERSION="Love v13.1.0-status-label-fix-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -8752,6 +8752,458 @@ love_warp_final_menu_v12() {
       *) warn "无效选择。" ;;
     esac
   done
+}
+
+
+
+# ==============================================================================
+# Love v13.0 Aligned Color UI Final
+# CJK-width aware two-column layout. This override is placed before main "$@".
+# ==============================================================================
+
+LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
+
+lc() {
+  [[ -n "${NO_COLOR:-}" ]] && return 0
+  case "$1" in
+    red) printf "\033[31m" ;;
+    green) printf "\033[32m" ;;
+    yellow) printf "\033[33m" ;;
+    blue) printf "\033[34m" ;;
+    magenta) printf "\033[35m" ;;
+    cyan) printf "\033[36m" ;;
+    white) printf "\033[37m" ;;
+    gray) printf "\033[90m" ;;
+    bold) printf "\033[1m" ;;
+    reset|*) printf "\033[0m" ;;
+  esac
+}
+
+love_ui_hr() {
+  printf "%b%s%b\n" "$(lc blue)" "════════════════════════════════════════════════════════════════════════════════" "$(lc reset)"
+}
+
+love_ui_title() {
+  echo
+  love_ui_hr
+  printf "%b%s%b %b%s%b\n" "$(lc bold)$(lc cyan)" "$1" "$(lc reset)" "$(lc gray)" "${2:-}" "$(lc reset)"
+  love_ui_hr
+}
+
+love_ui_tip() {
+  printf "%b%s%b\n" "$(lc magenta)" "$*" "$(lc reset)"
+}
+
+love_ui_status_line() {
+  local label="$1" value="$2"
+  local color="yellow"
+  case "$value" in
+    active|yes|on|running|ok) color="green" ;;
+    no|off|failed|not*) color="red" ;;
+  esac
+  printf "  %-20s %b%s%b\n" "$label" "$(lc "$color")" "$value" "$(lc reset)"
+}
+
+love_cjk_pad() {
+  # Usage: love_cjk_pad "text" width
+  # Python handles Chinese/Japanese/Korean display width. Fallback is simple printf.
+  local text="$1"
+  local width="${2:-34}"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$text" "$width" <<'PY'
+import sys, unicodedata
+s = sys.argv[1]
+w = int(sys.argv[2])
+def swidth(x):
+    total = 0
+    for ch in x:
+        if unicodedata.combining(ch):
+            continue
+        ea = unicodedata.east_asian_width(ch)
+        total += 2 if ea in ("W", "F") else 1
+    return total
+d = swidth(s)
+if d > w:
+    out = ""
+    cur = 0
+    for ch in s:
+        cw = 0 if unicodedata.combining(ch) else (2 if unicodedata.east_asian_width(ch) in ("W","F") else 1)
+        if cur + cw > w - 1:
+            break
+        out += ch
+        cur += cw
+    s = out + "…"
+    d = swidth(s)
+print(s + " " * max(0, w - d), end="")
+PY
+  else
+    printf "%-${width}s" "$text"
+  fi
+}
+
+love_ui_menu2() {
+  local left right lcell rcell
+  left="$1"
+  right="$2"
+  lcell="$(love_cjk_pad "$left" 36)"
+  rcell="$(love_cjk_pad "$right" 36)"
+  printf "  %b│%b %b%s%b %b│%b %b%s%b %b│%b\n" \
+    "$(lc blue)" "$(lc reset)" "$(lc yellow)" "$lcell" "$(lc reset)" \
+    "$(lc blue)" "$(lc reset)" "$(lc cyan)" "$rcell" "$(lc reset)" \
+    "$(lc blue)" "$(lc reset)"
+}
+
+love_ui_row() {
+  love_ui_menu2 "$1" "$2"
+}
+
+love_warp_menu_row() {
+  love_ui_menu2 "$1" "$2"
+}
+
+love_main_menu_row() {
+  love_ui_menu2 "$1" "$2"
+}
+
+love_main_status_panel_v13() {
+  local sb ng wp final port ipv4 ipv6
+  systemctl is-active --quiet sing-box && sb="active" || sb="not active"
+  systemctl is-active --quiet nginx && ng="active" || ng="not active"
+  systemctl is-active --quiet love-wireproxy.service && wp="active" || wp="not active"
+  final="$(jq -r '.route.final // "unknown"' /etc/sing-box/config.json 2>/dev/null || echo unknown)"
+  port="$(jq -r '.outbounds[]? | select(.tag=="warp-socks") | .server_port' /etc/sing-box/config.json 2>/dev/null | head -n1)"
+  curl -4 -I --connect-timeout 2 --max-time 4 https://github.com >/dev/null 2>&1 && ipv4="yes" || ipv4="no"
+  curl -6 -I --connect-timeout 2 --max-time 4 https://github.com >/dev/null 2>&1 && ipv6="yes" || ipv6="no"
+
+  printf "%b系统状态%b\n" "$(lc green)" "$(lc reset)"
+  printf "  %-20s %s\n" "OS:" "$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")"
+  printf "  %-20s %s / %s\n" "Arch/Virt:" "$(uname -m)" "$(systemd-detect-virt 2>/dev/null || echo unknown)"
+  printf "  %-20s IPv4: %b%s%b    IPv6: %b%s%b\n" "Outbound:" "$(lc $([[ "$ipv4" == yes ]] && echo green || echo red))" "$ipv4" "$(lc reset)" "$(lc $([[ "$ipv6" == yes ]] && echo green || echo red))" "$ipv6" "$(lc reset)"
+  love_ui_status_line "sing-box:" "$sb"
+  love_ui_status_line "nginx web:" "$ng"
+  love_ui_status_line "WireProxy:" "$wp"
+  printf "  %-20s %b%s%b\n" "route.final:" "$(lc cyan)" "$final" "$(lc reset)"
+  [[ -n "$port" ]] && printf "  %-20s %b%s%b\n" "warp-socks port:" "$(lc cyan)" "$port" "$(lc reset)"
+  echo
+}
+
+love_show_update_link() {
+  love_ui_title "Love 在线更新 / 下载链接" "${VERSION}"
+  echo "Raw 下载链接："
+  echo "${LOVE_UPDATE_URL:-$LOVE_RAW_URL_DEFAULT}"
+  echo
+  echo "手动更新命令："
+  echo "wget -O /usr/local/bin/Love ${LOVE_UPDATE_URL:-$LOVE_RAW_URL_DEFAULT}"
+  echo "chmod +x /usr/local/bin/Love"
+  echo "ln -sf /usr/local/bin/Love /usr/local/bin/love"
+  echo "hash -r"
+  echo "grep '^VERSION=' /usr/local/bin/Love"
+  echo
+}
+
+self_update_love() {
+  love_show_update_link
+
+  local url="${LOVE_UPDATE_URL:-$LOVE_RAW_URL_DEFAULT}"
+  read -rp "使用上面的链接更新？直接回车确认，或输入新 URL: " input_url
+  [[ -n "$input_url" ]] && url="$input_url"
+
+  local target="${LOVE_HOME}/Love.sh"
+  local tmp="/tmp/Love.update.$$"
+  local dl_url="${url}?t=$(date +%s)"
+
+  curl -fsSL "$dl_url" -o "$tmp" || wget -O "$tmp" "$dl_url" || die "下载新版 Love 失败。"
+  bash -n "$tmp" || die "新版脚本语法检查失败，已取消更新。"
+
+  cp -f "$target" "${target}.bak.$(date +%F-%H%M%S)" 2>/dev/null || true
+  install -m 755 "$tmp" "$target"
+  ln -sf "$target" "${LOVE_BIN}"
+  ln -sf "$target" "${LOVE_BIN_LOWER}"
+  rm -f "$tmp"
+  /usr/local/bin/Love install-warp-command >/dev/null 2>&1 || true
+
+  log "Love 已更新。"
+  grep '^VERSION=' /usr/local/bin/Love 2>/dev/null || true
+  echo "重新运行：Love"
+}
+
+love_warp_update_v12() {
+  self_update_love
+}
+
+main_menu() {
+  while true; do
+    love_ui_title "Love Node Server Manager" "${VERSION}"
+    love_main_status_panel_v13
+
+    printf "%b主菜单%b\n" "$(lc green)" "$(lc reset)"
+    love_ui_menu2 "1) 节点目录" "14) v6 Project Tools"
+    love_ui_menu2 "2) Xray Reality + HY2" "15) v7 Stable Tools"
+    love_ui_menu2 "3) sing-box 全协议" "16) v8 Project Panel"
+    love_ui_menu2 "4) Argo 隧道" "17) Nginx Reverse Proxy"
+    love_ui_menu2 "5) UDP 端口跳跃" "18) HY2/sing-box 修复"
+    love_ui_menu2 "6) WARP 说明" "19) IPv6-only 出站"
+    love_ui_menu2 "7) 节点信息 Love -n" "20) WARP Manager / FS"
+    love_ui_menu2 "8) 导出订阅 Love sub" "21) 查看运行状态"
+    love_ui_menu2 "9) 生成二维码 Love qr" "22) 备份配置"
+    love_ui_menu2 "10) Super Tools" "23) 卸载菜单"
+    love_ui_menu2 "11) Web 管理页 Love web" "24) GitHub 发布说明"
+    love_ui_menu2 "12) 在线更新 / 下载链接" "25) 安装 warp 命令"
+    love_ui_menu2 "13) 客户端导出" "0) 退出"
+
+    echo
+    love_ui_tip "常用：Love warp-auto-fix | Love web | Love sub | Love qr | warp h | warp w"
+    love_ui_tip "推荐流程：3 生成节点 → 20 修 WARP 出站 → 11 打开 Web 面板"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" choice
+
+    case "${choice}" in
+      1) show_all_node_catalog ;;
+      2) install_xray_stable ;;
+      3) install_singbox_native ;;
+      4) argo_helper ;;
+      5) port_hopping_helper ;;
+      6) warp_helper ;;
+      7) show_node_info ;;
+      8) export_subscription ;;
+      9) generate_qrcodes ;;
+      10) super_menu ;;
+      11) web_admin_page ;;
+      12) self_update_love ;;
+      13) love_full_client_pack ;;
+      14) v6_super_menu ;;
+      15) v7_stable_menu ;;
+      16) v8_menu ;;
+      17) nginx_rp_menu ;;
+      18) love_fix_hy2_now ;;
+      19) love_ipv6_outbound_menu ;;
+      20) love_warp_manager_menu ;;
+      21) show_status ;;
+      22) backup_configs ;;
+      23) uninstall_menu_v7 ;;
+      24) github_publish_note ;;
+      25) love_install_fs_warp_command ;;
+      0) exit 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+love_warp_final_menu_v12() {
+  while true; do
+    if declare -F love_warp_fs_like_status_panel >/dev/null 2>&1; then
+      love_warp_fs_like_status_panel
+    else
+      love_ui_title "Love WARP / Node Server Manager" "${VERSION}"
+      love_main_status_panel_v13
+    fi
+
+    printf "%bWARP 菜单%b\n" "$(lc green)" "$(lc reset)"
+    love_ui_menu2 "1) WARP IPv4 Only" "14) MTU 自动检测"
+    love_ui_menu2 "2) WARP IPv6 Only" "15) WG/WireProxy fallback"
+    love_ui_menu2 "3) WARP Dual Stack" "16) WARP IP/ASN/解锁"
+    love_ui_menu2 "4) Auto Fix【推荐】" "17) SOCKS 健康检查"
+    love_ui_menu2 "5) 官方 Proxy 40000" "18) sing-box 切 40000"
+    love_ui_menu2 "6) WireProxy 40001" "19) sing-box 切 40001"
+    love_ui_menu2 "7) Smart Split" "20) 恢复 direct"
+    love_ui_menu2 "8) 官方全局模式" "21) 完整诊断报告"
+    love_ui_menu2 "9) WARP 开关状态" "22) Full Precheck"
+    love_ui_menu2 "10) WireProxy 开关" "23) 中文命令说明"
+    love_ui_menu2 "11) 全局/非全局" "24) 更新 / 下载链接"
+    love_ui_menu2 "12) 优先级设置" "25) 卸载 WARP"
+    love_ui_menu2 "13) Endpoint 刷新" "0) 返回"
+
+    echo
+    love_ui_tip "推荐：IPv6-only 节点服务器选 4，健康检查通过后才切 sing-box。"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) love_warp_interface_mode 4 ;;
+      2) love_warp_interface_mode 6 ;;
+      3) love_warp_interface_mode d ;;
+      4) love_warp_auto_fix_v12 ;;
+      5) love_warp_cli_proxy_v12 40000 ;;
+      6) love_wireproxy_auto_v12 40001 ;;
+      7)
+        if love_socks_health_gate 40001; then love_singbox_switch_warp_socks_v12 40001 smart
+        elif love_socks_health_gate 40000; then love_singbox_switch_warp_socks_v12 40000 smart
+        else love_warp_auto_fix_v12
+        fi
+        ;;
+      8) love_install_cloudflare_warp_official ;;
+      9) love_warp_onoff_menu_v12 ;;
+      10) love_wireproxy_toggle_v12 ;;
+      11) love_warp_global_toggle_menu ;;
+      12) love_warp_set_priority ;;
+      13) love_warp_ip_refresh_v12 ;;
+      14) love_warp_apply_mtu ;;
+      15) love_warp_kernel_switch_v12 ;;
+      16) love_warp_unlock_check; love_warp_ip_asn_region ;;
+      17) love_socks_health_gate 40000 || true; love_socks_health_gate 40001 || true ;;
+      18) love_singbox_switch_warp_socks_v12 40000 smart ;;
+      19) love_singbox_switch_warp_socks_v12 40001 smart ;;
+      20) love_singbox_restore_direct_v12 ;;
+      21) love_warp_report_v12 ;;
+      22) love_warp_full_precheck_v12 ;;
+      23) love_warp_fs_style_help ;;
+      24) self_update_love ;;
+      25) love_warp_uninstall ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v13.1 Status Label Fix Final
+# Separate VPS direct outbound from node/sing-box outbound to avoid misleading NO.
+# ==============================================================================
+
+love_node_outbound_status_v131() {
+  local final port socks_status node_status
+  final="$(jq -r '.route.final // "unknown"' /etc/sing-box/config.json 2>/dev/null || echo unknown)"
+  port="$(jq -r '.outbounds[]? | select(.tag=="warp-socks") | .server_port' /etc/sing-box/config.json 2>/dev/null | head -n1)"
+
+  node_status="unknown"
+  socks_status="not tested"
+
+  if ! systemctl is-active --quiet sing-box; then
+    node_status="sing-box not active"
+  elif [[ "$final" == "warp-socks" && -n "$port" ]]; then
+    if ss -lntp 2>/dev/null | grep -q ":${port}"; then
+      if curl -s --connect-timeout 3 --max-time 6 --socks5-hostname "127.0.0.1:${port}" https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -Eq '^warp=(on|plus)$'; then
+        socks_status="ok"
+        node_status="via WARP SOCKS ok"
+      else
+        socks_status="listen but test fail"
+        node_status="check WARP SOCKS"
+      fi
+    else
+      socks_status="not listening"
+      node_status="warp-socks not listening"
+    fi
+  elif [[ "$final" == "direct" ]]; then
+    node_status="direct"
+  else
+    node_status="$final"
+  fi
+
+  echo "$node_status|$socks_status|$port|$final"
+}
+
+love_main_status_panel_v13() {
+  local sb ng wp final port ipv4 ipv6 node_line node_status socks_status
+  systemctl is-active --quiet sing-box && sb="active" || sb="not active"
+  systemctl is-active --quiet nginx && ng="active" || ng="not active"
+  systemctl is-active --quiet love-wireproxy.service && wp="active" || wp="not active"
+  final="$(jq -r '.route.final // "unknown"' /etc/sing-box/config.json 2>/dev/null || echo unknown)"
+  port="$(jq -r '.outbounds[]? | select(.tag=="warp-socks") | .server_port' /etc/sing-box/config.json 2>/dev/null | head -n1)"
+
+  # These are VPS direct outbound tests only. They do NOT represent client->node proxy connectivity.
+  curl -4 -I --connect-timeout 2 --max-time 4 https://github.com >/dev/null 2>&1 && ipv4="yes" || ipv4="no"
+  curl -6 -I --connect-timeout 2 --max-time 4 https://github.com >/dev/null 2>&1 && ipv6="yes" || ipv6="no"
+
+  IFS='|' read -r node_status socks_status _ _ <<< "$(love_node_outbound_status_v131)"
+
+  printf "%b系统状态%b\n" "$(lc green)" "$(lc reset)"
+  printf "  %-22s %s\n" "OS:" "$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")"
+  printf "  %-22s %s / %s\n" "Arch/Virt:" "$(uname -m)" "$(systemd-detect-virt 2>/dev/null || echo unknown)"
+
+  printf "  %-22s IPv4: %b%s%b    IPv6: %b%s%b\n" "VPS direct:" "$(lc $([[ "$ipv4" == yes ]] && echo green || echo yellow))" "$ipv4" "$(lc reset)" "$(lc $([[ "$ipv6" == yes ]] && echo green || echo yellow))" "$ipv6" "$(lc reset)"
+
+  love_ui_status_line "sing-box:" "$sb"
+  love_ui_status_line "nginx web:" "$ng"
+  love_ui_status_line "WireProxy:" "$wp"
+
+  printf "  %-22s %b%s%b\n" "route.final:" "$(lc cyan)" "$final" "$(lc reset)"
+  [[ -n "$port" ]] && printf "  %-22s %b%s%b\n" "warp-socks port:" "$(lc cyan)" "$port" "$(lc reset)"
+
+  case "$node_status" in
+    *ok*)
+      printf "  %-22s %b%s%b\n" "Node outbound:" "$(lc green)" "$node_status" "$(lc reset)"
+      ;;
+    *check*|*not*)
+      printf "  %-22s %b%s%b\n" "Node outbound:" "$(lc yellow)" "$node_status" "$(lc reset)"
+      ;;
+    *)
+      printf "  %-22s %b%s%b\n" "Node outbound:" "$(lc cyan)" "$node_status" "$(lc reset)"
+      ;;
+  esac
+
+  printf "  %-22s %b%s%b\n" "SOCKS health:" "$(lc cyan)" "$socks_status" "$(lc reset)"
+  printf "  %b说明：VPS direct 只是服务器直连测试；节点能否使用看 Node outbound / sing-box 联动。%b\n" "$(lc gray)" "$(lc reset)"
+  echo
+}
+
+love_warp_fs_like_status_panel() {
+  local os arch virt ipv4 ipv6 public_v6 warp_client wireproxy sb_final sb_port wp_ep node_status socks_status
+  os="$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")"
+  arch="$(uname -m)"
+  virt="$(systemd-detect-virt 2>/dev/null || echo unknown)"
+
+  curl -4 -I --connect-timeout 4 --max-time 6 https://github.com >/dev/null 2>&1 && ipv4="yes" || ipv4="no"
+  curl -6 -I --connect-timeout 4 --max-time 6 https://github.com >/dev/null 2>&1 && ipv6="yes" || ipv6="no"
+  public_v6="$(curl -6 -s --connect-timeout 4 --max-time 6 https://ifconfig.co 2>/dev/null | tr -d '\r\n' || true)"
+
+  if command -v warp-cli >/dev/null 2>&1 && (warp-cli --accept-tos status 2>/dev/null || warp-cli status 2>/dev/null) | grep -qi "Connected"; then
+    warp_client="active"
+  else
+    warp_client="not active"
+  fi
+
+  systemctl is-active --quiet love-wireproxy.service && wireproxy="active" || wireproxy="not active"
+
+  sb_final="$(jq -r '.route.final // "unknown"' /etc/sing-box/config.json 2>/dev/null || echo unknown)"
+  sb_port="$(jq -r '.outbounds[]? | select(.tag=="warp-socks") | .server_port' /etc/sing-box/config.json 2>/dev/null | head -n1)"
+  wp_ep="$(grep -m1 '^Endpoint = ' /etc/wireproxy/warp.conf 2>/dev/null | sed 's/^Endpoint = //')"
+  IFS='|' read -r node_status socks_status _ _ <<< "$(love_node_outbound_status_v131)"
+
+  echo
+  love_ui_hr
+  printf "%bLove WARP / Node Server Manager%b  %s\n" "$(lc bold)$(lc cyan)" "$(lc reset)" "${VERSION:-unknown}"
+  love_ui_hr
+
+  printf "%b系统信息%b\n" "$(lc green)" "$(lc reset)"
+  printf "  %-24s %s\n" "OS:" "${os}"
+  printf "  %-24s %s\n" "Kernel:" "$(uname -r)"
+  printf "  %-24s %s\n" "Arch / Virt:" "${arch} / ${virt}"
+  [[ -n "$public_v6" ]] && printf "  %-24s %s\n" "Public IPv6:" "${public_v6}"
+
+  echo
+  printf "%bVPS 直连出站%b\n" "$(lc green)" "$(lc reset)"
+  love_ui_status_line "IPv4 direct:" "$ipv4"
+  love_ui_status_line "IPv6 direct:" "$ipv6"
+  printf "  %b说明：这里是 VPS 自己直连 curl 测试，不等于客户端节点不可用。%b\n" "$(lc gray)" "$(lc reset)"
+
+  echo
+  printf "%bWARP / SOCKS 状态%b\n" "$(lc green)" "$(lc reset)"
+  love_ui_status_line "WARP Client:" "$warp_client"
+  love_ui_status_line "WireProxy:" "$wireproxy"
+  [[ -n "$wp_ep" ]] && printf "  %-24s %s\n" "WireProxy Endpoint:" "$wp_ep"
+  printf "  %-24s %b%s%b\n" "SOCKS health:" "$(lc cyan)" "$socks_status" "$(lc reset)"
+
+  echo
+  printf "%bsing-box 节点联动状态%b\n" "$(lc green)" "$(lc reset)"
+  printf "  %-24s %s\n" "route.final:" "$sb_final"
+  [[ -n "$sb_port" ]] && printf "  %-24s %s\n" "warp-socks port:" "$sb_port"
+  systemctl is-active --quiet sing-box && love_ui_status_line "sing-box:" "active" || love_ui_status_line "sing-box:" "not active"
+  case "$node_status" in
+    *ok*) printf "  %-24s %b%s%b\n" "Node outbound:" "$(lc green)" "$node_status" "$(lc reset)" ;;
+    *check*|*not*) printf "  %-24s %b%s%b\n" "Node outbound:" "$(lc yellow)" "$node_status" "$(lc reset)" ;;
+    *) printf "  %-24s %b%s%b\n" "Node outbound:" "$(lc cyan)" "$node_status" "$(lc reset)" ;;
+  esac
+
+  echo
+  printf "%b下载 / 更新入口%b\n" "$(lc green)" "$(lc reset)"
+  printf "  %-24s %s\n" "GitHub Raw:" "https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
+  printf "  %-24s %s\n" "Update:" "Love update  或  Love warp v"
+  printf "  %-24s %s\n" "FS-style:" "warp h / warp w / warp s 6"
+
+  love_ui_hr
 }
 
 
