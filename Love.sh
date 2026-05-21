@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v12.3.0-node-auto-qr-final"
+VERSION="Love v12.6.0-fs-like-status-ui-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -2722,14 +2722,15 @@ window.onload=loadRaw;
 <a href="sing-box/sing-box-client.json">sing-box client config</a>
 </div>
 <div class="card">
-<h2>QR Codes</h2>
-<p class="small">二维码会在生成节点/订阅时自动生成。打不开时，在 VPS 执行：<code>Love qr</code> 或重新生成节点。</p>
-<a href="qr/index.html">Open QR Preview</a>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px">
-  <div><img src="qr/node-1.png" style="max-width:140px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>Node 1</div>
-  <div><img src="qr/all.png" style="max-width:140px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>All</div>
-  <div><img src="qr/v2rayn.png" style="max-width:140px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>V2RayN</div>
-  <div><img src="qr/shadowrocket.png" style="max-width:140px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>Shadowrocket</div>
+<h2>二维码</h2>
+<p class="small">二维码会在生成节点时自动生成；没有显示时执行 <code>Love qr</code> 后刷新。</p>
+<a href="qr/index.html">打开全部二维码页面</a>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;margin-top:12px">
+  <div style="text-align:center"><img src="qr/node-1.png" style="max-width:130px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>Node 1</div>
+  <div style="text-align:center"><img src="qr/all.png" style="max-width:130px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>All</div>
+  <div style="text-align:center"><img src="qr/v2rayn.png" style="max-width:130px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>V2RayN</div>
+  <div style="text-align:center"><img src="qr/shadowrocket.png" style="max-width:130px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>Shadowrocket</div>
+  <div style="text-align:center"><img src="qr/nekobox.png" style="max-width:130px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>NekoBox</div>
 </div>
 </div>
 </div>
@@ -2741,15 +2742,14 @@ window.onload=loadRaw;
 </div>
 
 <div class="card">
-<h2>Useful Commands</h2>
-<code>Love -n</code><br>
-<code>Love sub</code><br>
-<code>Love qr</code><br>
-<code>Love doctor</code><br>
-<code>Love check</code><br>
-<code>Love warp</code><br>
-<code>Love warp-auto-fix</code><br>
-<code>Love backup-auto</code>
+<h2>维护命令</h2>
+<p><code>Love warp-auto-fix</code> 自动修复 WARP 出站</p>
+<p><code>Love warp</code> 双列 WARP 菜单</p>
+<p><code>Love warp h</code> 维护命令中文说明</p>
+<p><code>Love sub</code> 重新生成订阅</p>
+<p><code>Love qr</code> 重新生成二维码</p>
+<p><code>Love doctor</code> 诊断节点环境</p>
+<p><code>Love backup-auto</code> 自动备份配置</p>
 </div>
 </body>
 </html>
@@ -5690,36 +5690,50 @@ love_warp_set_priority() {
 love_warp_fs_style_help() {
   cat <<'EOF'
 
-================ Love WARP FS-Style Commands ================
+================ Love WARP 维护命令中文说明 ================
 
-FS 风格兼容命令已完整映射到 Love 自己的实现：
+基础帮助 / 维护：
+  Love warp h        帮助说明：显示这张中文命令表
+  Love warp n        网络刷新：重启 WARP / WireProxy / WGCF 服务并显示状态
+  Love warp o        开关菜单：连接/断开 WARP、启动/停止 WireProxy
+  Love warp u        卸载清理：清理 WARP / WireProxy / WGCF 相关组件
+  Love warp b        网络优化：检查并尝试开启 BBR
+  Love warp v        在线更新：从 GitHub 更新 Love 主脚本
+  Love warp r        官方客户端：Cloudflare WARP Client 连接/断开
 
-  Love warp h        帮助菜单
-  Love warp n        刷新/修复 WARP 网络，重启 WARP 相关服务
-  Love warp o        WARP 开关/状态菜单
-  Love warp u        卸载/清理 WARP
-  Love warp b        系统网络优化提示 / BBR 检查
-  Love warp v        同步/更新 Love
-  Love warp r        Cloudflare WARP Client 开关
-  Love warp 4        WGCF IPv4 Only 单栈
-  Love warp 6        WGCF IPv6 Only 单栈
-  Love warp d        WGCF Dual Stack 双栈
-  Love warp c        WARP Linux Client Proxy 模式
-  Love warp l        WARP Linux Client WARP 全局模式
-  Love warp i        Endpoint / WARP IP 刷新
-  Love warp e        sing-box 智能分流：IPv6 direct，IPv4/GitHub/Microsoft/Google 走 WARP
-  Love warp w        WireProxy SOCKS5 模式
-  Love warp y        WireProxy 开关
-  Love warp k        kernel WireGuard / wireguard-go / WireProxy fallback
-  Love warp g        全局 / 非全局切换
-  Love warp s        IPv4 / IPv6 / VPS 默认优先级
+WARP 出站模式：
+  Love warp 4        IPv4 Only：给 IPv6-only VPS 补 IPv4 出站
+  Love warp 6        IPv6 Only：只添加 WARP IPv6 出站
+  Love warp d        Dual Stack：WARP IPv4 + IPv6 双栈
+  Love warp c        Client Proxy：官方 WARP 本地 SOCKS，默认 40000
+  Love warp l        Client Global：官方 WARP 全局模式，有 SSH 风险
+  Love warp w        WireProxy：本地 SOCKS5，默认 40001，推荐 fallback
+  Love warp k        Fallback：kernel WG / wireguard-go / WireProxy 备用方案
 
-Love 增强命令：
-  Love warp-auto-fix       自动检测 + fallback + 安全切换
-  Love warp-final          最终 WARP Decision Engine 菜单
-  Love warp-report         完整诊断报告
-  Love warp-precheck       预检网络/架构/虚拟化/TUN/WG
-  Love warp-restore-direct 恢复 sing-box direct
+节点服务器增强：
+  Love warp e        Smart Split：IPv6 直连，IPv4/GitHub/Microsoft/Google 走 WARP
+  Love warp g        全局/非全局：切换 WARP 接管范围
+  Love warp s        优先级：设置 IPv4 / IPv6 / VPS 默认策略
+  Love warp s 4      IPv4 优先
+  Love warp s 6      IPv6 优先
+  Love warp s d      VPS 默认
+
+诊断与修复：
+  Love warp-auto-fix 自动修复：检测网络 → fallback → 健康检查 → 安全切 sing-box
+  Love warp-final    最终菜单：进入双列 WARP 管理菜单
+  Love warp-report   完整报告：sing-box / WARP / WireProxy / SOCKS 状态
+  Love warp-precheck 预检：IPv4/IPv6、架构、虚拟化、TUN、WireGuard
+  Love warp-safe-40000 通过健康检查后切到官方 WARP Proxy
+  Love warp-safe-40001 通过健康检查后切到 WireProxy
+  Love warp-restore-direct 恢复 sing-box direct 出站
+
+使用建议：
+  IPv6-only HY2/sing-box 节点服务器，优先用：
+    Love warp-auto-fix
+
+  或者菜单：
+    Love warp
+    选择 1) Auto Fix
 
 ==============================================================
 
@@ -5780,6 +5794,7 @@ love_warp_update_v12() {
     wget -O /usr/local/bin/Love https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh
     chmod +x /usr/local/bin/Love
     ln -sf /usr/local/bin/Love /usr/local/bin/love
+    /usr/local/bin/Love install-warp-command >/dev/null 2>&1 || true
     hash -r
     grep '^VERSION=' /usr/local/bin/Love
   fi
@@ -6853,49 +6868,136 @@ love_warp_report_v12() {
   love_socks_health_gate 40001 || true
 }
 
+love_warp_menu_row() {
+  printf "  %-48s %s\n" "$1" "$2"
+}
+
+
+love_ui_c() {
+  case "$1" in
+    red) printf "\033[31m" ;;
+    green) printf "\033[32m" ;;
+    yellow) printf "\033[33m" ;;
+    blue) printf "\033[34m" ;;
+    magenta) printf "\033[35m" ;;
+    cyan) printf "\033[36m" ;;
+    bold) printf "\033[1m" ;;
+    reset|*) printf "\033[0m" ;;
+  esac
+}
+
+love_ui_line() {
+  printf "%s\n" "================================================================================"
+}
+
+love_bool_status() {
+  local label="$1" ok="$2" detail="$3"
+  if [[ "$ok" == "yes" || "$ok" == "on" || "$ok" == "active" ]]; then
+    printf "  %-24s %b%s%b %s\n" "$label" "$(love_ui_c green)" "$ok" "$(love_ui_c reset)" "$detail"
+  else
+    printf "  %-24s %b%s%b %s\n" "$label" "$(love_ui_c yellow)" "$ok" "$(love_ui_c reset)" "$detail"
+  fi
+}
+
+love_warp_fs_like_status_panel() {
+  local os arch virt ipv4 ipv6 public_v6 warp_client wireproxy sb_final sb_port wp_ep
+  os="$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")"
+  arch="$(uname -m)"
+  virt="$(systemd-detect-virt 2>/dev/null || echo unknown)"
+
+  curl -4 -I --connect-timeout 4 --max-time 6 https://github.com >/dev/null 2>&1 && ipv4="yes" || ipv4="no"
+  curl -6 -I --connect-timeout 4 --max-time 6 https://github.com >/dev/null 2>&1 && ipv6="yes" || ipv6="no"
+  public_v6="$(curl -6 -s --connect-timeout 4 --max-time 6 https://ifconfig.co 2>/dev/null | tr -d '\r\n' || true)"
+
+  if command -v warp-cli >/dev/null 2>&1 && (warp-cli --accept-tos status 2>/dev/null || warp-cli status 2>/dev/null) | grep -qi "Connected"; then
+    warp_client="active"
+  else
+    warp_client="not active"
+  fi
+
+  systemctl is-active --quiet love-wireproxy.service && wireproxy="active" || wireproxy="not active"
+
+  sb_final="$(jq -r '.route.final // "unknown"' /etc/sing-box/config.json 2>/dev/null || echo unknown)"
+  sb_port="$(jq -r '.outbounds[]? | select(.tag=="warp-socks") | .server_port' /etc/sing-box/config.json 2>/dev/null | head -n1)"
+  wp_ep="$(grep -m1 '^Endpoint = ' /etc/wireproxy/warp.conf 2>/dev/null | sed 's/^Endpoint = //')"
+
+  echo
+  love_ui_line
+  printf "%bLove WARP / Node Server Manager%b  %s\n" "$(love_ui_c bold)$(love_ui_c cyan)" "$(love_ui_c reset)" "${VERSION:-unknown}"
+  love_ui_line
+
+  printf "%b系统信息%b\n" "$(love_ui_c green)" "$(love_ui_c reset)"
+  printf "  %-24s %s\n" "OS:" "${os}"
+  printf "  %-24s %s\n" "Kernel:" "$(uname -r)"
+  printf "  %-24s %s\n" "Arch / Virt:" "${arch} / ${virt}"
+  [[ -n "$public_v6" ]] && printf "  %-24s %s\n" "Public IPv6:" "${public_v6}"
+
+  echo
+  printf "%b出站状态%b\n" "$(love_ui_c green)" "$(love_ui_c reset)"
+  love_bool_status "IPv4 outbound:" "$ipv4" ""
+  love_bool_status "IPv6 outbound:" "$ipv6" ""
+  love_bool_status "WARP Client:" "$warp_client" ""
+  love_bool_status "WireProxy:" "$wireproxy" "$(ss -lntp 2>/dev/null | grep -E ':(40001|40000)' | awk '{print $4}' | xargs echo)"
+  [[ -n "$wp_ep" ]] && printf "  %-24s %s\n" "WireProxy Endpoint:" "$wp_ep"
+
+  echo
+  printf "%bsing-box 联动%b\n" "$(love_ui_c green)" "$(love_ui_c reset)"
+  printf "  %-24s %s\n" "route.final:" "$sb_final"
+  [[ -n "$sb_port" ]] && printf "  %-24s %s\n" "warp-socks port:" "$sb_port"
+  systemctl is-active --quiet sing-box && love_bool_status "sing-box:" "active" "" || love_bool_status "sing-box:" "not active" ""
+
+  echo
+  printf "%b下载 / 更新入口%b\n" "$(love_ui_c green)" "$(love_ui_c reset)"
+  printf "  %-24s %s\n" "GitHub Raw:" "https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
+  printf "  %-24s %s\n" "Update:" "Love update  或  Love warp v"
+  printf "  %-24s %s\n" "FS-style:" "warp h / warp w / warp s 6"
+
+  love_ui_line
+}
+
+
+love_warp_menu_row() {
+  printf "  %-48s %s\n" "$1" "$2"
+}
+
 love_warp_final_menu_v12() {
   while true; do
-    love_print_section "Love v12.1 WARP Decision Engine / FS-Style Full Menu"
-    echo "1) Auto Fix：自动检测 + 自动 fallback + 成功才切 sing-box（最终推荐）"
-    echo "2) Smart Split：IPv6 direct，IPv4/GitHub/Microsoft/Google 走 WARP"
-    echo "3) Official WARP Proxy 40000：安装/修复/健康检查"
-    echo "4) WireProxy 40001：安装/修复/endpoint 自动尝试"
-    echo "5) WGCF IPv4 Only 单栈"
-    echo "6) WGCF IPv6 Only 单栈"
-    echo "7) WGCF Dual Stack 双栈"
-    echo "8) WARP Linux Client 全局模式"
-    echo "9) WARP 开关 / 状态"
-    echo "10) WireProxy 开关"
-    echo "11) 全局 / 非全局切换"
-    echo "12) IPv4 / IPv6 / VPS 默认优先级"
-    echo "13) Endpoint / WARP IP 刷新"
-    echo "14) MTU 自动检测与修正"
-    echo "15) kernel WireGuard / wireguard-go / WireProxy fallback"
-    echo "16) WARP IP / ASN / 地区 / 解锁检测"
-    echo "17) SOCKS 健康检查 40000/40001"
-    echo "18) sing-box 安全切换到 40000"
-    echo "19) sing-box 安全切换到 40001"
-    echo "20) 恢复 sing-box direct"
-    echo "21) 完整诊断报告"
-    echo "22) Full Precheck"
-    echo "23) FS 风格命令帮助 h/n/o/u/b/v/r/4/6/d/c/l/i/e/w/y/k/g/s"
-    echo "24) 更新 Love"
-    echo "25) 卸载 / 清理 WARP"
-    echo "0) 返回"
+    love_warp_fs_like_status_panel
+
+    printf "%b请选择功能%b\n" "$(love_ui_c yellow)" "$(love_ui_c reset)"
+    love_warp_menu_row "1) 为 IPv6 only 添加 WARP IPv4【推荐】" "14) MTU 自动检测与修正"
+    love_warp_menu_row "2) 为 IPv6 only 添加 WARP IPv6" "15) WG/wireguard-go/WireProxy fallback"
+    love_warp_menu_row "3) 添加 WARP 双栈接口" "16) WARP IP/ASN/地区/解锁检测"
+    love_warp_menu_row "4) Auto Fix 自动检测 + fallback" "17) SOCKS 健康检查 40000/40001"
+    love_warp_menu_row "5) 官方 WARP Proxy 40000" "18) sing-box 安全切到 40000"
+    love_warp_menu_row "6) WireProxy 40001【推荐备用】" "19) sing-box 安全切到 40001"
+    love_warp_menu_row "7) Smart Split 智能分流" "20) 恢复 sing-box direct"
+    love_warp_menu_row "8) 官方 WARP 全局模式" "21) 完整诊断报告"
+    love_warp_menu_row "9) WARP 开关 / 状态" "22) Full Precheck 全面预检"
+    love_warp_menu_row "10) WireProxy 开关" "23) FS 风格命令中文说明"
+    love_warp_menu_row "11) 全局 / 非全局切换" "24) 更新 Love / 显示下载链接"
+    love_warp_menu_row "12) IPv4/IPv6/VPS 优先级" "25) 卸载 / 清理 WARP"
+    love_warp_menu_row "13) Endpoint / WARP IP 刷新" "0) 退出"
+
+    echo
+    printf "%b推荐：%bIPv6-only 节点服务器优先选 4，自动验证 SOCKS 后才切 sing-box。\n" "$(love_ui_c cyan)" "$(love_ui_c reset)"
+    printf "%b说明：%b端口监听不算成功，必须 TCP + warp=on + GitHub HTTP 成功才切换。\n" "$(love_ui_c cyan)" "$(love_ui_c reset)"
+    echo
+
     read -rp "请选择: " x
     case "$x" in
-      1) love_warp_auto_fix_v12 ;;
-      2)
+      1) love_warp_interface_mode 4 ;;
+      2) love_warp_interface_mode 6 ;;
+      3) love_warp_interface_mode d ;;
+      4) love_warp_auto_fix_v12 ;;
+      5) love_warp_cli_proxy_v12 40000 ;;
+      6) love_wireproxy_auto_v12 40001 ;;
+      7)
         if love_socks_health_gate 40001; then love_singbox_switch_warp_socks_v12 40001 smart
         elif love_socks_health_gate 40000; then love_singbox_switch_warp_socks_v12 40000 smart
         else love_warp_auto_fix_v12
         fi
         ;;
-      3) love_warp_cli_proxy_v12 40000 ;;
-      4) love_wireproxy_auto_v12 40001 ;;
-      5) love_warp_interface_mode 4 ;;
-      6) love_warp_interface_mode 6 ;;
-      7) love_warp_interface_mode d ;;
       8) love_install_cloudflare_warp_official ;;
       9) love_warp_onoff_menu_v12 ;;
       10) love_wireproxy_toggle_v12 ;;
@@ -6912,14 +7014,17 @@ love_warp_final_menu_v12() {
       21) love_warp_report_v12 ;;
       22) love_warp_full_precheck_v12 ;;
       23) love_warp_fs_style_help ;;
-      24) love_warp_update_v12 ;;
+      24)
+        echo "下载链接："
+        echo "https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
+        love_warp_update_v12
+        ;;
       25) love_warp_uninstall ;;
       0) return 0 ;;
       *) warn "无效选择。" ;;
     esac
   done
 }
-
 
 love_warp_status() {
   echo
@@ -7496,6 +7601,21 @@ main_menu() {
   done
 }
 
+
+love_install_fs_warp_command() {
+  # FS-style daily command:
+  #   warp h / warp 4 / warp 6 / warp d / warp c / warp l / warp w / warp g / warp s 6
+  # It delegates to Love's own WARP engine and does not overwrite the Love command.
+  cat > /usr/local/bin/warp <<'EOF'
+#!/usr/bin/env bash
+exec /usr/local/bin/Love warp "$@"
+EOF
+  chmod +x /usr/local/bin/warp
+  log "FS 风格命令已安装：warp"
+  echo "示例：warp h | warp 4 | warp 6 | warp d | warp c | warp w | warp s 6"
+}
+
+
 main() {
   need_root
   prepare_dirs
@@ -7912,6 +8032,10 @@ main() {
       ;;
     warp-fs-menu)
       love_warp_final_menu_v12
+      ;;
+
+    install-warp-command|warp-command|fs-warp-command)
+      love_install_fs_warp_command
       ;;
     *)
       main_menu
