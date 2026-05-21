@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.20.0-singbox-client-link-fix-final"
+VERSION="Love v13.21.0-singbox-no-sb-source-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1248,7 +1248,7 @@ save_singbox_info() {
 
   if [[ "$INSTALL_REALITY" == "yes" ]]; then
     echo "VLESS Reality:" >> "${SINGBOX_INFO}"
-    echo "vless://${SB_UUID}@${h}:${SB_REALITY_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${reality_sni}&fp=chrome&pbk=${SB_PUBLIC}&sid=${SB_REALITY_SHORT}&type=tcp#LOVE-SB-REALITY" >> "${SINGBOX_INFO}"
+    echo "vless://${SB_UUID}@${h}:${SB_REALITY_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${reality_sni}&fp=chrome&pbk=${SB_PUBLIC}&sid=${SB_REALITY_SHORT}&type=tcp#LOVE-REALITY" >> "${SINGBOX_INFO}"
     echo >> "${SINGBOX_INFO}"
   fi
 
@@ -1260,19 +1260,19 @@ save_singbox_info() {
 
   if [[ "$INSTALL_TUIC" == "yes" ]]; then
     echo "TUIC:" >> "${SINGBOX_INFO}"
-    echo "tuic://${SB_UUID}:${SB_TUIC_PASS}@${h}:${SB_TUIC_PORT}?sni=${tls_sni}&congestion_control=bbr&udp_relay_mode=native&alpn=h3&allow_insecure=${insecure}#LOVE-SB-TUIC" >> "${SINGBOX_INFO}"
+    echo "tuic://${SB_UUID}:${SB_TUIC_PASS}@${h}:${SB_TUIC_PORT}?sni=${tls_sni}&congestion_control=bbr&udp_relay_mode=native&alpn=h3&allow_insecure=${insecure}#LOVE-TUIC" >> "${SINGBOX_INFO}"
     echo >> "${SINGBOX_INFO}"
   fi
 
   if [[ "$INSTALL_SS" == "yes" ]]; then
     echo "Shadowsocks:" >> "${SINGBOX_INFO}"
-    echo "ss://$(printf 'aes-128-gcm:%s' "${SB_SS_PASS}" | base64 -w0)@${h}:${SB_SS_PORT}#LOVE-SB-SS" >> "${SINGBOX_INFO}"
+    echo "ss://$(printf 'aes-128-gcm:%s' "${SB_SS_PASS}" | base64 -w0)@${h}:${SB_SS_PORT}#LOVE-SS" >> "${SINGBOX_INFO}"
     echo >> "${SINGBOX_INFO}"
   fi
 
   if [[ "$INSTALL_TROJAN" == "yes" ]]; then
     echo "Trojan:" >> "${SINGBOX_INFO}"
-    echo "trojan://${SB_TROJAN_PASS}@${h}:${SB_TROJAN_PORT}?security=tls&sni=${tls_sni}&allowInsecure=${insecure}#LOVE-SB-TROJAN" >> "${SINGBOX_INFO}"
+    echo "trojan://${SB_TROJAN_PASS}@${h}:${SB_TROJAN_PORT}?security=tls&sni=${tls_sni}&allowInsecure=${insecure}#LOVE-TROJAN" >> "${SINGBOX_INFO}"
     echo >> "${SINGBOX_INFO}"
   fi
 
@@ -1284,7 +1284,7 @@ save_singbox_info() {
 
   if [[ "$INSTALL_VLESS_WS_TLS" == "yes" ]]; then
     echo "VLESS WS TLS:" >> "${SINGBOX_INFO}"
-    echo "vless://${SB_UUID}@${h}:${SB_VLESS_WS_TLS_PORT}?encryption=none&security=tls&sni=${tls_sni}&type=ws&path=%2Fvless#LOVE-SB-VLESS-WS-TLS" >> "${SINGBOX_INFO}"
+    echo "vless://${SB_UUID}@${h}:${SB_VLESS_WS_TLS_PORT}?encryption=none&security=tls&sni=${tls_sni}&type=ws&path=%2Fvless#LOVE-VLESS-WS-TLS" >> "${SINGBOX_INFO}"
     echo >> "${SINGBOX_INFO}"
   fi
 
@@ -1308,7 +1308,7 @@ save_singbox_info() {
 
   if [[ "$INSTALL_NAIVE" == "yes" ]]; then
     echo "Naive:" >> "${SINGBOX_INFO}"
-    echo "https://${SB_NAIVE_USER}:${SB_NAIVE_PASS}@${h}:${SB_NAIVE_PORT}#LOVE-SB-NAIVE" >> "${SINGBOX_INFO}"
+    echo "https://${SB_NAIVE_USER}:${SB_NAIVE_PASS}@${h}:${SB_NAIVE_PORT}#LOVE-NAIVE" >> "${SINGBOX_INFO}"
     echo >> "${SINGBOX_INFO}"
   fi
 
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.20.0-singbox-client-link-fix-final"
+LOVE_SCRIPT_VERSION="Love v13.21.0-singbox-no-sb-source-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -12068,7 +12068,7 @@ love_fix_client_links_v1320() {
       esac
 
       sed -i \
-        -e 's/LOVE-LOVE-/LOVE-/g' \
+        -e 's/LOVE-/LOVE-/g' \
         -e 's/SB-REALITY/LOVE-REALITY/g' \
         -e 's/SB-HY2/LOVE-HY2/g' \
         -e 's/SB-TUIC/LOVE-TUIC/g' \
@@ -12102,7 +12102,7 @@ love_fix_client_links_v1320() {
 
   for f in /opt/Love/subscribe/mihomo.yaml /opt/Love/subscribe/mihomo-provider.yaml /opt/Love/subscribe/clash_like.yaml /var/www/love-admin/sub/mihomo.yaml; do
     [[ -f "$f" ]] || continue
-    sed -i 's/LOVE-LOVE-/LOVE-/g' "$f" 2>/dev/null || true
+    sed -i 's/LOVE-/LOVE-/g' "$f" 2>/dev/null || true
     python3 - "$f" <<'PY' 2>/dev/null || true
 import sys, re
 p=sys.argv[1]
@@ -12217,6 +12217,102 @@ main() {
       ;;
     *)
       love_original_main_v1320 "$@"
+      ;;
+  esac
+}
+
+
+
+# ==============================================================================
+# Love v13.21 sing-box no-SB source final
+# Source-level generated node names no longer contain LOVE-SB.
+# This cleaner remains as a safety guard only; users do NOT need to run it manually.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.21.0-singbox-no-sb-source-final"
+
+love_no_sb_final_clean_v1321() {
+  local roots f
+  roots="/opt/Love/subscribe /var/www/love-admin"
+  for d in $roots; do
+    [[ -d "$d" ]] || continue
+    while IFS= read -r -d '' f; do
+      [[ -f "$f" ]] || continue
+      case "$f" in
+        *.png|*.jpg|*.jpeg|*.gif|*.webp|*.zip|*.tar.gz) continue ;;
+      esac
+      sed -i \
+        -e 's/LOVE-LOVE-/LOVE-/g' \
+        -e 's/LOVE-SB-/LOVE-/g' \
+        -e 's/#SB-/#LOVE-/g' \
+        -e 's/#LOVE-SB-/#LOVE-/g' \
+        -e 's/name: SB-/name: LOVE-/g' \
+        -e 's/name: "SB-/name: "LOVE-/g' \
+        -e "s/name: 'SB-/name: 'LOVE-/g" \
+        "$f" 2>/dev/null || true
+    done < <(find "$d" -type f -print0 2>/dev/null)
+  done
+
+  if [[ -f /opt/Love/subscribe/all.txt ]]; then
+    if base64 --help 2>/dev/null | grep -q -- '-w'; then
+      base64 -w0 /opt/Love/subscribe/all.txt > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    else
+      base64 /opt/Love/subscribe/all.txt | tr -d '\n' > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    fi
+  fi
+}
+
+# Hard-wrap exports once more so every generation automatically cleans names.
+if declare -F export_subscription >/dev/null 2>&1 && ! declare -F love_original_export_subscription_v1321 >/dev/null 2>&1; then
+  eval "$(declare -f export_subscription | sed '1s/^export_subscription/love_original_export_subscription_v1321/')"
+  export_subscription() {
+    love_original_export_subscription_v1321 "$@"
+    love_no_sb_final_clean_v1321
+    love_fix_client_links_v1320 >/dev/null 2>&1 || true
+  }
+fi
+
+if declare -F generate_client_exports >/dev/null 2>&1 && ! declare -F love_original_generate_client_exports_v1321 >/dev/null 2>&1; then
+  eval "$(declare -f generate_client_exports | sed '1s/^generate_client_exports/love_original_generate_client_exports_v1321/')"
+  generate_client_exports() {
+    love_original_generate_client_exports_v1321 "$@"
+    love_no_sb_final_clean_v1321
+    love_fix_client_links_v1320 >/dev/null 2>&1 || true
+  }
+fi
+
+if declare -F web_admin_page >/dev/null 2>&1 && ! declare -F love_original_web_admin_page_v1321 >/dev/null 2>&1; then
+  eval "$(declare -f web_admin_page | sed '1s/^web_admin_page/love_original_web_admin_page_v1321/')"
+  web_admin_page() {
+    love_original_web_admin_page_v1321 "$@"
+    love_no_sb_final_clean_v1321
+    love_fix_client_links_v1320 >/dev/null 2>&1 || true
+  }
+fi
+
+if declare -F install_singbox_native >/dev/null 2>&1 && ! declare -F love_original_install_singbox_native_v1321 >/dev/null 2>&1; then
+  eval "$(declare -f install_singbox_native | sed '1s/^install_singbox_native/love_original_install_singbox_native_v1321/')"
+  install_singbox_native() {
+    love_original_install_singbox_native_v1321 "$@"
+    love_no_sb_final_clean_v1321
+    love_fix_client_links_v1320 >/dev/null 2>&1 || true
+  }
+fi
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1321 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1321/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.21.0-singbox-no-sb-source-final}"
+  case "${1:-}" in
+    no-sb-check|sb-check)
+      love_no_sb_final_clean_v1321
+      echo "[OK] 已检查并清理导出文件中的 SB/LOVE-LOVE。"
+      grep -RniE 'LOVE-SB|LOVE-LOVE|#SB-|name: SB-' /opt/Love/subscribe /var/www/love-admin 2>/dev/null | head -30 || echo "[OK] 未发现 SB 残留。"
+      ;;
+    *)
+      love_original_main_v1321 "$@"
       ;;
   esac
 }
