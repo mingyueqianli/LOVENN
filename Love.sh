@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v12.6.0-fs-like-status-ui-final"
+VERSION="Love v12.7.0-main-menu-ui-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -7538,36 +7538,68 @@ README 里建议说明：
 EOF
 }
 
+love_main_menu_row() {
+  printf "  %-50s %s
+" "$1" "$2"
+}
+
+love_main_status_panel() {
+  local sb_state ng_state wp_state final port ipv4 ipv6
+  systemctl is-active --quiet sing-box && sb_state="active" || sb_state="not active"
+  systemctl is-active --quiet nginx && ng_state="active" || ng_state="not active"
+  systemctl is-active --quiet love-wireproxy.service && wp_state="active" || wp_state="not active"
+  final="$(jq -r '.route.final // "unknown"' /etc/sing-box/config.json 2>/dev/null || echo unknown)"
+  port="$(jq -r '.outbounds[]? | select(.tag=="warp-socks") | .server_port' /etc/sing-box/config.json 2>/dev/null | head -n1)"
+  curl -4 -I --connect-timeout 3 --max-time 5 https://github.com >/dev/null 2>&1 && ipv4="yes" || ipv4="no"
+  curl -6 -I --connect-timeout 3 --max-time 5 https://github.com >/dev/null 2>&1 && ipv6="yes" || ipv6="no"
+
+  echo
+  echo "================================================================================"
+  echo " Love Node Server Manager  ${VERSION}"
+  echo "================================================================================"
+  printf "  %-22s %s
+" "OS:" "$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")"
+  printf "  %-22s %s / %s
+" "Arch / Virt:" "$(uname -m)" "$(systemd-detect-virt 2>/dev/null || echo unknown)"
+  printf "  %-22s IPv4: %s    IPv6: %s
+" "Outbound:" "$ipv4" "$ipv6"
+  printf "  %-22s %s
+" "sing-box:" "$sb_state"
+  printf "  %-22s %s
+" "nginx web:" "$ng_state"
+  printf "  %-22s %s
+" "WireProxy:" "$wp_state"
+  printf "  %-22s %s
+" "route.final:" "$final"
+  [[ -n "$port" ]] && printf "  %-22s %s
+" "warp-socks port:" "$port"
+  echo "================================================================================"
+}
+
 main_menu() {
   while true; do
+    love_main_status_panel
+
+    echo "请选择功能："
+    love_main_menu_row "1) 查看全节点目录" "14) v6 Project Tools"
+    love_main_menu_row "2) Xray 稳定模式 Reality + HY2" "15) v7 Stable Tools"
+    love_main_menu_row "3) sing-box 原生全协议 / 自选协议" "16) v8 Project Panel"
+    love_main_menu_row "4) Argo / Cloudflared 隧道" "17) Nginx Reverse Proxy"
+    love_main_menu_row "5) Port Hopping UDP 端口跳跃" "18) HY2/sing-box 修复与订阅"
+    love_main_menu_row "6) WARP 出站增强说明" "19) IPv6-only 出站修复"
+    love_main_menu_row "7) 查看节点信息 Love -n" "20) WARP Manager / FS-style"
+    love_main_menu_row "8) 导出订阅 Love sub" "21) 查看运行状态"
+    love_main_menu_row "9) 生成二维码 Love qr" "22) 备份配置"
+    love_main_menu_row "10) Super Tools 诊断/修复/更新" "23) 卸载菜单"
+    love_main_menu_row "11) Web 管理页 Love web" "24) GitHub 发布说明"
+    love_main_menu_row "12) 在线更新 Love update" "25) 安装 FS 风格 warp 命令"
+    love_main_menu_row "13) 客户端导出 links/json" "0) 退出"
+
     echo
-    echo "================ ${VERSION} ================"
-    echo "1) 查看全节点目录"
-    echo "2) Love Xray 稳定模式 Reality + 可选 HY2"
-    echo "3) Love sing-box 原生全协议 / 自选协议"
-    echo "4) Argo / Cloudflared 隧道"
-    echo "5) Port Hopping UDP 端口跳跃"
-    echo "6) WARP 出站增强说明"
-    echo "7) 查看节点信息 Love -n"
-    echo "8) 导出订阅 Love sub"
-    echo "9) 生成二维码 Love qr"
-    echo "10) Super Tools 诊断/修复/更新/Realm/增删协议"
-    echo "11) Web 管理页 Love web"
-    echo "12) 在线更新 Love update"
-    echo "13) 客户端专用导出 links/json/各客户端"
-    echo "14) v6 Project Tools：Web安全/推送/检测/备份/证书/Oracle/多用户"
-    echo "15) v7 Stable Tools：预检/模式/快照/用户/日志/加固"
-    echo "16) v8 Project Panel：验证/审计/发布/迁移/仪表盘"
-    echo "17) v9 Nginx Reverse Proxy：WS/gRPC/Stream/伪装站"
-    echo "18) HY2/sing-box 自动修复与订阅生成"
-    echo "19) IPv6-only 出站修复 / WARP 提示"
-    echo "20) WARP Manager：安装/状态/测试/修复"
-    echo "21) 查看状态"
-    echo "22) 备份配置"
-    echo "23) 卸载菜单"
-    echo "24) GitHub 发布说明"
-    echo "0) 退出"
+    echo "常用命令：Love warp-auto-fix | Love web | Love sub | Love qr | warp h | warp w"
+    echo "推荐流程：3 生成节点 → 20 修 WARP 出站 → 11 打开 Web 面板"
     echo
+
     read -rp "请选择: " choice
 
     case "${choice}" in
@@ -7595,6 +7627,7 @@ main_menu() {
       22) backup_configs ;;
       23) uninstall_menu_v7 ;;
       24) github_publish_note ;;
+      25) love_install_fs_warp_command ;;
       0) exit 0 ;;
       *) warn "无效选择。" ;;
     esac
