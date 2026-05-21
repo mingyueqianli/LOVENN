@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.14.0-web-theme-switch-final"
+VERSION="Love v13.15.0-web-theme-floating-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -2142,12 +2142,13 @@ function setLoveTheme(theme){
   document.body.classList.remove('theme-dark','theme-green');
   document.body.classList.add('theme-' + theme);
   localStorage.setItem('loveTheme', theme);
-  var darkBtn = document.getElementById('themeDark');
-  var greenBtn = document.getElementById('themeGreen');
-  if(darkBtn && greenBtn){
-    darkBtn.classList.toggle('active', theme === 'dark');
-    greenBtn.classList.toggle('active', theme === 'green');
-  }
+  var ids = ['themeDark','themeGreen','floatThemeDark','floatThemeGreen'];
+  ids.forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el){ return; }
+    var isGreen = id.toLowerCase().indexOf('green') >= 0;
+    el.classList.toggle('active', isGreen ? theme === 'green' : theme === 'dark');
+  });
 }
 </script>
 </body>
@@ -11040,7 +11041,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.14.0-web-theme-switch-final"
+LOVE_SCRIPT_VERSION="Love v13.15.0-web-theme-floating-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -11315,12 +11316,33 @@ web_admin_page() {
     .ok{color:#22c55e}.warn{color:#ca8a04}.muted{color:var(--muted)}
     .btn{display:inline-block;background:var(--btn);color:white;padding:9px 12px;border-radius:10px;margin:4px 4px 4px 0}
     .btn.green{background:var(--btnGreen)}.btn.orange{background:var(--btnOrange)}.btn.gray{background:var(--btnGray)}
+    .floating-theme{
+      position:fixed;right:18px;top:18px;z-index:9999;
+      background:rgba(15,23,42,.92);backdrop-filter:blur(8px);
+      border:1px solid rgba(148,163,184,.45);border-radius:999px;
+      padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.28);
+      display:flex;gap:6px;align-items:center;
+    }
+    body.theme-green .floating-theme{background:rgba(237,247,237,.94);border-color:#9fcbab}
+    .floating-theme button{
+      border:0;border-radius:999px;padding:8px 12px;cursor:pointer;font-weight:700;
+      background:var(--code);color:var(--text);
+    }
+    .floating-theme button.active{background:var(--btn);color:white}
+    @media(max-width:760px){
+      .floating-theme{position:static;margin:0 auto 14px;justify-content:center;border-radius:16px}
+    }
+
     table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
     td,th{border-bottom:1px solid var(--border);padding:10px;text-align:left}
     th{color:var(--yellow)}
   </style>
 </head>
 <body class="theme-dark">
+<div class="floating-theme" title="切换 Web 页面主题">
+  <button type="button" id="floatThemeDark" onclick="setLoveTheme('dark')">深色</button>
+  <button type="button" id="floatThemeGreen" onclick="setLoveTheme('green')">护眼绿</button>
+</div>
 <div class="wrap">
   <div class="hero">
     <h1>Love Admin Panel</h1>
