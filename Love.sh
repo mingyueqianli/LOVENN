@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.21.0-singbox-no-sb-source-final"
+VERSION="Love v13.22.0-clean-node-txt-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.21.0-singbox-no-sb-source-final"
+LOVE_SCRIPT_VERSION="Love v13.22.0-clean-node-txt-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -12313,6 +12313,288 @@ main() {
       ;;
     *)
       love_original_main_v1321 "$@"
+      ;;
+  esac
+}
+
+
+
+# ==============================================================================
+# Love v13.22 Clean Node TXT Final
+# Generate clean, categorized TXT node files so users know which node is which.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.22.0-clean-node-txt-final"
+
+love_link_name_v1322() {
+  local line="$1" name proto port
+  name="${line##*#}"
+  name="${name%%$'\r'*}"
+  [[ "$name" == "$line" || -z "$name" ]] && name="UNKNOWN"
+
+  proto="${line%%://*}"
+  port="$(grep -oE ']:[0-9]+' <<< "$line" | head -n1 | tr -d ']:' || true)"
+  [[ -z "$port" ]] && port="$(grep -oE ':[0-9]+' <<< "$line" | head -n1 | tr -d ':' || true)"
+
+  # Normalize noisy names.
+  name="${name//LOVE-LOVE-/LOVE-}"
+  name="${name//LOVE-SB-/LOVE-}"
+  name="${name//SB-/LOVE-}"
+
+  case "$line" in
+    vless://*:50000*) echo "01-LOVE-REALITY-50000【推荐｜TCP｜无域名首选】" ;;
+    hysteria2://*:50001*|hy2://*:50001*) echo "02-LOVE-HY2-50001【推荐｜UDP｜速度优先】" ;;
+    hysteria2://*:30001*|hy2://*:30001*) echo "03-LOVE-HY2-30001【旧节点｜UDP｜保留兼容】" ;;
+    tuic://*:50002*) echo "04-LOVE-TUIC-50002【备用｜UDP｜建议 sing-box/NekoBox】" ;;
+    ss://*:50003*) echo "05-LOVE-SS-50003【兼容｜TCP/UDP】" ;;
+    trojan://*:50004*) echo "06-LOVE-TROJAN-50004【兼容｜TCP｜TLS】" ;;
+    vmess://*) echo "07-LOVE-VMESS-WS-50005【兼容｜TCP｜WS】" ;;
+    vless://*:50006*) echo "08-LOVE-VLESS-WS-TLS-50006【备用｜TCP｜自签需允许不安全】" ;;
+    vless://*:50007*) echo "09-LOVE-H2-REALITY-50007【高级｜TCP】" ;;
+    vless://*:50008*) echo "10-LOVE-GRPC-REALITY-50008【高级｜TCP】" ;;
+    anytls://*:50009*) echo "11-LOVE-ANYTLS-50009【高级｜TCP】" ;;
+    https://*:50010*|naive+https://*:50010*) echo "12-LOVE-NAIVE-50010【高级｜TCP】" ;;
+    shadowtls://*:50011*) echo "13-LOVE-SHADOWTLS-50011【高级｜TCP】" ;;
+    *)
+      if [[ -n "$port" ]]; then
+        echo "${name}-${port}【${proto}】"
+      else
+        echo "${name}【${proto}】"
+      fi
+      ;;
+  esac
+}
+
+love_clean_uri_for_txt_v1322() {
+  local line="$1"
+  line="${line//$'\r'/}"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+
+  # Client compatibility, keep only once.
+  if [[ "$line" == vless://*":50006"* ]]; then
+    [[ "$line" != *"allowInsecure=1"* ]] && line="${line//#/&allowInsecure=1#}"
+    [[ "$line" != *"insecure=1"* ]] && line="${line//#/&insecure=1#}"
+  fi
+
+  if [[ "$line" == tuic://*":50002"* ]]; then
+    [[ "$line" != *"allow_insecure=1"* ]] && line="${line//#/&allow_insecure=1#}"
+    [[ "$line" != *"allowInsecure=1"* ]] && line="${line//#/&allowInsecure=1#}"
+    [[ "$line" != *"insecure=1"* ]] && line="${line//#/&insecure=1#}"
+  fi
+
+  # Replace displayed name after # with normalized readable name.
+  local display
+  display="$(love_link_name_v1322 "$line")"
+  if [[ "$line" == *"#"* ]]; then
+    line="${line%%#*}#${display}"
+  else
+    line="${line}#${display}"
+  fi
+  echo "$line"
+}
+
+love_generate_clean_node_txt_v1322() {
+  local raw="/opt/Love/subscribe/all.txt"
+  local dir="/opt/Love/subscribe"
+  local clean="${dir}/节点清晰版.txt"
+  local simple="${dir}/nodes-clean.txt"
+  local recommended="${dir}/推荐节点.txt"
+  local alluri="${dir}/all-clean-uri.txt"
+  local webroot="/var/www/love-admin"
+
+  mkdir -p "$dir"
+
+  # If no raw subscription exists, try to generate it.
+  [[ -s "$raw" ]] || export_subscription >/dev/null 2>&1 || true
+
+  : > "$clean"
+  : > "$simple"
+  : > "$recommended"
+  : > "$alluri"
+
+  {
+    echo "Love 节点清晰版 / Clean Node List"
+    echo "生成时间: $(date)"
+    echo
+    echo "使用建议："
+    echo "1. 首选：LOVE-REALITY-50000 或 LOVE-HY2-50001"
+    echo "2. 备用：LOVE-TROJAN-50004 / LOVE-VLESS-WS-TLS-50006"
+    echo "3. TUIC：建议 NekoBox / sing-box client / Shadowrocket；V2RayN 需 sing-box core"
+    echo "4. VLESS WS TLS：自签证书 self.local，客户端必须允许不安全证书"
+    echo
+    echo "============================================================"
+    echo "【推荐节点】优先导入这几个"
+    echo "============================================================"
+  } >> "$clean"
+
+  {
+    echo "# Love Recommended Nodes"
+    echo "# 首选节点：Reality / HY2 / Trojan / VLESS WS TLS"
+    echo
+  } >> "$recommended"
+
+  {
+    echo "# Love Clean URI List"
+    echo "# 一行一个节点，名称已整理"
+    echo
+  } >> "$alluri"
+
+  # Read all links from raw and old info files, de-duplicate.
+  local tmp="/tmp/love_nodes_v1322.$$"
+  : > "$tmp"
+  grep -hE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' \
+    /opt/Love/subscribe/all.txt \
+    /opt/Love/node_info.txt \
+    /opt/Love/*info*.txt \
+    /opt/Love/subscribe/clients/*.txt 2>/dev/null \
+    | sed 's/\r$//' \
+    | awk '!seen[$0]++' > "$tmp" || true
+
+  local line fixed name
+  # Recommended section
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    fixed="$(love_clean_uri_for_txt_v1322 "$line")"
+    case "$fixed" in
+      *"REALITY-50000"*|*"HY2-50001"*|*"HY2-30001"*|*"TROJAN-50004"*|*"VLESS-WS-TLS-50006"*)
+        name="${fixed##*#}"
+        {
+          echo
+          echo "【${name}】"
+          echo "$fixed"
+        } >> "$clean"
+        echo "$fixed" >> "$recommended"
+        ;;
+    esac
+    echo "$fixed" >> "$alluri"
+  done < "$tmp"
+
+  {
+    echo
+    echo "============================================================"
+    echo "【UDP 高速 / 高级节点】"
+    echo "============================================================"
+  } >> "$clean"
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    fixed="$(love_clean_uri_for_txt_v1322 "$line")"
+    case "$fixed" in
+      *"TUIC-50002"*|*"SS-50003"*)
+        name="${fixed##*#}"
+        {
+          echo
+          echo "【${name}】"
+          echo "$fixed"
+        } >> "$clean"
+        ;;
+    esac
+  done < "$tmp"
+
+  {
+    echo
+    echo "============================================================"
+    echo "【高级 / 兼容 / 测试节点】"
+    echo "============================================================"
+  } >> "$clean"
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    fixed="$(love_clean_uri_for_txt_v1322 "$line")"
+    case "$fixed" in
+      *"VMESS-WS-50005"*|*"H2-REALITY-50007"*|*"GRPC-REALITY-50008"*|*"ANYTLS-50009"*|*"NAIVE-50010"*|*"SHADOWTLS-50011"*)
+        name="${fixed##*#}"
+        {
+          echo
+          echo "【${name}】"
+          echo "$fixed"
+        } >> "$clean"
+        ;;
+    esac
+  done < "$tmp"
+
+  awk '!seen[$0]++' "$alluri" > "${alluri}.tmp" && mv "${alluri}.tmp" "$alluri"
+
+  {
+    echo "Love 节点速查"
+    echo
+    echo "推荐导入："
+    grep -E 'REALITY-50000|HY2-50001|HY2-30001|TROJAN-50004|VLESS-WS-TLS-50006' "$alluri" || true
+    echo
+    echo "全部节点："
+    cat "$alluri"
+  } > "$simple"
+
+  # Copy to clients folder and web root.
+  mkdir -p /opt/Love/subscribe/clients
+  cp -f "$clean" /opt/Love/subscribe/clients/节点清晰版.txt 2>/dev/null || true
+  cp -f "$simple" /opt/Love/subscribe/clients/nodes-clean.txt 2>/dev/null || true
+  cp -f "$recommended" /opt/Love/subscribe/clients/推荐节点.txt 2>/dev/null || true
+
+  if [[ -d "$webroot" ]]; then
+    mkdir -p "$webroot/sub" "$webroot/clients"
+    cp -f "$clean" "$webroot/sub/节点清晰版.txt" 2>/dev/null || true
+    cp -f "$simple" "$webroot/sub/nodes-clean.txt" 2>/dev/null || true
+    cp -f "$recommended" "$webroot/sub/推荐节点.txt" 2>/dev/null || true
+    cp -f "$alluri" "$webroot/sub/all-clean-uri.txt" 2>/dev/null || true
+    cp -f "$clean" "$webroot/clients/节点清晰版.txt" 2>/dev/null || true
+  fi
+
+  rm -f "$tmp"
+
+  echo
+  log "TXT 节点清晰版已生成："
+  echo "  $clean"
+  echo "  $recommended"
+  echo "  $simple"
+  echo "  $alluri"
+}
+
+love_txt_menu_v1322() {
+  love_menu_title "Love TXT 节点清晰版" "Clean / Recommended / All"
+  love_generate_clean_node_txt_v1322
+  echo
+  echo "Web 下载路径："
+  echo "  /sub/节点清晰版.txt"
+  echo "  /sub/推荐节点.txt"
+  echo "  /sub/all-clean-uri.txt"
+  echo
+  echo "建议：普通客户端先导入 推荐节点.txt；需要全部协议再导入 all-clean-uri.txt。"
+}
+
+# Wrap exporters / web so clean TXT is regenerated automatically.
+if declare -F export_subscription >/dev/null 2>&1 && ! declare -F love_original_export_subscription_v1322 >/dev/null 2>&1; then
+  eval "$(declare -f export_subscription | sed '1s/^export_subscription/love_original_export_subscription_v1322/')"
+  export_subscription() {
+    love_original_export_subscription_v1322 "$@"
+    love_no_sb_final_clean_v1321 >/dev/null 2>&1 || true
+    love_fix_client_links_v1320 >/dev/null 2>&1 || true
+    love_generate_clean_node_txt_v1322 >/dev/null 2>&1 || true
+  }
+fi
+
+if declare -F web_admin_page >/dev/null 2>&1 && ! declare -F love_original_web_admin_page_v1322 >/dev/null 2>&1; then
+  eval "$(declare -f web_admin_page | sed '1s/^web_admin_page/love_original_web_admin_page_v1322/')"
+  web_admin_page() {
+    love_original_web_admin_page_v1322 "$@"
+    love_generate_clean_node_txt_v1322 >/dev/null 2>&1 || true
+  }
+fi
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1322 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1322/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.22.0-clean-node-txt-final}"
+  case "${1:-}" in
+    txt|node-txt|clean-txt|nodes-clean)
+      love_txt_menu_v1322
+      ;;
+    *)
+      love_original_main_v1322 "$@"
       ;;
   esac
 }
