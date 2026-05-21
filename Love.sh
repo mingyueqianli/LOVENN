@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.1.0-status-label-fix-final"
+VERSION="Love v13.2.0-global-submenu-ui-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -9204,6 +9204,320 @@ love_warp_fs_like_status_panel() {
   printf "  %-24s %s\n" "FS-style:" "warp h / warp w / warp s 6"
 
   love_ui_hr
+}
+
+
+
+# ==============================================================================
+# Love v13.2 Global Submenu UI Final
+# 全局下级菜单 UI 统一：全彩标题 + 中文宽度对齐双列。
+# ==============================================================================
+
+love_menu_title(){ love_ui_title "$1" "$2"; }
+love_menu2(){ love_ui_menu2 "$1" "$2"; }
+love_back(){ echo; read -rp "$(printf "%b按回车返回...%b" "$(lc gray)" "$(lc reset)")" _; }
+
+show_all_node_catalog(){
+  while true; do
+    love_menu_title "Love 全节点目录" "Node Catalog / Protocol Map"
+    printf "%b核心节点模式%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "1) Xray Reality 稳定模式" "8) Trojan TLS 节点"
+    love_menu2 "2) sing-box 原生全协议" "9) VMess WS 节点"
+    love_menu2 "3) Hysteria2 UDP 高速节点" "10) VLESS WS 节点"
+    love_menu2 "4) Reality + HY2 组合节点" "11) gRPC 节点"
+    love_menu2 "5) ShadowTLS / AnyTLS" "12) TUIC / NaiveProxy"
+    love_menu2 "6) Argo / Cloudflared 隧道" "13) Nginx WS/gRPC 反代"
+    love_menu2 "7) Port Hopping UDP 跳跃" "14) 多用户订阅管理"
+    echo
+    printf "%b客户端导出%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "15) Raw URI 订阅" "20) sing-box client JSON"
+    love_menu2 "16) Base64 订阅" "21) Shadowrocket"
+    love_menu2 "17) Mihomo / Clash YAML" "22) NekoBox"
+    love_menu2 "18) V2RayN 链接" "23) SFI / SFA / SFM"
+    love_menu2 "19) 二维码 QR" "24) 完整客户端包"
+    echo
+    printf "%b常用维护%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "25) 查看当前节点 Love -n" "30) WARP Auto Fix"
+    love_menu2 "26) 重新生成订阅 Love sub" "31) Web 管理页 Love web"
+    love_menu2 "27) 重新生成二维码 Love qr" "32) 备份配置"
+    love_menu2 "28) 完整诊断 Love doctor" "33) 查看运行状态"
+    love_menu2 "29) 客户端导出" "0) 返回"
+    echo
+    love_ui_tip "推荐：新装节点选 2 或 3；IPv6-only VPS 出站修复选 30；Web 展示选 31。"
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" n
+    case "$n" in
+      1) install_xray_stable;; 2) install_singbox_native;; 3) love_fix_hy2_now;;
+      4) install_xray_stable;; 5) install_singbox_native;; 6) argo_helper;; 7) port_hopping_helper;;
+      8|9|10|11|12) install_singbox_native;; 13) nginx_rp_menu;; 14) users_menu_v7;;
+      15|16) export_subscription;; 17) generate_mihomo_yaml;; 18) love_v2rayn;; 19) generate_qrcodes;;
+      20) love_singbox_json;; 21) love_shadowrocket;; 22) love_nekobox;; 23) love_sfi_sfa_sfm;; 24) love_full_client_pack;;
+      25) show_node_info;; 26) export_subscription;; 27) generate_qrcodes;; 28) doctor_check;; 29) love_full_client_pack;;
+      30) love_warp_auto_fix_v12;; 31) web_admin_page;; 32) backup_configs;; 33) show_status;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+super_menu(){
+  while true; do
+    love_menu_title "Love Super Tools" "诊断 / 修复 / 导出 / Web"
+    love_menu2 "1) 查看节点 Love -n" "13) Mihomo / Clash YAML"
+    love_menu2 "2) 导出订阅 Love sub" "14) Shadowrocket / NekoBox / V2RayN"
+    love_menu2 "3) 生成二维码 Love qr" "15) 在线更新 Love"
+    love_menu2 "4) 订阅静态服务 nginx" "16) Web 管理页"
+    love_menu2 "5) 全面诊断 Love doctor" "17) 简洁链接总览"
+    love_menu2 "6) 修复 apt / dpkg" "18) sing-box JSON"
+    love_menu2 "7) 设置 IPv6 DNS" "19) Shadowrocket"
+    love_menu2 "8) 更新核心 Xray/sing-box" "20) V2RayN"
+    love_menu2 "9) 修改优选地址导出" "21) NekoBox"
+    love_menu2 "10) Argo API 隧道" "22) SFI / SFA / SFM"
+    love_menu2 "11) HY2 Realm 安全开关" "23) 完整客户端包"
+    love_menu2 "12) 增删协议 / 重建" "24) v6 Project Tools"
+    love_menu2 "0) 返回" ""
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) show_node_info;; 2) export_subscription;; 3) generate_qrcodes;; 4) serve_subscription_nginx;;
+      5) doctor_check;; 6) repair_apt_dpkg;; 7) set_ipv6_dns;; 8) update_core_menu;;
+      9) change_preferred_info_only;; 10) argo_api_create_tunnel;; 11) hy2_realm_helper;; 12) reload_protocols_helper;;
+      13) generate_mihomo_yaml;; 14) generate_client_exports;; 15) self_update_love;; 16) web_admin_page;;
+      17) love_links;; 18) love_singbox_json;; 19) love_shadowrocket;; 20) love_v2rayn;;
+      21) love_nekobox;; 22) love_sfi_sfa_sfm;; 23) love_full_client_pack;; 24) v6_super_menu;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+v6_super_menu(){
+  while true; do
+    love_menu_title "Love v6 Project Tools" "Web 安全 / 推送 / 检测 / 备份"
+    love_menu2 "1) Web 密码保护 + 随机路径" "7) 证书续签状态检查"
+    love_menu2 "2) 重置订阅随机路径 token" "8) 端口冲突检测与推荐"
+    love_menu2 "3) 通知配置 Telegram/Bark/Email" "9) Oracle Cloud 安全组模板"
+    love_menu2 "4) 推送节点信息" "10) 多用户 UUID 管理"
+    love_menu2 "5) 自动测速 / 可用性检测" "11) v7 Stable Tools"
+    love_menu2 "6) 定时备份" "0) 返回"
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) web_admin_page;; 2) reset_sub_token;; 3) notify_config_menu;; 4) notify_nodes;;
+      5) health_check_nodes;; 6) setup_auto_backup;; 7) cert_status_check;; 8) check_port_conflict_and_recommend;;
+      9) oracle_security_template;; 10) users_menu_v7;; 11) v7_stable_menu;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+v7_stable_menu(){
+  while true; do
+    love_menu_title "Love v7 Stable Tools" "预检 / 快照 / 用户 / 安全"
+    love_menu2 "1) precheck 环境预检" "8) sing-box 兼容性检测"
+    love_menu2 "2) mode 安装模式分级" "9) speed 连接测速"
+    love_menu2 "3) snapshot / rollback" "10) cfip 优选 IP / 域名"
+    love_menu2 "4) users 分用户订阅/二维码" "11) cloud-firewall 云防火墙模板"
+    love_menu2 "5) support 客户端兼容矩阵" "12) harden 安全加固"
+    love_menu2 "6) logs / errors 日志" "13) uninstall soft/full"
+    love_menu2 "7) version pin 核心版本锁定" "14) Web 状态页增强"
+    love_menu2 "0) 返回" ""
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) precheck_env;; 2) mode_wizard;; 3) snapshot_menu;; 4) users_menu_v7;;
+      5) support_matrix;; 6) logs_menu;; 7) pin_core_menu;; 8) singbox_compat_check;;
+      9) speed_test;; 10) cfip_helper;; 11) cloud_firewall_templates;; 12) harden_menu;;
+      13) uninstall_menu_v7;; 14) web_status_generate;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+v8_menu(){
+  while true; do
+    love_menu_title "Love v8 Project Panel" "验证 / 审计 / 发布 / 仪表盘"
+    love_menu2 "1) validate 全量验证" "7) support-bundle 脱敏支持包"
+    love_menu2 "2) audit 安全审计" "8) import-links 导入外部节点"
+    love_menu2 "3) dashboard 项目仪表盘" "9) rotate token/web/password"
+    love_menu2 "4) state 生成状态 JSON" "10) test-suite 测试套件"
+    love_menu2 "5) release 生成 GitHub 发布包" "11) update-channel 更新通道"
+    love_menu2 "6) readme 生成 README" "0) 返回"
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) v8_validate_all;; 2) v8_security_audit;; 3) v8_dashboard;; 4) v8_state_generate;;
+      5) v8_release_pack;; 6) v8_generate_readme;; 7) v8_support_bundle;; 8) v8_import_links;;
+      9) v8_rotate_menu;; 10) v8_test_suite;; 11) v8_update_channel;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+nginx_rp_menu(){
+  while true; do
+    love_menu_title "Love v9 Nginx Reverse Proxy" "WS / gRPC / Stream / fallback"
+    love_menu2 "1) WS 反代：VLESS/VMess WS" "5) 生成 upstream 示例"
+    love_menu2 "2) gRPC 反代" "6) 443 端口策略检测"
+    love_menu2 "3) 仅创建伪装站点 fallback" "7) Nginx 反代状态"
+    love_menu2 "4) Stream SNI passthrough" "8) 回滚 Nginx 配置"
+    love_menu2 "0) 返回" ""
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) nginx_ws_reverse_proxy;; 2) nginx_grpc_reverse_proxy;; 3) nginx_fallback_only;; 4) nginx_stream_sni_passthrough;;
+      5) nginx_generate_local_inbound_notes;; 6) nginx_443_strategy;; 7) nginx_rp_status;; 8) nginx_rp_rollback;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+love_ipv6_outbound_menu(){
+  while true; do
+    love_menu_title "Love IPv6-only 出站修复" "IPv6-only / WARP / prefer_ipv6"
+    love_menu2 "1) 测试 IPv4 / IPv6 出站" "4) Auto Fix 自动修复"
+    love_menu2 "2) sing-box prefer_ipv6 修复" "5) WARP Manager / FS"
+    love_menu2 "3) WARP / IPv4 出站说明" "0) 返回"
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) love_test_outbound_stack || true;; 2) love_fix_ipv6_only_outbound;; 3) love_warp_hint;;
+      4) love_warp_auto_fix_v12;; 5) love_warp_manager_menu;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+love_warp_onoff_menu_v12(){
+  while true; do
+    love_menu_title "Love WARP 开关 / 状态" "Connect / Disconnect / Toggle"
+    love_menu2 "1) 查看完整状态报告" "4) 停止 WireProxy"
+    love_menu2 "2) 连接 Cloudflare WARP Client" "5) 启动 / 修复 WireProxy"
+    love_menu2 "3) 断开 Cloudflare WARP Client" "6) 恢复 sing-box direct"
+    love_menu2 "0) 返回" ""
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) love_warp_report_v12;; 2) warp-cli --accept-tos connect 2>/dev/null || warp-cli connect 2>/dev/null || true;;
+      3) warp-cli --accept-tos disconnect 2>/dev/null || warp-cli disconnect 2>/dev/null || true;;
+      4) systemctl stop love-wireproxy.service 2>/dev/null || true;; 5) love_wireproxy_auto_v12 40001;;
+      6) love_singbox_restore_direct_v12;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+love_warp_kernel_switch_v12(){
+  while true; do
+    love_menu_title "Love WARP Fallback" "kernel WG / wireguard-go / WireProxy"
+    love_menu2 "1) 尝试 WGCF interface" "4) Auto Fix 自动决策"
+    love_menu2 "2) 尝试 wireguard-go fallback" "5) 完整诊断报告"
+    love_menu2 "3) 尝试 WireProxy fallback" "0) 返回"
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) love_install_wgcf_wireguard;; 2) love_wireguard_go_fallback;; 3) love_wireproxy_auto_v12 40001;;
+      4) love_warp_auto_fix_v12;; 5) love_warp_report_v12;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+logs_menu(){
+  while true; do
+    love_menu_title "Love 日志 / 错误查看" "Logs / Errors"
+    love_menu2 "1) sing-box 最近日志" "5) nginx error.log"
+    love_menu2 "2) sing-box 实时日志" "6) nginx access.log"
+    love_menu2 "3) WireProxy 日志" "7) systemd failed 服务"
+    love_menu2 "4) WARP Client 状态" "0) 返回"
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) journalctl -u sing-box -n 100 -l --no-pager;; 2) journalctl -u sing-box -f -l --no-pager;;
+      3) journalctl -u love-wireproxy.service -n 100 -l --no-pager;; 4) warp-cli --accept-tos status 2>/dev/null || warp-cli status 2>/dev/null || true;;
+      5) tail -n 100 /var/log/nginx/error.log;; 6) tail -n 100 /var/log/nginx/access.log;; 7) systemctl --failed --no-pager;;
+      0) return 0;; *) warn "无效选择。";;
+    esac
+    love_back
+  done
+}
+
+uninstall_menu_v7(){
+  while true; do
+    love_menu_title "Love 卸载 / 清理菜单" "Uninstall / Cleanup"
+    love_menu2 "1) Soft 卸载节点服务" "6) 清理 Web 面板"
+    love_menu2 "2) Full 卸载 Love 全部文件" "7) 清理 WARP / WireProxy"
+    love_menu2 "3) 仅停止 sing-box" "8) 清理 nginx Love 配置"
+    love_menu2 "4) 仅删除订阅/二维码" "9) 清理 systemd 残留"
+    love_menu2 "5) 仅删除客户端导出" "0) 返回"
+    echo
+    love_ui_tip "危险操作前建议先执行：Love backup-auto"
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) systemctl stop sing-box 2>/dev/null || true; systemctl disable sing-box 2>/dev/null || true; rm -f /etc/systemd/system/sing-box.service; systemctl daemon-reload;;
+      2) read -rp "确认删除 /opt/Love、/etc/sing-box、Love 命令？[y/N]: " y; [[ "$y" =~ ^[Yy]$ ]] || continue; systemctl stop sing-box 2>/dev/null || true; systemctl stop love-wireproxy.service 2>/dev/null || true; rm -rf /opt/Love /etc/sing-box; rm -f /usr/local/bin/Love /usr/local/bin/love /usr/local/bin/warp; rm -f /etc/systemd/system/sing-box.service /etc/systemd/system/love-wireproxy.service; systemctl daemon-reload;;
+      3) systemctl stop sing-box 2>/dev/null || true;; 4) rm -rf /opt/Love/subscribe;;
+      5) rm -rf /opt/Love/subscribe/clients /opt/Love/subscribe/sing-box;; 6) rm -rf /var/www/love-admin /opt/Love/web;;
+      7) love_warp_uninstall;; 8) rm -f /etc/nginx/sites-enabled/love-admin /etc/nginx/sites-available/love-admin; systemctl restart nginx 2>/dev/null || true;;
+      9) systemctl daemon-reload;; 0) return 0;; *) warn "无效选择。";;
+    esac
+  done
+}
+
+show_status(){
+  love_menu_title "Love 运行状态" "Services / Ports / Outbound"
+  printf "%b服务状态%b\n" "$(lc green)" "$(lc reset)"
+  systemctl is-active --quiet sing-box && love_ui_status_line "sing-box:" "active" || love_ui_status_line "sing-box:" "not active"
+  systemctl is-active --quiet nginx && love_ui_status_line "nginx:" "active" || love_ui_status_line "nginx:" "not active"
+  systemctl is-active --quiet love-wireproxy.service && love_ui_status_line "WireProxy:" "active" || love_ui_status_line "WireProxy:" "not active"
+  systemctl is-active --quiet warp-svc && love_ui_status_line "warp-svc:" "active" || love_ui_status_line "warp-svc:" "not active"
+  echo
+  printf "%b端口监听%b\n" "$(lc green)" "$(lc reset)"
+  ss -lntup 2>/dev/null | grep -E ':(22|80|443|8099|30001|40000|40001)\b' || true
+  echo
+  printf "%bsing-box 联动%b\n" "$(lc green)" "$(lc reset)"
+  jq '{final:.route.final, warp_socks:[.outbounds[]? | select(.tag=="warp-socks")], inbounds:[.inbounds[]? | {tag,type,listen,listen_port}]}' /etc/sing-box/config.json 2>/dev/null || true
+  love_back
+}
+
+backup_configs(){
+  love_menu_title "Love 备份配置" "Backup"
+  local ts out
+  ts="$(date +%F-%H%M%S)"
+  out="/root/love-backup-${ts}.tar.gz"
+  tar -czf "$out" /etc/sing-box /etc/systemd/system/sing-box.service /opt/Love /etc/nginx/sites-available/love-admin /etc/nginx/sites-enabled/love-admin /etc/nginx/.love_web_htpasswd 2>/dev/null || true
+  if [[ -s "$out" ]]; then
+    printf "%b[OK]%b 备份完成：%s\n" "$(lc green)" "$(lc reset)" "$out"
+    ls -lh "$out"
+  else
+    printf "%b[WARN]%b 备份可能失败。\n" "$(lc yellow)" "$(lc reset)"
+  fi
+  love_back
+}
+
+love_full_client_pack(){
+  love_menu_title "Love 客户端导出" "Client Export Pack"
+  export_subscription >/dev/null 2>&1 || true
+  generate_mihomo_yaml >/dev/null 2>&1 || true
+  generate_client_exports >/dev/null 2>&1 || true
+  generate_qrcodes quiet >/dev/null 2>&1 || true
+  printf "%b导出完成%b\n" "$(lc green)" "$(lc reset)"
+  love_menu2 "Raw 订阅" "/opt/Love/subscribe/all.txt"
+  love_menu2 "Base64 订阅" "/opt/Love/subscribe/all_base64.txt"
+  love_menu2 "Mihomo YAML" "/opt/Love/subscribe/mihomo.yaml"
+  love_menu2 "V2RayN" "/opt/Love/subscribe/clients/v2rayn-uri.txt"
+  love_menu2 "Shadowrocket" "/opt/Love/subscribe/clients/shadowrocket.conf"
+  love_menu2 "NekoBox" "/opt/Love/subscribe/clients/nekobox-uri.txt"
+  love_menu2 "二维码目录" "/opt/Love/subscribe/qr/"
+  love_back
+}
+
+github_publish_note(){
+  love_menu_title "Love GitHub 发布说明" "Release Notes / Download"
+  echo "当前版本：${VERSION}"
+  echo
+  echo "Raw 下载链接："
+  echo "https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
+  echo
+  echo "一键安装 / 更新："
+  echo "wget -O /usr/local/bin/Love https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
+  echo "chmod +x /usr/local/bin/Love"
+  echo "ln -sf /usr/local/bin/Love /usr/local/bin/love"
+  echo "hash -r"
+  echo "grep '^VERSION=' /usr/local/bin/Love"
+  echo
+  echo "FS 风格 warp 命令："
+  echo "Love install-warp-command"
+  echo "warp h"
+  love_back
 }
 
 
