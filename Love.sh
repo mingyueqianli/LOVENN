@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.16.0-web-theme-js-fix-final"
+VERSION="Love v13.17.0-web-theme-no-js-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -2114,12 +2114,73 @@ generate_qrcodes() {
 <title>Love QR Codes</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{font-family:Arial,sans-serif;background:#f8fafc;color:#111827;padding:24px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
-.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.05)}
-img{max-width:160px;width:100%;height:auto;background:#fff;padding:8px;border-radius:8px}
-a{color:#0b57d0;text-decoration:none;word-break:break-all}
-</style>
+    :root{
+      --bg:#0f172a; --text:#e5e7eb; --card:#111827; --border:#334155;
+      --hero1:#1d4ed8; --hero2:#7c3aed; --h2:#93c5fd; --link:#67e8f9;
+      --code:#020617; --codeText:#d1d5db; --muted:#94a3b8; --yellow:#facc15;
+      --btn:#2563eb; --btnGreen:#16a34a; --btnOrange:#ea580c; --btnGray:#475569;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;background:#0f172a;color:#e5e7eb;}
+    input.theme-radio{position:absolute;opacity:0;pointer-events:none}
+    .page{
+      min-height:100vh;padding:24px;background:var(--bg);color:var(--text);
+      --bg:#0f172a; --text:#e5e7eb; --card:#111827; --border:#334155;
+      --hero1:#1d4ed8; --hero2:#7c3aed; --h2:#93c5fd; --link:#67e8f9;
+      --code:#020617; --codeText:#d1d5db; --muted:#94a3b8; --yellow:#facc15;
+      --btn:#2563eb; --btnGreen:#16a34a; --btnOrange:#ea580c; --btnGray:#475569;
+    }
+    #themeGreen:checked ~ .page{
+      --bg:#edf7ed; --text:#12351f; --card:#ffffff; --border:#b9d8bd;
+      --hero1:#1b5e20; --hero2:#81c784; --h2:#1b5e20; --link:#0f766e;
+      --code:#f2fff2; --codeText:#12351f; --muted:#4b6b50; --yellow:#8a5a00;
+      --btn:#2e7d32; --btnGreen:#1b8a3b; --btnOrange:#b45309; --btnGray:#6b7f6d;
+    }
+    #themeDark:checked ~ .page{
+      --bg:#0f172a; --text:#e5e7eb; --card:#111827; --border:#334155;
+      --hero1:#1d4ed8; --hero2:#7c3aed; --h2:#93c5fd; --link:#67e8f9;
+      --code:#020617; --codeText:#d1d5db; --muted:#94a3b8; --yellow:#facc15;
+      --btn:#2563eb; --btnGreen:#16a34a; --btnOrange:#ea580c; --btnGray:#475569;
+    }
+    .wrap{max-width:1080px;margin:0 auto;}
+    .hero{background:linear-gradient(135deg,var(--hero1),var(--hero2));padding:24px;border-radius:20px;box-shadow:0 12px 30px rgba(0,0,0,.18);color:white;}
+    h1{margin:0 0 8px;font-size:28px}
+    h2{margin:22px 0 12px;font-size:20px;color:var(--h2)}
+    .floating-theme{
+      position:fixed;right:18px;top:18px;z-index:9999;
+      background:rgba(15,23,42,.92);backdrop-filter:blur(8px);
+      border:1px solid rgba(148,163,184,.45);border-radius:999px;
+      padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.28);
+      display:flex;gap:6px;align-items:center;
+    }
+    #themeGreen:checked ~ .floating-theme{background:rgba(237,247,237,.96);border-color:#9fcbab}
+    .floating-theme label{
+      border:0;border-radius:999px;padding:8px 12px;cursor:pointer;font-weight:700;
+      background:#020617;color:#e5e7eb;display:inline-block;user-select:none;
+    }
+    #themeDark:checked ~ .floating-theme label[for="themeDark"],
+    #themeGreen:checked ~ .floating-theme label[for="themeGreen"]{background:#2563eb;color:white}
+    #themeGreen:checked ~ .floating-theme label{background:#f2fff2;color:#12351f}
+    #themeGreen:checked ~ .floating-theme label[for="themeGreen"]{background:#2e7d32;color:white}
+    .themebar{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 16px;margin-top:16px;}
+    .themebar .label{font-weight:700;color:var(--h2)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:18px;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;}
+    .card h3{margin:0 0 10px;font-size:17px;color:var(--yellow)}
+    a{color:var(--link);text-decoration:none;word-break:break-all}
+    a:hover{text-decoration:underline}
+    code,pre{background:var(--code);border:1px solid var(--border);border-radius:12px;color:var(--codeText);padding:10px;display:block;white-space:pre-wrap;word-break:break-all}
+    .ok{color:#22c55e}.warn{color:#ca8a04}.muted{color:var(--muted)}
+    .btn{display:inline-block;background:var(--btn);color:white;padding:9px 12px;border-radius:10px;margin:4px 4px 4px 0}
+    .btn.green{background:var(--btnGreen)}.btn.orange{background:var(--btnOrange)}.btn.gray{background:var(--btnGray)}
+    table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
+    td,th{border-bottom:1px solid var(--border);padding:10px;text-align:left}
+    th{color:var(--yellow)}
+    @media(max-width:760px){
+      .page{padding:14px}
+      .floating-theme{position:sticky;top:8px;margin:0 auto 14px;justify-content:center;border-radius:16px}
+    }
+  </style>
 </head>
 <body>
 <h1>Love QR Codes</h1>
@@ -2132,69 +2193,7 @@ EOF
     done
     cat <<'EOF'
 </div>
-<script>
-(function(){
-  function byId(id){ return document.getElementById(id); }
-
-  window.setLoveTheme = function(theme){
-    theme = (theme === 'green') ? 'green' : 'dark';
-
-    document.body.classList.remove('theme-dark','theme-green');
-    document.body.classList.add('theme-' + theme);
-    document.documentElement.setAttribute('data-love-theme', theme);
-
-    try { localStorage.setItem('loveTheme', theme); } catch(e) {}
-
-    var all = ['themeDark','themeGreen','floatThemeDark','floatThemeGreen'];
-    all.forEach(function(id){
-      var el = byId(id);
-      if(!el){ return; }
-      var isGreen = id.toLowerCase().indexOf('green') >= 0;
-      el.classList.toggle('active', isGreen ? theme === 'green' : theme === 'dark');
-    });
-
-    // Hard fallback: even if CSS variables fail, colors still change.
-    if(theme === 'green'){
-      document.body.style.background = '#edf7ed';
-      document.body.style.color = '#12351f';
-    }else{
-      document.body.style.background = '#0f172a';
-      document.body.style.color = '#e5e7eb';
-    }
-  };
-
-  function bindThemeButtons(){
-    [
-      ['themeDark','dark'],
-      ['themeGreen','green'],
-      ['floatThemeDark','dark'],
-      ['floatThemeGreen','green']
-    ].forEach(function(pair){
-      var el = byId(pair[0]);
-      if(el){
-        el.onclick = function(ev){
-          if(ev){ ev.preventDefault(); ev.stopPropagation(); }
-          window.setLoveTheme(pair[1]);
-          return false;
-        };
-      }
-    });
-  }
-
-  function init(){
-    bindThemeButtons();
-    var saved = 'dark';
-    try { saved = localStorage.getItem('loveTheme') || 'dark'; } catch(e) {}
-    window.setLoveTheme(saved);
-  }
-
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', init);
-  }else{
-    init();
-  }
-})();
-</script>
+</div>
 </body>
 </html>
 EOF
@@ -11085,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.16.0-web-theme-js-fix-final"
+LOVE_SCRIPT_VERSION="Love v13.17.0-web-theme-no-js-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -11388,29 +11387,21 @@ web_admin_page() {
 
   </style>
 </head>
-<body class="theme-dark">
+<body>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeDark" checked>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeGreen">
 <div class="floating-theme" title="切换 Web 页面主题">
-  <button type="button" id="floatThemeDark" onclick="setLoveTheme('dark')">深色主题</button>
-  <button type="button" id="floatThemeGreen" onclick="setLoveTheme('green')">绿色护眼</button>
+  <label for="themeDark">深色主题</label>
+  <label for="themeGreen">绿色护眼</label>
 </div>
+<div class="page">
 <div class="wrap">
   <div class="hero">
     <h1>Love Admin Panel</h1>
     <div>Status: <span class="ok">OK</span> · Theme Switch: <span class="ok">Enabled</span></div>
     <div class="muted">这是静态管理页，只展示节点、订阅、二维码、下载入口；不会在浏览器执行 root 命令。</div>
     <div class="muted">Base URL: ${base}</div>
-  </div>
-
-  <div class="themebar">
-    <div>
-      <div class="label">主题 Theme</div>
-      <div class="muted">原深色主题保留；绿色护眼主题可在本页直接切换，浏览器会记住选择。</div>
-    </div>
-    <div class="switch">
-      <button type="button" id="themeDark" onclick="setLoveTheme('dark')">原主题 Dark</button>
-      <button type="button" id="themeGreen" onclick="setLoveTheme('green')">绿色护眼 Green</button>
-    </div>
-  </div>
+  </div></div>
 
   <h2>状态 / Status</h2>
   <table>
