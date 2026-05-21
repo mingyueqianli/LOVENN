@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.10.0-xray-menu-wide-final"
+VERSION="Love v13.13.0-web-panel-enhanced-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -10921,6 +10921,509 @@ install_xray_stable() {
       *) warn "无效选择。" ;;
     esac
   done
+}
+
+
+
+# ==============================================================================
+# Love v13.11 Xray Menu Shift Right Final
+# Xray menu: right column moved further right; auto single-column on narrow terminals.
+# ==============================================================================
+
+love_ui_menu2_xray_shift() {
+  local left="$1" right="$2" lcell rcell cols
+  cols="${COLUMNS:-$(tput cols 2>/dev/null || echo 120)}"
+
+  # If terminal is narrow, use single-column to avoid truncation/overlap.
+  if [[ "${cols}" -lt 105 ]]; then
+    lcell="$(love_cjk_pad "$left" 72)"
+    printf "  %b│%b %b%s%b %b│%b\n" \
+      "$(lc blue)" "$(lc reset)" "$(lc yellow)" "$lcell" "$(lc reset)" "$(lc blue)" "$(lc reset)"
+    if [[ -n "$right" ]]; then
+      rcell="$(love_cjk_pad "$right" 72)"
+      printf "  %b│%b %b%s%b %b│%b\n" \
+        "$(lc blue)" "$(lc reset)" "$(lc cyan)" "$rcell" "$(lc reset)" "$(lc blue)" "$(lc reset)"
+    fi
+    return 0
+  fi
+
+  # Wide terminal: move second column further right.
+  lcell="$(love_cjk_pad "$left" 58)"
+  rcell="$(love_cjk_pad "$right" 30)"
+  printf "  %b│%b %b%s%b %b│%b %b%s%b %b│%b\n" \
+    "$(lc blue)" "$(lc reset)" "$(lc yellow)" "$lcell" "$(lc reset)" \
+    "$(lc blue)" "$(lc reset)" "$(lc cyan)" "$rcell" "$(lc reset)" \
+    "$(lc blue)" "$(lc reset)"
+}
+
+love_xray_install_hy2_only_v139() {
+  love_menu_title "Love HY2 / Hysteria2 单独安装" "UDP 443"
+
+  echo "模式：HY2 / Hysteria2 单独节点，UDP 443。"
+  echo "说明：这是独立 HY2，不安装 VLESS Reality。"
+  echo
+  echo "证书模式："
+  love_ui_menu2_xray_shift "1) 有域名 / Let's Encrypt 证书" "2) 无域名 / 自签证书 insecure=1"
+  love_ui_menu2_xray_shift "0) 返回" ""
+
+  read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" m
+  case "$m" in
+    1) love_xray_install_core_v138 reality_hy2_domain ;;
+    2) love_xray_install_core_v138 reality_hy2_self ;;
+    0) return 0 ;;
+    *) warn "无效选择。" ;;
+  esac
+}
+
+install_xray_stable() {
+  while true; do
+    love_menu_title "Love Xray / HY2 节点选择" "先选节点类型，再填写域名/地址"
+
+    printf "%b这里包含的稳定节点类型：%b\n" "$(lc green)" "$(lc reset)"
+    echo "  - VLESS + REALITY + Vision，TCP 443"
+    echo "  - HY2 / Hysteria2，UDP 443"
+    echo "  - Reality + HY2 组合模式"
+    echo
+    printf "%b更多协议：%bTUIC / Naive / ShadowTLS / AnyTLS / VMess / Trojan 等请用 3) sing-box 全协议。\n" "$(lc yellow)" "$(lc reset)"
+    echo
+
+    love_ui_menu2_xray_shift "1) VLESS Reality Vision【无域名 / IP 可用】" "6) 传统完整 Xray 向导"
+    love_ui_menu2_xray_shift "2) HY2 / Hysteria2 UDP 443【单独安装】" "7) 跳转 sing-box 全协议"
+    love_ui_menu2_xray_shift "3) VLESS Reality + HY2【有域名 / 证书】" "8) 查看当前节点信息"
+    love_ui_menu2_xray_shift "4) VLESS Reality + HY2【无域名 / 自签】" "0) 返回"
+    love_ui_menu2_xray_shift "5) 有域名但只装 Reality【不装 HY2】" ""
+
+    echo
+    love_ui_tip "建议：只要稳定 Reality 选 1；只要 UDP 高速 HY2 选 2；有域名想组合选 3。"
+    love_ui_tip "说明：传统完整向导 = 以前那种一步步询问域名/邮箱/HY2 的完整流程，不是旧脚本版本。"
+    echo
+
+    read -rp "$(printf "%b请选择节点类型:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) love_xray_install_core_v138 reality_only ;;
+      2) love_xray_install_hy2_only_v139 ;;
+      3) love_xray_install_core_v138 reality_hy2_domain ;;
+      4) love_xray_install_core_v138 reality_hy2_self ;;
+      5) love_xray_install_core_v138 domain_reality ;;
+      6) love_xray_install_core_v138 wizard ;;
+      7) install_singbox_native ;;
+      8) show_node_info ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v13.12 Self Install Guard Final
+# Fix empty /opt/Love issue: always persist the running script to /opt/Love/Love.sh
+# and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.13.0-web-panel-enhanced-final"
+LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
+
+love_version_line_v1312() {
+  echo "VERSION=\"${LOVE_SCRIPT_VERSION}\""
+}
+
+love_script_self_path_v1312() {
+  local p=""
+  p="${BASH_SOURCE[0]:-$0}"
+  readlink -f "$p" 2>/dev/null || echo "$p"
+}
+
+ensure_love_installed_v1312() {
+  local target="/opt/Love/Love.sh"
+  local bin1="/usr/local/bin/Love"
+  local bin2="/usr/local/bin/love"
+  local tmp="/tmp/Love.selfinstall.$$"
+  local self=""
+  local want=""
+  local have=""
+
+  # Avoid recursion if the wrapper is called more than once in the same shell.
+  [[ "${LOVE_SELF_INSTALL_GUARD_DONE:-}" == "1" ]] && return 0
+  export LOVE_SELF_INSTALL_GUARD_DONE=1
+
+  want="$(love_version_line_v1312)"
+  mkdir -p /opt/Love
+
+  have="$(grep '^VERSION=' "$target" 2>/dev/null || true)"
+
+  if [[ ! -s "$target" ]] || [[ -z "$have" ]] || [[ "$have" != "$want" ]]; then
+    echo "[WARN] /opt/Love/Love.sh 缺失、异常或不是当前版本，正在自动修复..."
+    self="$(love_script_self_path_v1312)"
+
+    if [[ -f "$self" ]] && grep -q '^VERSION=' "$self" 2>/dev/null; then
+      install -m 755 "$self" "$target"
+    else
+      curl -L --fail --retry 3 \
+        -H 'Cache-Control: no-cache' \
+        -o "$tmp" \
+        "${LOVE_UPDATE_URL:-$LOVE_RAW_URL_DEFAULT}?$(date +%s)" \
+        || wget -O "$tmp" "${LOVE_UPDATE_URL:-$LOVE_RAW_URL_DEFAULT}?$(date +%s)" \
+        || {
+          echo "[ERROR] 下载 Love.sh 失败，无法修复 /opt/Love/Love.sh"
+          return 1
+        }
+
+      bash -n "$tmp" || {
+        echo "[ERROR] 下载到的 Love.sh 语法检查失败"
+        rm -f "$tmp"
+        return 1
+      }
+
+      install -m 755 "$tmp" "$target"
+      rm -f "$tmp"
+    fi
+
+    chmod +x "$target"
+  fi
+
+  # Always repair command symlinks.
+  ln -sf "$target" "$bin1"
+  ln -sf "$target" "$bin2"
+
+  # Verify final target.
+  if [[ ! -s "$target" ]] || ! grep -q '^VERSION=' "$target" 2>/dev/null; then
+    echo "[ERROR] /opt/Love/Love.sh 修复后仍然异常"
+    return 1
+  fi
+
+  return 0
+}
+
+# Preserve original main and main_menu, then wrap them.
+# This also fixes VERSION being overwritten by /etc/os-release in some checks.
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1312 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1312/')"
+fi
+
+if declare -F main_menu >/dev/null 2>&1 && ! declare -F love_original_main_menu_v1312 >/dev/null 2>&1; then
+  eval "$(declare -f main_menu | sed '1s/^main_menu/love_original_main_menu_v1312/')"
+fi
+
+main_menu() {
+  VERSION="${LOVE_SCRIPT_VERSION}"
+  love_original_main_menu_v1312 "$@"
+}
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION}"
+  ensure_love_installed_v1312 || exit 1
+  VERSION="${LOVE_SCRIPT_VERSION}"
+  love_original_main_v1312 "$@"
+}
+
+
+
+# ==============================================================================
+# Love v13.13 Web Panel Enhanced Final
+# Replace placeholder static page with useful node/subscription/download panel.
+# ==============================================================================
+
+love_web_public_base_url_v1313() {
+  local port="${1:-8099}"
+  local ip6 ip4
+  ip6="$(curl -6 -s --connect-timeout 3 --max-time 5 https://ifconfig.co 2>/dev/null | tr -d '\r\n' || true)"
+  ip4="$(curl -4 -s --connect-timeout 3 --max-time 5 https://ifconfig.co 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ -n "$ip6" ]]; then
+    echo "http://[${ip6}]:${port}"
+  elif [[ -n "$ip4" ]]; then
+    echo "http://${ip4}:${port}"
+  else
+    echo "http://YOUR_SERVER_IP:${port}"
+  fi
+}
+
+love_web_copy_if_exists_v1313() {
+  local src="$1" dst="$2"
+  if [[ -e "$src" ]]; then
+    mkdir -p "$(dirname "$dst")"
+    cp -a "$src" "$dst" 2>/dev/null || true
+  fi
+}
+
+love_web_build_downloads_v1313() {
+  local webroot="$1"
+  mkdir -p "$webroot/downloads" "$webroot/qr" "$webroot/sub" "$webroot/clients"
+
+  # Subscription and client exports, if they exist.
+  love_web_copy_if_exists_v1313 "/opt/Love/subscribe/all.txt" "$webroot/sub/all.txt"
+  love_web_copy_if_exists_v1313 "/opt/Love/subscribe/all_base64.txt" "$webroot/sub/all_base64.txt"
+  love_web_copy_if_exists_v1313 "/opt/Love/subscribe/mihomo.yaml" "$webroot/sub/mihomo.yaml"
+  love_web_copy_if_exists_v1313 "/opt/Love/subscribe/sing-box-client.json" "$webroot/sub/sing-box-client.json"
+  love_web_copy_if_exists_v1313 "/opt/Love/subscribe/clients" "$webroot/clients"
+  love_web_copy_if_exists_v1313 "/opt/Love/subscribe/qr" "$webroot/qr"
+
+  # CFIP local test pack.
+  love_web_copy_if_exists_v1313 "/opt/Love/cfip-client-test.zip" "$webroot/downloads/cfip-client-test.zip"
+  love_web_copy_if_exists_v1313 "/opt/Love/cfip-client-test.tar.gz" "$webroot/downloads/cfip-client-test.tar.gz"
+
+  # Common backup if present.
+  local last_backup
+  last_backup="$(ls -t /root/love-backup-*.tar.gz 2>/dev/null | head -n1 || true)"
+  [[ -n "$last_backup" ]] && love_web_copy_if_exists_v1313 "$last_backup" "$webroot/downloads/$(basename "$last_backup")"
+
+  chown -R www-data:www-data "$webroot" 2>/dev/null || true
+  chmod -R 755 "$webroot" 2>/dev/null || true
+}
+
+love_web_collect_links_v1313() {
+  local webroot="$1"
+  local out="$webroot/node-links.txt"
+  : > "$out"
+
+  {
+    echo "# Love Node Links"
+    echo "# Generated at: $(date)"
+    echo
+
+    if [[ -f /opt/Love/node_info.txt ]]; then
+      cat /opt/Love/node_info.txt
+      echo
+    fi
+
+    if [[ -f /opt/Love/subscribe/all.txt ]]; then
+      echo "# /opt/Love/subscribe/all.txt"
+      cat /opt/Love/subscribe/all.txt
+      echo
+    fi
+
+    if [[ -f /opt/Love/subscribe/clients/v2rayn-uri.txt ]]; then
+      echo "# V2RayN"
+      cat /opt/Love/subscribe/clients/v2rayn-uri.txt
+      echo
+    fi
+
+    if [[ -f /opt/Love/subscribe/clients/nekobox-uri.txt ]]; then
+      echo "# NekoBox"
+      cat /opt/Love/subscribe/clients/nekobox-uri.txt
+      echo
+    fi
+  } >> "$out"
+
+  chown www-data:www-data "$out" 2>/dev/null || true
+  chmod 644 "$out" 2>/dev/null || true
+}
+
+web_admin_page() {
+  love_menu_title "Love Web 管理页" "Enhanced Static Panel"
+
+  local port user pass webroot conf base node_links sub_status qr_status cfip_status
+  read -rp "Web 管理页端口 [8099]: " port
+  port="${port:-8099}"
+
+  read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " auth
+  auth="${auth:-Y}"
+
+  user="love"
+  pass=""
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    read -rp "Web 用户名 [love]: " user
+    user="${user:-love}"
+    read -rp "Web 密码，留空自动生成: " pass
+    if [[ -z "$pass" ]]; then
+      pass="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"
+    fi
+  fi
+
+  webroot="/var/www/love-admin"
+  conf="/etc/nginx/sites-available/love-admin"
+
+  mkdir -p "$webroot" /etc/nginx/sites-available /etc/nginx/sites-enabled
+
+  # Try to regenerate exports first, but do not fail web page if export functions fail.
+  export_subscription >/dev/null 2>&1 || true
+  generate_qrcodes quiet >/dev/null 2>&1 || generate_qrcodes >/dev/null 2>&1 || true
+  generate_mihomo_yaml >/dev/null 2>&1 || true
+  generate_client_exports >/dev/null 2>&1 || true
+
+  love_web_build_downloads_v1313 "$webroot"
+  love_web_collect_links_v1313 "$webroot"
+
+  [[ -s "$webroot/node-links.txt" ]] && node_links="ready" || node_links="empty"
+  [[ -d "$webroot/qr" ]] && qr_status="ready" || qr_status="empty"
+  [[ -f "$webroot/downloads/cfip-client-test.zip" || -f "$webroot/downloads/cfip-client-test.tar.gz" ]] && cfip_status="ready" || cfip_status="not generated"
+  [[ -f "$webroot/sub/all.txt" || -f "$webroot/sub/all_base64.txt" ]] && sub_status="ready" || sub_status="empty"
+
+  base="$(love_web_public_base_url_v1313 "$port")"
+
+  cat > "$webroot/index.html" <<EOF
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Love Admin Panel</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;background:#0f172a;color:#e5e7eb;margin:0;padding:24px;}
+    .wrap{max-width:1080px;margin:0 auto;}
+    .hero{background:linear-gradient(135deg,#1d4ed8,#7c3aed);padding:24px;border-radius:20px;box-shadow:0 12px 30px rgba(0,0,0,.28);}
+    h1{margin:0 0 8px;font-size:28px}
+    h2{margin:22px 0 12px;font-size:20px;color:#93c5fd}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:18px;}
+    .card{background:#111827;border:1px solid #334155;border-radius:16px;padding:16px;}
+    .card h3{margin:0 0 10px;font-size:17px;color:#facc15}
+    a{color:#67e8f9;text-decoration:none;word-break:break-all}
+    a:hover{text-decoration:underline}
+    code,pre{background:#020617;border:1px solid #334155;border-radius:12px;color:#d1d5db;padding:10px;display:block;white-space:pre-wrap;word-break:break-all}
+    .ok{color:#86efac}.warn{color:#fde68a}.muted{color:#94a3b8}
+    .btn{display:inline-block;background:#2563eb;color:white;padding:9px 12px;border-radius:10px;margin:4px 4px 4px 0}
+    .btn.green{background:#16a34a}.btn.orange{background:#ea580c}.btn.gray{background:#475569}
+    table{width:100%;border-collapse:collapse;background:#111827;border-radius:12px;overflow:hidden}
+    td,th{border-bottom:1px solid #334155;padding:10px;text-align:left}
+    th{color:#facc15}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>Love Admin Panel</h1>
+    <div>Status: <span class="ok">OK</span></div>
+    <div class="muted">这是静态管理页，只展示节点、订阅、二维码、下载入口；不会在浏览器执行 root 命令。</div>
+    <div class="muted">Base URL: ${base}</div>
+  </div>
+
+  <h2>状态 / Status</h2>
+  <table>
+    <tr><th>项目</th><th>状态</th><th>说明</th></tr>
+    <tr><td>Node Links</td><td>${node_links}</td><td>节点链接汇总文件</td></tr>
+    <tr><td>Subscription</td><td>${sub_status}</td><td>订阅文件是否已生成</td></tr>
+    <tr><td>QR Codes</td><td>${qr_status}</td><td>二维码目录是否存在</td></tr>
+    <tr><td>CFIP Pack</td><td>${cfip_status}</td><td>电脑本地测速包</td></tr>
+  </table>
+
+  <h2>节点 / 订阅 / 二维码</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>节点链接汇总</h3>
+      <p>查看当前导出的节点链接，适合复制到客户端。</p>
+      <a class="btn" href="/node-links.txt">打开 node-links.txt</a>
+    </div>
+    <div class="card">
+      <h3>Raw 订阅</h3>
+      <p>一行一个节点链接。</p>
+      <a class="btn" href="/sub/all.txt">打开 all.txt</a>
+      <a class="btn gray" href="/sub/all_base64.txt">Base64</a>
+    </div>
+    <div class="card">
+      <h3>二维码</h3>
+      <p>手机端可进入目录查看二维码图片。</p>
+      <a class="btn green" href="/qr/">打开 QR 目录</a>
+    </div>
+  </div>
+
+  <h2>客户端配置文件</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Mihomo / Clash</h3>
+      <a class="btn" href="/sub/mihomo.yaml">下载 mihomo.yaml</a>
+    </div>
+    <div class="card">
+      <h3>sing-box Client</h3>
+      <a class="btn" href="/sub/sing-box-client.json">下载 sing-box-client.json</a>
+    </div>
+    <div class="card">
+      <h3>客户端目录</h3>
+      <p>V2RayN / Shadowrocket / NekoBox 等导出文件。</p>
+      <a class="btn" href="/clients/">打开 clients 目录</a>
+    </div>
+  </div>
+
+  <h2>CFIP 本地测速包</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Windows / macOS / Linux 测速包</h3>
+      <p>下载到你的电脑本地测速 Cloudflare 优选 IP。</p>
+      <a class="btn orange" href="/downloads/cfip-client-test.zip">下载 ZIP</a>
+      <a class="btn gray" href="/downloads/cfip-client-test.tar.gz">下载 TAR.GZ</a>
+    </div>
+  </div>
+
+  <h2>常用命令</h2>
+  <pre>Love -n
+Love sub
+Love qr
+Love web
+Love cfip
+Love warp-auto-fix</pre>
+
+  <h2>说明</h2>
+  <div class="card">
+    <p><b>如果这里只有 Status: OK 或内容为空：</b>先在 VPS 执行 <code>Love sub</code>、<code>Love qr</code>、<code>Love web</code> 重新生成。</p>
+    <p><b>如果文件 404：</b>说明对应文件还没有生成，比如 CFIP 测速包需要先执行 <code>Love cfip → 6</code>。</p>
+  </div>
+</div>
+</body>
+</html>
+EOF
+
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    apt-get update >/dev/null 2>&1 || true
+    apt-get install -y apache2-utils nginx >/dev/null 2>&1 || true
+    htpasswd -bc /etc/nginx/.love_web_htpasswd "$user" "$pass" >/dev/null 2>&1 || true
+  else
+    apt-get install -y nginx >/dev/null 2>&1 || true
+    rm -f /etc/nginx/.love_web_htpasswd
+  fi
+
+  cat > "$conf" <<EOF
+server {
+    listen ${port};
+    listen [::]:${port};
+    server_name _;
+    root ${webroot};
+    index index.html;
+    autoindex on;
+    charset utf-8;
+EOF
+
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    cat >> "$conf" <<EOF
+    auth_basic "Love Admin";
+    auth_basic_user_file /etc/nginx/.love_web_htpasswd;
+EOF
+  fi
+
+  cat >> "$conf" <<'EOF'
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+EOF
+
+  ln -sf "$conf" /etc/nginx/sites-enabled/love-admin
+  nginx -t || {
+    warn "nginx 配置检查失败。"
+    return 1
+  }
+
+  systemctl enable nginx >/dev/null 2>&1 || true
+  systemctl restart nginx || {
+    warn "nginx 重启失败，尝试 reload。"
+    systemctl reload nginx 2>/dev/null || true
+  }
+
+  ufw allow "${port}/tcp" >/dev/null 2>&1 || true
+
+  echo
+  log "Love Web Panel 已生成。"
+  echo "访问地址：${base}/"
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    echo "用户名：${user}"
+    echo "密码：${pass}"
+  fi
+  echo
+  echo "常用下载："
+  echo "  节点汇总：${base}/node-links.txt"
+  echo "  订阅：${base}/sub/all.txt"
+  echo "  二维码目录：${base}/qr/"
+  echo "  客户端目录：${base}/clients/"
+  echo "  CFIP 测速包：${base}/downloads/cfip-client-test.zip"
 }
 
 
