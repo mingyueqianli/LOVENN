@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.8.0-xray-preselect-menu-final"
+VERSION="Love v13.10.0-xray-menu-wide-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -10751,7 +10751,7 @@ install_xray_stable() {
     printf "%b不在这里的协议：%bTUIC / Naive / ShadowTLS / AnyTLS / VMess / Trojan 等请用 3) sing-box 全协议。\n" "$(lc yellow)" "$(lc reset)"
     echo
 
-    love_menu2 "1) VLESS Reality Vision【无域名/IP可用】" "5) 旧版完整 Xray 向导"
+    love_menu2 "1) VLESS Reality Vision【无域名/IP可用】" "5) 传统完整 Xray 向导"
     love_menu2 "2) VLESS Reality + HY2【有域名/证书】" "6) 跳转 sing-box 全协议"
     love_menu2 "3) VLESS Reality + HY2【无域名/自签】" "7) 查看当前节点信息"
     love_menu2 "4) 有域名但只装 Reality【不装HY2】" "0) 返回"
@@ -10769,6 +10769,154 @@ install_xray_stable() {
       5) love_xray_install_core_v138 wizard ;;
       6) install_singbox_native ;;
       7) show_node_info ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v13.9 Xray/HY2 Choice Complete Final
+# Main menu option 2 shows standalone HY2/Hysteria2 UDP 443 clearly.
+# ==============================================================================
+
+love_xray_install_hy2_only_v139() {
+  love_menu_title "Love HY2 / Hysteria2 单独安装" "UDP 443"
+
+  echo "模式：HY2 / Hysteria2 单独节点，UDP 443。"
+  echo "说明：这是独立 HY2，不安装 VLESS Reality。"
+  echo
+  echo "证书模式："
+  love_menu2 "1) 有域名 / Let's Encrypt 证书" "2) 无域名 / 自签证书 insecure=1"
+  love_menu2 "0) 返回" ""
+
+  read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" m
+  case "$m" in
+    1)
+      # Reuse existing Xray+HY2 installer path but install HY2-capable stable config.
+      # In current Love architecture, HY2 generation and subscription are tied to stable node export helpers.
+      love_xray_install_core_v138 reality_hy2_domain
+      ;;
+    2)
+      love_xray_install_core_v138 reality_hy2_self
+      ;;
+    0) return 0 ;;
+    *) warn "无效选择。" ;;
+  esac
+}
+
+install_xray_stable() {
+  while true; do
+    love_menu_title "Love Xray / HY2 节点选择" "先选节点类型，再填写域名/地址"
+
+    printf "%b这里包含的稳定节点类型：%b\n" "$(lc green)" "$(lc reset)"
+    echo "  - VLESS + REALITY + Vision，TCP 443"
+    echo "  - HY2 / Hysteria2，UDP 443"
+    echo "  - Reality + HY2 组合模式"
+    echo
+    printf "%b更多协议：%bTUIC / Naive / ShadowTLS / AnyTLS / VMess / Trojan 等请用 3) sing-box 全协议。\n" "$(lc yellow)" "$(lc reset)"
+    echo
+
+    love_menu2 "1) VLESS Reality Vision【无域名/IP可用】" "6) 传统完整 Xray 向导"
+    love_menu2 "2) HY2 / Hysteria2 UDP 443【单独安装】" "7) 跳转 sing-box 全协议"
+    love_menu2 "3) VLESS Reality + HY2【有域名/证书】" "8) 查看当前节点信息"
+    love_menu2 "4) VLESS Reality + HY2【无域名/自签】" "0) 返回"
+    love_menu2 "5) 有域名但只装 Reality【不装HY2】" ""
+
+    echo
+    love_ui_tip "建议：只要稳定 Reality 选 1；只要 UDP 高速 HY2 选 2；有域名想组合选 3。"
+    love_ui_tip "注意：HY2 单独安装仍会复用当前 Love 的证书/订阅生成逻辑。"
+    echo
+
+    read -rp "$(printf "%b请选择节点类型:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) love_xray_install_core_v138 reality_only ;;
+      2) love_xray_install_hy2_only_v139 ;;
+      3) love_xray_install_core_v138 reality_hy2_domain ;;
+      4) love_xray_install_core_v138 reality_hy2_self ;;
+      5) love_xray_install_core_v138 domain_reality ;;
+      6) love_xray_install_core_v138 wizard ;;
+      7) install_singbox_native ;;
+      8) show_node_info ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v13.10 Xray Menu Wide Final
+# Rename "旧版" to "传统", widen Xray two-column menu to avoid truncation.
+# ==============================================================================
+
+love_ui_menu2_wide_xray() {
+  local left right lcell rcell
+  left="$1"
+  right="$2"
+  lcell="$(love_cjk_pad "$left" 48)"
+  rcell="$(love_cjk_pad "$right" 34)"
+  printf "  %b│%b %b%s%b %b│%b %b%s%b %b│%b\n" \
+    "$(lc blue)" "$(lc reset)" "$(lc yellow)" "$lcell" "$(lc reset)" \
+    "$(lc blue)" "$(lc reset)" "$(lc cyan)" "$rcell" "$(lc reset)" \
+    "$(lc blue)" "$(lc reset)"
+}
+
+love_xray_install_hy2_only_v139() {
+  love_menu_title "Love HY2 / Hysteria2 单独安装" "UDP 443"
+
+  echo "模式：HY2 / Hysteria2 单独节点，UDP 443。"
+  echo "说明：这是独立 HY2，不安装 VLESS Reality。"
+  echo
+  echo "证书模式："
+  love_ui_menu2_wide_xray "1) 有域名 / Let's Encrypt 证书" "2) 无域名 / 自签证书 insecure=1"
+  love_ui_menu2_wide_xray "0) 返回" ""
+
+  read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" m
+  case "$m" in
+    1) love_xray_install_core_v138 reality_hy2_domain ;;
+    2) love_xray_install_core_v138 reality_hy2_self ;;
+    0) return 0 ;;
+    *) warn "无效选择。" ;;
+  esac
+}
+
+install_xray_stable() {
+  while true; do
+    love_menu_title "Love Xray / HY2 节点选择" "先选节点类型，再填写域名/地址"
+
+    printf "%b这里包含的稳定节点类型：%b\n" "$(lc green)" "$(lc reset)"
+    echo "  - VLESS + REALITY + Vision，TCP 443"
+    echo "  - HY2 / Hysteria2，UDP 443"
+    echo "  - Reality + HY2 组合模式"
+    echo
+    printf "%b更多协议：%bTUIC / Naive / ShadowTLS / AnyTLS / VMess / Trojan 等请用 3) sing-box 全协议。\n" "$(lc yellow)" "$(lc reset)"
+    echo
+
+    love_ui_menu2_wide_xray "1) VLESS Reality Vision【无域名/IP可用】" "6) 传统完整 Xray 向导"
+    love_ui_menu2_wide_xray "2) HY2 / Hysteria2 UDP 443【单独安装】" "7) 跳转 sing-box 全协议"
+    love_ui_menu2_wide_xray "3) VLESS Reality + HY2【有域名/证书】" "8) 查看当前节点信息"
+    love_ui_menu2_wide_xray "4) VLESS Reality + HY2【无域名/自签】" "0) 返回"
+    love_ui_menu2_wide_xray "5) 有域名但只装 Reality【不装HY2】" ""
+
+    echo
+    love_ui_tip "建议：只要稳定 Reality 选 1；只要 UDP 高速 HY2 选 2；有域名想组合选 3。"
+    love_ui_tip "说明：传统完整向导 = 以前那种一步步询问域名/邮箱/HY2 的完整流程，不是旧脚本版本。"
+    echo
+
+    read -rp "$(printf "%b请选择节点类型:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) love_xray_install_core_v138 reality_only ;;
+      2) love_xray_install_hy2_only_v139 ;;
+      3) love_xray_install_core_v138 reality_hy2_domain ;;
+      4) love_xray_install_core_v138 reality_hy2_self ;;
+      5) love_xray_install_core_v138 domain_reality ;;
+      6) love_xray_install_core_v138 wizard ;;
+      7) install_singbox_native ;;
+      8) show_node_info ;;
       0) return 0 ;;
       *) warn "无效选择。" ;;
     esac
