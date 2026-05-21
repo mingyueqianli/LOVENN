@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.13.0-web-panel-enhanced-final"
+VERSION="Love v13.14.0-web-theme-switch-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -2132,6 +2132,24 @@ EOF
     done
     cat <<'EOF'
 </div>
+<script>
+(function(){
+  var saved = localStorage.getItem('loveTheme') || 'dark';
+  setLoveTheme(saved);
+})();
+function setLoveTheme(theme){
+  if(theme !== 'green'){ theme = 'dark'; }
+  document.body.classList.remove('theme-dark','theme-green');
+  document.body.classList.add('theme-' + theme);
+  localStorage.setItem('loveTheme', theme);
+  var darkBtn = document.getElementById('themeDark');
+  var greenBtn = document.getElementById('themeGreen');
+  if(darkBtn && greenBtn){
+    darkBtn.classList.toggle('active', theme === 'dark');
+    greenBtn.classList.toggle('active', theme === 'green');
+  }
+}
+</script>
 </body>
 </html>
 EOF
@@ -11022,7 +11040,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.13.0-web-panel-enhanced-final"
+LOVE_SCRIPT_VERSION="Love v13.14.0-web-theme-switch-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -11260,32 +11278,66 @@ web_admin_page() {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Love Admin Panel</title>
   <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;background:#0f172a;color:#e5e7eb;margin:0;padding:24px;}
+    :root{
+      --bg:#0f172a; --text:#e5e7eb; --card:#111827; --border:#334155;
+      --hero1:#1d4ed8; --hero2:#7c3aed; --h2:#93c5fd; --link:#67e8f9;
+      --code:#020617; --codeText:#d1d5db; --muted:#94a3b8; --yellow:#facc15;
+      --btn:#2563eb; --btnGreen:#16a34a; --btnOrange:#ea580c; --btnGray:#475569;
+    }
+    body.theme-green{
+      --bg:#edf7ed; --text:#12351f; --card:#ffffff; --border:#b9d8bd;
+      --hero1:#2e7d32; --hero2:#66bb6a; --h2:#1b5e20; --link:#0f766e;
+      --code:#f2fff2; --codeText:#12351f; --muted:#4b6b50; --yellow:#8a5a00;
+      --btn:#2e7d32; --btnGreen:#1b8a3b; --btnOrange:#b45309; --btnGray:#6b7f6d;
+    }
+    body.theme-dark{
+      --bg:#0f172a; --text:#e5e7eb; --card:#111827; --border:#334155;
+      --hero1:#1d4ed8; --hero2:#7c3aed; --h2:#93c5fd; --link:#67e8f9;
+      --code:#020617; --codeText:#d1d5db; --muted:#94a3b8; --yellow:#facc15;
+      --btn:#2563eb; --btnGreen:#16a34a; --btnOrange:#ea580c; --btnGray:#475569;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px;transition:background .25s,color .25s;}
     .wrap{max-width:1080px;margin:0 auto;}
-    .hero{background:linear-gradient(135deg,#1d4ed8,#7c3aed);padding:24px;border-radius:20px;box-shadow:0 12px 30px rgba(0,0,0,.28);}
+    .hero{background:linear-gradient(135deg,var(--hero1),var(--hero2));padding:24px;border-radius:20px;box-shadow:0 12px 30px rgba(0,0,0,.18);color:white;}
     h1{margin:0 0 8px;font-size:28px}
-    h2{margin:22px 0 12px;font-size:20px;color:#93c5fd}
+    h2{margin:22px 0 12px;font-size:20px;color:var(--h2)}
+    .themebar{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 16px;margin-top:16px;}
+    .themebar .label{font-weight:700;color:var(--h2)}
+    .switch{display:flex;gap:8px;flex-wrap:wrap}
+    .switch button{border:1px solid var(--border);background:var(--code);color:var(--text);border-radius:999px;padding:8px 12px;cursor:pointer}
+    .switch button.active{background:var(--btn);color:white;border-color:var(--btn)}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:18px;}
-    .card{background:#111827;border:1px solid #334155;border-radius:16px;padding:16px;}
-    .card h3{margin:0 0 10px;font-size:17px;color:#facc15}
-    a{color:#67e8f9;text-decoration:none;word-break:break-all}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;}
+    .card h3{margin:0 0 10px;font-size:17px;color:var(--yellow)}
+    a{color:var(--link);text-decoration:none;word-break:break-all}
     a:hover{text-decoration:underline}
-    code,pre{background:#020617;border:1px solid #334155;border-radius:12px;color:#d1d5db;padding:10px;display:block;white-space:pre-wrap;word-break:break-all}
-    .ok{color:#86efac}.warn{color:#fde68a}.muted{color:#94a3b8}
-    .btn{display:inline-block;background:#2563eb;color:white;padding:9px 12px;border-radius:10px;margin:4px 4px 4px 0}
-    .btn.green{background:#16a34a}.btn.orange{background:#ea580c}.btn.gray{background:#475569}
-    table{width:100%;border-collapse:collapse;background:#111827;border-radius:12px;overflow:hidden}
-    td,th{border-bottom:1px solid #334155;padding:10px;text-align:left}
-    th{color:#facc15}
+    code,pre{background:var(--code);border:1px solid var(--border);border-radius:12px;color:var(--codeText);padding:10px;display:block;white-space:pre-wrap;word-break:break-all}
+    .ok{color:#22c55e}.warn{color:#ca8a04}.muted{color:var(--muted)}
+    .btn{display:inline-block;background:var(--btn);color:white;padding:9px 12px;border-radius:10px;margin:4px 4px 4px 0}
+    .btn.green{background:var(--btnGreen)}.btn.orange{background:var(--btnOrange)}.btn.gray{background:var(--btnGray)}
+    table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
+    td,th{border-bottom:1px solid var(--border);padding:10px;text-align:left}
+    th{color:var(--yellow)}
   </style>
 </head>
-<body>
+<body class="theme-dark">
 <div class="wrap">
   <div class="hero">
     <h1>Love Admin Panel</h1>
     <div>Status: <span class="ok">OK</span></div>
     <div class="muted">这是静态管理页，只展示节点、订阅、二维码、下载入口；不会在浏览器执行 root 命令。</div>
     <div class="muted">Base URL: ${base}</div>
+  </div>
+
+  <div class="themebar">
+    <div>
+      <div class="label">主题 Theme</div>
+      <div class="muted">原深色主题保留；绿色护眼主题可在本页直接切换，浏览器会记住选择。</div>
+    </div>
+    <div class="switch">
+      <button type="button" id="themeDark" onclick="setLoveTheme('dark')">原主题 Dark</button>
+      <button type="button" id="themeGreen" onclick="setLoveTheme('green')">绿色护眼 Green</button>
+    </div>
   </div>
 
   <h2>状态 / Status</h2>
