@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v12.8.0-full-color-ui-final"
+VERSION="Love v12.9.0-force-color-two-column-update-link-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -8485,6 +8485,268 @@ love_warp_final_menu_v12() {
         echo "https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
         love_warp_update_v12
         ;;
+      25) love_warp_uninstall ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v12.9 Force Color Two-Column UI + Update Link Final
+# This override is placed immediately before main "$@" so it wins.
+# ==============================================================================
+
+LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
+
+lc() {
+  [[ -n "${NO_COLOR:-}" ]] && return 0
+  case "$1" in
+    red) printf "\033[31m" ;;
+    green) printf "\033[32m" ;;
+    yellow) printf "\033[33m" ;;
+    blue) printf "\033[34m" ;;
+    magenta) printf "\033[35m" ;;
+    cyan) printf "\033[36m" ;;
+    white) printf "\033[37m" ;;
+    gray) printf "\033[90m" ;;
+    bold) printf "\033[1m" ;;
+    reset|*) printf "\033[0m" ;;
+  esac
+}
+
+love_ui_hr() {
+  printf "%b%s%b\n" "$(lc blue)" "================================================================================" "$(lc reset)"
+}
+
+love_ui_title() {
+  echo
+  love_ui_hr
+  printf "%b%s%b %b%s%b\n" "$(lc bold)$(lc cyan)" "$1" "$(lc reset)" "$(lc gray)" "${2:-}" "$(lc reset)"
+  love_ui_hr
+}
+
+love_ui_status_line() {
+  local label="$1" value="$2"
+  local color="yellow"
+  case "$value" in
+    active|yes|on|running|ok) color="green" ;;
+    no|off|failed|not*) color="red" ;;
+  esac
+  printf "  %-20s %b%s%b\n" "$label" "$(lc "$color")" "$value" "$(lc reset)"
+}
+
+love_ui_menu2() {
+  # Compact 2-column layout that works better on 80-100 width terminals.
+  printf "  %b%-34s%b │ %b%s%b\n" "$(lc yellow)" "$1" "$(lc reset)" "$(lc cyan)" "$2" "$(lc reset)"
+}
+
+love_ui_tip() {
+  printf "%b%s%b\n" "$(lc magenta)" "$*" "$(lc reset)"
+}
+
+love_main_status_panel_v129() {
+  local sb ng wp final port ipv4 ipv6
+  systemctl is-active --quiet sing-box && sb="active" || sb="not active"
+  systemctl is-active --quiet nginx && ng="active" || ng="not active"
+  systemctl is-active --quiet love-wireproxy.service && wp="active" || wp="not active"
+  final="$(jq -r '.route.final // "unknown"' /etc/sing-box/config.json 2>/dev/null || echo unknown)"
+  port="$(jq -r '.outbounds[]? | select(.tag=="warp-socks") | .server_port' /etc/sing-box/config.json 2>/dev/null | head -n1)"
+  curl -4 -I --connect-timeout 2 --max-time 4 https://github.com >/dev/null 2>&1 && ipv4="yes" || ipv4="no"
+  curl -6 -I --connect-timeout 2 --max-time 4 https://github.com >/dev/null 2>&1 && ipv6="yes" || ipv6="no"
+
+  printf "%b系统状态%b\n" "$(lc green)" "$(lc reset)"
+  printf "  %-20s %s\n" "OS:" "$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")"
+  printf "  %-20s %s / %s\n" "Arch/Virt:" "$(uname -m)" "$(systemd-detect-virt 2>/dev/null || echo unknown)"
+  printf "  %-20s IPv4: %b%s%b    IPv6: %b%s%b\n" "Outbound:" "$(lc $([[ "$ipv4" == yes ]] && echo green || echo red))" "$ipv4" "$(lc reset)" "$(lc $([[ "$ipv6" == yes ]] && echo green || echo red))" "$ipv6" "$(lc reset)"
+  love_ui_status_line "sing-box:" "$sb"
+  love_ui_status_line "nginx web:" "$ng"
+  love_ui_status_line "WireProxy:" "$wp"
+  printf "  %-20s %b%s%b\n" "route.final:" "$(lc cyan)" "$final" "$(lc reset)"
+  [[ -n "$port" ]] && printf "  %-20s %b%s%b\n" "warp-socks port:" "$(lc cyan)" "$port" "$(lc reset)"
+  echo
+}
+
+love_show_update_link() {
+  love_ui_title "Love 在线更新 / 下载链接" "${VERSION}"
+  echo "Raw 下载链接："
+  echo "${LOVE_UPDATE_URL:-$LOVE_RAW_URL_DEFAULT}"
+  echo
+  echo "手动更新命令："
+  echo "wget -O /usr/local/bin/Love ${LOVE_UPDATE_URL:-$LOVE_RAW_URL_DEFAULT}"
+  echo "chmod +x /usr/local/bin/Love"
+  echo "ln -sf /usr/local/bin/Love /usr/local/bin/love"
+  echo "hash -r"
+  echo "grep '^VERSION=' /usr/local/bin/Love"
+  echo
+}
+
+self_update_love() {
+  love_show_update_link
+
+  local url="${LOVE_UPDATE_URL:-$LOVE_RAW_URL_DEFAULT}"
+  read -rp "使用上面的链接更新？直接回车确认，或输入新 URL: " input_url
+  [[ -n "$input_url" ]] && url="$input_url"
+
+  [[ -n "$url" ]] || die "更新 URL 不能为空。"
+
+  local target="${LOVE_HOME}/Love.sh"
+  local tmp="/tmp/Love.update.$$"
+  local dl_url="${url}?t=$(date +%s)"
+
+  curl -fsSL "$dl_url" -o "$tmp" || wget -O "$tmp" "$dl_url" || die "下载新版 Love 失败。"
+  bash -n "$tmp" || die "新版脚本语法检查失败，已取消更新。"
+
+  cp -f "$target" "${target}.bak.$(date +%F-%H%M%S)" 2>/dev/null || true
+  install -m 755 "$tmp" "$target"
+  ln -sf "$target" "${LOVE_BIN}"
+  ln -sf "$target" "${LOVE_BIN_LOWER}"
+  rm -f "$tmp"
+  /usr/local/bin/Love install-warp-command >/dev/null 2>&1 || true
+
+  log "Love 已更新。"
+  grep '^VERSION=' /usr/local/bin/Love 2>/dev/null || true
+  echo "重新运行：Love"
+}
+
+love_warp_update_v12() {
+  self_update_love
+}
+
+update_core_menu() {
+  love_ui_title "Love Core / Script Update" "更新与下载链接"
+  love_show_update_link
+  echo "1) 更新 Love 主脚本"
+  echo "2) 更新 Xray / sing-box 核心"
+  echo "0) 返回"
+  read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" u
+  case "$u" in
+    1) self_update_love ;;
+    2) update_core_menu_original 2>/dev/null || true ;;
+    *) return 0 ;;
+  esac
+}
+
+main_menu() {
+  while true; do
+    love_ui_title "Love Node Server Manager" "${VERSION}"
+    love_main_status_panel_v129
+
+    printf "%b主菜单%b\n" "$(lc green)" "$(lc reset)"
+    love_ui_menu2 "1) 节点目录" "14) v6 Project Tools"
+    love_ui_menu2 "2) Xray Reality + HY2" "15) v7 Stable Tools"
+    love_ui_menu2 "3) sing-box 全协议" "16) v8 Project Panel"
+    love_ui_menu2 "4) Argo 隧道" "17) Nginx Reverse Proxy"
+    love_ui_menu2 "5) UDP 端口跳跃" "18) HY2/sing-box 修复"
+    love_ui_menu2 "6) WARP 说明" "19) IPv6-only 出站"
+    love_ui_menu2 "7) 节点信息 Love -n" "20) WARP Manager / FS"
+    love_ui_menu2 "8) 导出订阅 Love sub" "21) 查看运行状态"
+    love_ui_menu2 "9) 生成二维码 Love qr" "22) 备份配置"
+    love_ui_menu2 "10) Super Tools" "23) 卸载菜单"
+    love_ui_menu2 "11) Web 管理页 Love web" "24) GitHub 发布说明"
+    love_ui_menu2 "12) 在线更新 / 下载链接" "25) 安装 warp 命令"
+    love_ui_menu2 "13) 客户端导出" "0) 退出"
+
+    echo
+    love_ui_tip "常用：Love warp-auto-fix | Love web | Love sub | Love qr | warp h | warp w"
+    love_ui_tip "推荐流程：3 生成节点 → 20 修 WARP 出站 → 11 打开 Web 面板"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" choice
+
+    case "${choice}" in
+      1) show_all_node_catalog ;;
+      2) install_xray_stable ;;
+      3) install_singbox_native ;;
+      4) argo_helper ;;
+      5) port_hopping_helper ;;
+      6) warp_helper ;;
+      7) show_node_info ;;
+      8) export_subscription ;;
+      9) generate_qrcodes ;;
+      10) super_menu ;;
+      11) web_admin_page ;;
+      12) self_update_love ;;
+      13) love_full_client_pack ;;
+      14) v6_super_menu ;;
+      15) v7_stable_menu ;;
+      16) v8_menu ;;
+      17) nginx_rp_menu ;;
+      18) love_fix_hy2_now ;;
+      19) love_ipv6_outbound_menu ;;
+      20) love_warp_manager_menu ;;
+      21) show_status ;;
+      22) backup_configs ;;
+      23) uninstall_menu_v7 ;;
+      24) github_publish_note ;;
+      25) love_install_fs_warp_command ;;
+      0) exit 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+love_warp_final_menu_v12() {
+  while true; do
+    if declare -F love_warp_fs_like_status_panel >/dev/null 2>&1; then
+      love_warp_fs_like_status_panel
+    else
+      love_ui_title "Love WARP / Node Server Manager" "${VERSION}"
+      love_main_status_panel_v129
+    fi
+
+    printf "%bWARP 菜单%b\n" "$(lc green)" "$(lc reset)"
+    love_ui_menu2 "1) WARP IPv4 Only" "14) MTU 自动检测"
+    love_ui_menu2 "2) WARP IPv6 Only" "15) WG/WireProxy fallback"
+    love_ui_menu2 "3) WARP Dual Stack" "16) WARP IP/ASN/解锁"
+    love_ui_menu2 "4) Auto Fix【推荐】" "17) SOCKS 健康检查"
+    love_ui_menu2 "5) 官方 Proxy 40000" "18) sing-box 切 40000"
+    love_ui_menu2 "6) WireProxy 40001" "19) sing-box 切 40001"
+    love_ui_menu2 "7) Smart Split" "20) 恢复 direct"
+    love_ui_menu2 "8) 官方全局模式" "21) 完整诊断报告"
+    love_ui_menu2 "9) WARP 开关状态" "22) Full Precheck"
+    love_ui_menu2 "10) WireProxy 开关" "23) 中文命令说明"
+    love_ui_menu2 "11) 全局/非全局" "24) 更新 / 下载链接"
+    love_ui_menu2 "12) 优先级设置" "25) 卸载 WARP"
+    love_ui_menu2 "13) Endpoint 刷新" "0) 返回"
+
+    echo
+    love_ui_tip "推荐：IPv6-only 节点服务器选 4，健康检查通过后才切 sing-box。"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
+    case "$x" in
+      1) love_warp_interface_mode 4 ;;
+      2) love_warp_interface_mode 6 ;;
+      3) love_warp_interface_mode d ;;
+      4) love_warp_auto_fix_v12 ;;
+      5) love_warp_cli_proxy_v12 40000 ;;
+      6) love_wireproxy_auto_v12 40001 ;;
+      7)
+        if love_socks_health_gate 40001; then love_singbox_switch_warp_socks_v12 40001 smart
+        elif love_socks_health_gate 40000; then love_singbox_switch_warp_socks_v12 40000 smart
+        else love_warp_auto_fix_v12
+        fi
+        ;;
+      8) love_install_cloudflare_warp_official ;;
+      9) love_warp_onoff_menu_v12 ;;
+      10) love_wireproxy_toggle_v12 ;;
+      11) love_warp_global_toggle_menu ;;
+      12) love_warp_set_priority ;;
+      13) love_warp_ip_refresh_v12 ;;
+      14) love_warp_apply_mtu ;;
+      15) love_warp_kernel_switch_v12 ;;
+      16) love_warp_unlock_check; love_warp_ip_asn_region ;;
+      17) love_socks_health_gate 40000 || true; love_socks_health_gate 40001 || true ;;
+      18) love_singbox_switch_warp_socks_v12 40000 smart ;;
+      19) love_singbox_switch_warp_socks_v12 40001 smart ;;
+      20) love_singbox_restore_direct_v12 ;;
+      21) love_warp_report_v12 ;;
+      22) love_warp_full_precheck_v12 ;;
+      23) love_warp_fs_style_help ;;
+      24) self_update_love ;;
       25) love_warp_uninstall ;;
       0) return 0 ;;
       *) warn "无效选择。" ;;
