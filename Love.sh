@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v12.2.0-web-panel-final-fix"
+VERSION="Love v12.3.0-node-auto-qr-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -908,6 +908,7 @@ EOF
   ss -lunp | grep ':443' || true
 
   save_xray_info "${node_addr}" "${reality_sni}" "${enable_hy2}" "${hy2_sni}" "${insecure}" "${CLIENT_ADDR}" "${CLIENT_PORT}"
+  love_after_node_generated_exports
   log "Xray 稳定模式安装完成。"
 }
 
@@ -1390,6 +1391,7 @@ install_singbox_native() {
   ss -tulpn | grep -E ':443|:8443|:888|sing-box' || true
 
   save_singbox_info "${CLIENT_ADDR}" "${CLIENT_PORT}" "${reality_sni}" "${tls_sni}" "${insecure}"
+  love_after_node_generated_exports
   log "sing-box 原生模式安装完成。"
 }
 
@@ -1878,6 +1880,40 @@ export_subscription() {
   cat "$raw"
 }
 
+love_after_node_generated_exports() {
+  echo
+  echo "================ Love Auto Export / QR ================"
+  log "节点已生成，开始自动生成订阅、客户端文件和二维码。"
+
+  export_subscription >/dev/null 2>&1 || true
+  generate_mihomo_yaml >/dev/null 2>&1 || true
+  generate_client_exports >/dev/null 2>&1 || true
+  generate_qrcodes quiet >/dev/null 2>&1 || true
+
+  # If Web panel already exists, sync files automatically.
+  local token
+  token="$(get_sub_token 2>/dev/null || true)"
+  if [[ -n "$token" && -d "${LOVE_WEB}" ]]; then
+    mkdir -p "${LOVE_WEB}/${token}/subscribe" "${LOVE_WEB}/${token}/qr" "${LOVE_WEB}/${token}/clients" "${LOVE_WEB}/${token}/sing-box"
+    cp -a "${LOVE_SUB}/." "${LOVE_WEB}/${token}/subscribe/" 2>/dev/null || true
+    cp -a "${LOVE_SUB}/qr/." "${LOVE_WEB}/${token}/qr/" 2>/dev/null || true
+    cp -a "${LOVE_SUB}/clients/." "${LOVE_WEB}/${token}/clients/" 2>/dev/null || true
+    cp -a "${LOVE_SUB}/sing-box/." "${LOVE_WEB}/${token}/sing-box/" 2>/dev/null || true
+    chown -R www-data:www-data "${LOVE_WEB}" 2>/dev/null || true
+    find "${LOVE_WEB}" -type d -exec chmod 755 {} \; 2>/dev/null || true
+    find "${LOVE_WEB}" -type f -exec chmod 644 {} \; 2>/dev/null || true
+    log "Web 面板文件已同步：${LOVE_WEB}/${token}/"
+  fi
+
+  echo
+  echo "订阅文件：${LOVE_SUB}/all.txt"
+  echo "Base64：${LOVE_SUB}/all_base64.txt"
+  echo "二维码目录：${LOVE_SUB}/qr/"
+  [[ -f "${LOVE_SUB}/qr/index.html" ]] && echo "二维码预览：${LOVE_SUB}/qr/index.html"
+  [[ -f "${LOVE_SUB}/qr/node-1.png" ]] && echo "第一个节点二维码：${LOVE_SUB}/qr/node-1.png"
+  echo
+}
+
 show_node_info() {
   echo
   echo "================ Love 节点信息 ================"
@@ -2039,27 +2075,74 @@ generate_qrcodes() {
   prepare_dirs
   mkdir -p "${LOVE_SUB}/qr"
   local raw="${LOVE_SUB}/all.txt"
+
   [[ -s "$raw" ]] || export_subscription >/dev/null 2>&1 || true
   [[ -s "$raw" ]] || { warn "没有节点链接可生成二维码。"; return 0; }
 
   if ! command -v qrencode >/dev/null 2>&1; then
     warn "未检测到 qrencode，开始安装。"
-    install_base >/dev/null 2>&1 || true
+    apt update >/dev/null 2>&1 || true
+    apt install -y qrencode >/dev/null 2>&1 || install_base >/dev/null 2>&1 || true
   fi
   command -v qrencode >/dev/null 2>&1 || { warn "qrencode 安装失败，无法生成二维码。"; return 0; }
 
   rm -f "${LOVE_SUB}/qr"/* 2>/dev/null || true
+
   local i=0
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     ((i++)) || true
     printf '%s' "$line" | qrencode -t ANSIUTF8 > "${LOVE_SUB}/qr/node-${i}.ansi" || true
-    printf '%s' "$line" | qrencode -t PNG -o "${LOVE_SUB}/qr/node-${i}.png" || true
+    printf '%s' "$line" | qrencode -t PNG -s 8 -m 2 -o "${LOVE_SUB}/qr/node-${i}.png" || true
     printf '%s' "$line" | qrencode -t SVG -o "${LOVE_SUB}/qr/node-${i}.svg" || true
   done < "$raw"
+
+  # Common client/subscription QR files.
+  [[ -s "${LOVE_SUB}/all.txt" ]] && printf '%s' "$(cat "${LOVE_SUB}/all.txt")" | qrencode -t PNG -s 8 -m 2 -o "${LOVE_SUB}/qr/all.png" || true
+  [[ -s "${LOVE_SUB}/all_base64.txt" ]] && printf '%s' "$(cat "${LOVE_SUB}/all_base64.txt")" | qrencode -t PNG -s 8 -m 2 -o "${LOVE_SUB}/qr/all_base64.png" || true
+  [[ -s "${LOVE_SUB}/clients/v2rayn-uri.txt" ]] && printf '%s' "$(cat "${LOVE_SUB}/clients/v2rayn-uri.txt")" | qrencode -t PNG -s 8 -m 2 -o "${LOVE_SUB}/qr/v2rayn.png" || true
+  [[ -s "${LOVE_SUB}/clients/shadowrocket.conf" ]] && printf '%s' "$(cat "${LOVE_SUB}/clients/shadowrocket.conf")" | qrencode -t PNG -s 8 -m 2 -o "${LOVE_SUB}/qr/shadowrocket.png" || true
+  [[ -s "${LOVE_SUB}/clients/nekobox-uri.txt" ]] && printf '%s' "$(cat "${LOVE_SUB}/clients/nekobox-uri.txt")" | qrencode -t PNG -s 8 -m 2 -o "${LOVE_SUB}/qr/nekobox.png" || true
+
+  # QR preview page.
+  {
+    cat <<'EOF'
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Love QR Codes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{font-family:Arial,sans-serif;background:#f8fafc;color:#111827;padding:24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+img{max-width:160px;width:100%;height:auto;background:#fff;padding:8px;border-radius:8px}
+a{color:#0b57d0;text-decoration:none;word-break:break-all}
+</style>
+</head>
+<body>
+<h1>Love QR Codes</h1>
+<div class="grid">
+EOF
+    for img in "${LOVE_SUB}/qr"/*.png; do
+      [[ -f "$img" ]] || continue
+      base="$(basename "$img")"
+      echo "<div class='card'><a href='${base}'><img src='${base}'></a><div>${base}</div></div>"
+    done
+    cat <<'EOF'
+</div>
+</body>
+</html>
+EOF
+  } > "${LOVE_SUB}/qr/index.html"
+
   log "二维码已生成：${LOVE_SUB}/qr/"
   ls -lah "${LOVE_SUB}/qr/" || true
-  [[ -f "${LOVE_SUB}/qr/node-1.ansi" ]] && { echo; echo "第一个二维码："; cat "${LOVE_SUB}/qr/node-1.ansi"; }
+
+  [[ "$1" == "quiet" ]] && return 0
+
+  [[ -f "${LOVE_SUB}/qr/node-1.ansi" ]] && { echo; echo "第一个节点二维码："; cat "${LOVE_SUB}/qr/node-1.ansi"; }
 }
 
 serve_subscription_nginx() {
@@ -2640,7 +2723,14 @@ window.onload=loadRaw;
 </div>
 <div class="card">
 <h2>QR Codes</h2>
-<a href="qr/">QR Directory</a>
+<p class="small">二维码会在生成节点/订阅时自动生成。打不开时，在 VPS 执行：<code>Love qr</code> 或重新生成节点。</p>
+<a href="qr/index.html">Open QR Preview</a>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px">
+  <div><img src="qr/node-1.png" style="max-width:140px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>Node 1</div>
+  <div><img src="qr/all.png" style="max-width:140px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>All</div>
+  <div><img src="qr/v2rayn.png" style="max-width:140px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>V2RayN</div>
+  <div><img src="qr/shadowrocket.png" style="max-width:140px;width:100%;background:#fff;padding:6px;border-radius:8px" onerror="this.style.display='none'"><br>Shadowrocket</div>
+</div>
 </div>
 </div>
 
@@ -4859,8 +4949,10 @@ love_generate_hy2_subscription_from_config() {
   echo "$line" >> "${LOVE_SUB}/all.txt"
 
   base64 -w0 "${LOVE_SUB}/all.txt" > "${LOVE_SUB}/all_base64.txt" 2>/dev/null || true
+  generate_client_exports >/dev/null 2>&1 || true
+  generate_qrcodes quiet >/dev/null 2>&1 || true
 
-  log "HY2 订阅已生成：${LOVE_SUB}/all.txt"
+  log "HY2 订阅与二维码已生成：${LOVE_SUB}/all.txt"
   echo "$line"
 }
 
