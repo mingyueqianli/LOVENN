@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.6.0-old-catalog-exact-restore-final"
+VERSION="Love v13.7.0-cfip-client-test-pack-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -10256,6 +10256,326 @@ show_all_node_catalog() {
       38) change_preferred_info_only ;;
       39) love_safe_call love_cfip_view ;;
       40) love_safe_call love_cfip_client_side_guide ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v13.7 CFIP Client Test Pack Final
+# Generate Windows / macOS / Linux local Cloudflare preferred-IP test package.
+# ==============================================================================
+
+love_cfip_candidates_file() {
+  echo "${LOVE_HOME:-/opt/Love}/cfip-client-test/cfip_candidates.txt"
+}
+
+love_cfip_generate_client_candidates() {
+  local mode="${1:-4}" count="${2:-120}" out="$3"
+  mkdir -p "$(dirname "$out")"
+  : > "$out"
+
+  if declare -F love_cfip_generate_candidates >/dev/null 2>&1; then
+    love_cfip_generate_candidates "$mode" "$count" "$out" && return 0
+  fi
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    warn "缺少 python3，无法生成候选 IP。"
+    return 1
+  fi
+
+  if [[ "$mode" == "6" ]]; then
+    curl -fsSL --connect-timeout 8 --max-time 20 https://www.cloudflare.com/ips-v6 -o /tmp/love_cf_ips.txt || return 1
+  else
+    curl -fsSL --connect-timeout 8 --max-time 20 https://www.cloudflare.com/ips-v4 -o /tmp/love_cf_ips.txt || return 1
+  fi
+
+  python3 - "$count" "$out" <<'PY'
+import sys, ipaddress, random
+count=int(sys.argv[1])
+out=sys.argv[2]
+cidrs=[x.strip() for x in open('/tmp/love_cf_ips.txt') if x.strip() and not x.startswith('#')]
+res=[]
+per=max(1, count//max(1,len(cidrs)))
+for c in cidrs:
+    net=ipaddress.ip_network(c, strict=False)
+    if net.version == 4:
+        first=int(net.network_address)+1
+        last=int(net.broadcast_address)-1
+    else:
+        first=int(net.network_address)+1
+        last=int(net.network_address)+net.num_addresses-2
+    if last <= first:
+        continue
+    for _ in range(per):
+        res.append(str(ipaddress.ip_address(random.randint(first,last))))
+random.shuffle(res)
+open(out,'w').write('\n'.join(res[:count])+'\n')
+PY
+}
+
+love_cfip_generate_client_test_pack() {
+  love_menu_title "Love CFIP 本地测速包生成" "Windows / macOS / Linux"
+
+  echo "这个包不是在 VPS 上测速，而是让你的电脑自己测速。"
+  echo "最终结果更接近：你的电脑/手机网络 → Cloudflare IP → 节点。"
+  echo
+  printf "%b适合：%b Cloudflare CDN / WS / gRPC / TLS 类节点\n" "$(lc green)" "$(lc reset)"
+  printf "%b不适合：%b 纯 HY2 直连 IPv6:端口\n" "$(lc yellow)" "$(lc reset)"
+  echo
+
+  read -rp "测试域名/SNI [www.cloudflare.com]: " host
+  host="${host:-www.cloudflare.com}"
+
+  read -rp "候选 IP 类型 [4/6，默认4]: " mode
+  mode="${mode:-4}"
+
+  read -rp "候选数量 [120]: " count
+  count="${count:-120}"
+
+  local dir="${LOVE_HOME:-/opt/Love}/cfip-client-test"
+  local cand="${dir}/cfip_candidates.txt"
+  mkdir -p "$dir"
+
+  log "正在生成候选 IP：Cloudflare IPv${mode} / ${count} 个..."
+  love_cfip_generate_client_candidates "$mode" "$count" "$cand" || {
+    warn "候选 IP 生成失败。可以手动把候选 IP 一行一个写入：$cand"
+    return 1
+  }
+
+  cat > "${dir}/cfip_test_windows.ps1" <<'PS1'
+param(
+  [string]$HostName = "www.cloudflare.com",
+  [int]$Port = 443,
+  [string]$Candidates = ".\cfip_candidates.txt",
+  [string]$OutAll = ".\cfip_result_all.txt",
+  [string]$OutTop = ".\cfip_result_top.txt",
+  [int]$Timeout = 8
+)
+
+Write-Host "Love CFIP Windows local test"
+Write-Host "Host/SNI: $HostName"
+Write-Host "Candidates: $Candidates"
+Write-Host ""
+
+if (!(Test-Path $Candidates)) {
+  Write-Host "Candidates file not found: $Candidates"
+  exit 1
+}
+
+if (!(Get-Command curl.exe -ErrorAction SilentlyContinue)) {
+  Write-Host "curl.exe not found. Windows 10/11 usually includes curl.exe."
+  exit 1
+}
+
+"" | Out-File -Encoding ascii $OutAll
+
+$ips = Get-Content $Candidates | Where-Object { $_ -and !$_.StartsWith("#") }
+$total = $ips.Count
+$i = 0
+
+foreach ($ip in $ips) {
+  $i++
+  Write-Host "[$i/$total] testing $ip ..."
+  $connectTo = "${HostName}:${Port}:${ip}:${Port}"
+  $url = "https://${HostName}:${Port}/cdn-cgi/trace"
+  $fmt = "%{time_connect} %{time_appconnect} %{time_total} %{http_code}"
+
+  try {
+    $r = & curl.exe -k -sS -o NUL --connect-timeout 3 --max-time $Timeout --connect-to $connectTo -w $fmt $url 2>$null
+    if ($LASTEXITCODE -eq 0 -and $r) {
+      $parts = $r.Trim().Split(" ")
+      if ($parts.Length -ge 4) {
+        $timeTotal = [double]$parts[2]
+        $code = $parts[3]
+        if ($code -match "^(200|204|301|302|403|404)$") {
+          "$ip $timeTotal $code" | Tee-Object -FilePath $OutAll -Append
+        }
+      }
+    }
+  } catch {}
+}
+
+$rows = Get-Content $OutAll | Where-Object { $_.Trim() -ne "" } | ForEach-Object {
+  $p = $_.Trim().Split(" ")
+  [PSCustomObject]@{ IP=$p[0]; Time=[double]$p[1]; Code=$p[2] }
+} | Sort-Object Time
+
+$rows | Select-Object -First 20 | ForEach-Object { "$($_.IP) $($_.Time) $($_.Code)" } | Out-File -Encoding ascii $OutTop
+
+Write-Host ""
+Write-Host "Top result saved to: $OutTop"
+Write-Host "Upload or copy cfip_result_top.txt back to VPS, then run:"
+Write-Host "Love cfip -> 7) 导入本地测速结果"
+PS1
+
+  cat > "${dir}/cfip_test_mac_linux.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOST_NAME="${1:-www.cloudflare.com}"
+PORT="${2:-443}"
+CANDIDATES="${3:-./cfip_candidates.txt}"
+OUT_ALL="${4:-./cfip_result_all.txt}"
+OUT_TOP="${5:-./cfip_result_top.txt}"
+
+echo "Love CFIP macOS/Linux local test"
+echo "Host/SNI: ${HOST_NAME}"
+echo "Candidates: ${CANDIDATES}"
+echo
+
+: > "${OUT_ALL}"
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl not found."
+  exit 1
+fi
+
+i=0
+total="$(grep -Ev '^\s*($|#)' "${CANDIDATES}" | wc -l | tr -d ' ')"
+
+while IFS= read -r ip; do
+  [[ -n "${ip}" ]] || continue
+  [[ "${ip}" =~ ^# ]] && continue
+  i=$((i+1))
+  echo "[${i}/${total}] testing ${ip} ..."
+  res="$(curl -k -sS -o /dev/null \
+    --connect-timeout 3 --max-time 8 \
+    --connect-to "${HOST_NAME}:${PORT}:${ip}:${PORT}" \
+    -w "%{time_connect} %{time_appconnect} %{time_total} %{http_code}" \
+    "https://${HOST_NAME}:${PORT}/cdn-cgi/trace" 2>/dev/null || true)"
+  [[ -n "${res}" ]] || continue
+  code="$(awk '{print $4}' <<< "${res}")"
+  total_time="$(awk '{print $3}' <<< "${res}")"
+  if [[ "${code}" =~ ^(200|204|301|302|403|404)$ ]]; then
+    echo "${ip} ${total_time} ${code}" | tee -a "${OUT_ALL}"
+  fi
+done < "${CANDIDATES}"
+
+sort -k2,2n "${OUT_ALL}" | head -n 20 > "${OUT_TOP}"
+
+echo
+echo "Top result saved to: ${OUT_TOP}"
+echo "Upload/copy cfip_result_top.txt back to VPS, then run:"
+echo "Love cfip -> 7) 导入本地测速结果"
+SH
+  chmod +x "${dir}/cfip_test_mac_linux.sh"
+
+  cat > "${dir}/README.txt" <<EOF
+Love CFIP Client-Side Test Pack
+
+用途：
+  在你的电脑本地网络测试 Cloudflare 优选 IP。
+  这比 VPS 端测速更接近真实客户端连接效果。
+
+测试域名/SNI：
+  ${host}
+
+Windows:
+  打开 PowerShell，进入本目录后执行：
+  powershell -ExecutionPolicy Bypass -File .\\cfip_test_windows.ps1 -HostName ${host}
+
+macOS / Linux:
+  chmod +x ./cfip_test_mac_linux.sh
+  ./cfip_test_mac_linux.sh ${host}
+
+输出：
+  cfip_result_all.txt
+  cfip_result_top.txt
+
+导入 VPS：
+  把 cfip_result_top.txt 上传回 VPS，例如：
+  scp cfip_result_top.txt root@你的VPS:/root/cfip_result_top.txt
+
+然后 VPS 执行：
+  Love cfip
+  7) 导入本地测速结果
+  输入：/root/cfip_result_top.txt
+  4) 用第一个优选地址重写导出 Address
+  Love sub
+  Love qr
+  Love web
+
+重要：
+  只适合 Cloudflare CDN / WS / gRPC / TLS 类节点。
+  纯 HY2 直连 IPv6:端口，不建议使用 Cloudflare 优选 IP。
+EOF
+
+  # Replace default HostName in PS1/sh usage hint by writing host to helper file too.
+  echo "$host" > "${dir}/host.txt"
+
+  if command -v zip >/dev/null 2>&1; then
+    (cd "$dir" && zip -qr "${LOVE_HOME:-/opt/Love}/cfip-client-test.zip" .)
+  else
+    (cd "${LOVE_HOME:-/opt/Love}" && tar -czf cfip-client-test.tar.gz cfip-client-test)
+  fi
+
+  love_menu_title "Love CFIP 本地测速包已生成" "Download to your computer"
+  echo "目录：$dir"
+  echo "候选 IP：$cand"
+  [[ -f "${LOVE_HOME:-/opt/Love}/cfip-client-test.zip" ]] && echo "ZIP：${LOVE_HOME:-/opt/Love}/cfip-client-test.zip"
+  [[ -f "${LOVE_HOME:-/opt/Love}/cfip-client-test.tar.gz" ]] && echo "TAR：${LOVE_HOME:-/opt/Love}/cfip-client-test.tar.gz"
+  echo
+  echo "如果你开了 Web 面板，也可以手动复制到 Web 目录后下载。"
+  echo "最简单方式：用 SFTP 下载整个目录或压缩包。"
+}
+
+love_cfip_import_local_result() {
+  love_menu_title "Love 导入本地测速结果" "cfip_result_top.txt"
+  local p f
+  read -rp "输入本地测速结果文件路径，例如 /root/cfip_result_top.txt: " p
+  [[ -f "$p" ]] || { warn "文件不存在：$p"; return 1; }
+
+  f="$(love_cfip_file)"
+  mkdir -p "$(dirname "$f")"
+
+  # Result format: IP time code. Import first column only.
+  awk 'NF>=1 && $1 !~ /^#/ {print $1}' "$p" >> "$f"
+  awk '!seen[$0]++' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+
+  log "已导入本地测速结果到：$f"
+  love_cfip_view
+
+  read -rp "是否立即用第一个优选地址重写导出 Address？[Y/n]: " y
+  y="${y:-Y}"
+  [[ "$y" =~ ^[Yy]$ ]] && love_cfip_rewrite_first
+}
+
+cfip_helper() {
+  while true; do
+    love_menu_title "Love CFIP 优选 IP / 域名" "VPS 测速 + 电脑本地测速"
+    love_menu2 "1) 手动保存优选 IP / 域名" "6) 生成电脑本地测速包"
+    love_menu2 "2) 从文件批量导入 IP/域名" "7) 导入本地测速结果"
+    love_menu2 "3) 查看当前优选列表" "8) 客户端侧测速说明"
+    love_menu2 "4) 用第一个优选地址重写导出" "9) 清空优选列表"
+    love_menu2 "5) VPS 自动查找 CF 优选 IP" "0) 返回"
+
+    echo
+    love_ui_tip "最准确流程：6 生成本地测速包 → 电脑运行 → 7 导入结果 → 4 重写导出 → Love sub/qr/web。"
+    love_ui_tip "纯 HY2 直连 IPv6:端口，不建议使用 Cloudflare 优选 IP。"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" c
+    case "$c" in
+      1)
+        read -rp "输入优选 IP / 域名: " v
+        love_cfip_save_one "$v"
+        love_cfip_view
+        ;;
+      2) love_cfip_import_file ;;
+      3) love_cfip_view ;;
+      4) love_cfip_rewrite_first ;;
+      5) love_cfip_auto_find ;;
+      6) love_cfip_generate_client_test_pack ;;
+      7) love_cfip_import_local_result ;;
+      8) love_cfip_client_side_guide ;;
+      9)
+        read -rp "确认清空优选列表？[y/N]: " y
+        [[ "$y" =~ ^[Yy]$ ]] && : > "$(love_cfip_file)"
+        ;;
       0) return 0 ;;
       *) warn "无效选择。" ;;
     esac
