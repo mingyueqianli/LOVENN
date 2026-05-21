@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v11.1.0-wireproxy-service-check"
+VERSION="Love v12.0.0-warp-decision-engine-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -6006,7 +6006,8 @@ love_warp_smart_menu() {
     echo "0) 返回"
     read -rp "请选择: " x
     case "$x" in
-      1) love_singbox_smart_split_warp ;;
+      1) love_warp_auto_fix_v12 ;;
+      2) love_singbox_smart_split_warp ;;
       2) love_warp_proxy_auto_with_fallback ;;
       3) love_warp_endpoint_select ;;
       4) love_warp_apply_mtu ;;
@@ -6015,6 +6016,510 @@ love_warp_smart_menu() {
       7) love_wireguard_go_fallback || love_warp_wireproxy_mode ;;
       8) love_warp_go_fallback ;;
       9) love_singbox_restore_from_smart_split ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v12 WARP Decision Engine Final
+# Inspired by FS-style flow: detect -> choose -> install -> verify -> safe switch.
+# Does not copy third-party scripts.
+# ==============================================================================
+
+love_cmd_exists() { command -v "$1" >/dev/null 2>&1; }
+
+love_arch_normalize() {
+  case "$(uname -m)" in
+    x86_64|amd64) echo "amd64" ;;
+    aarch64|arm64) echo "arm64" ;;
+    armv7l|armv7*|armhf) echo "arm" ;;
+    i386|i686) echo "386" ;;
+    *) echo "unknown" ;;
+  esac
+}
+
+love_print_section() {
+  echo
+  echo "================ $* ================"
+}
+
+love_direct_test_url() {
+  local ipver="$1" url="$2"
+  case "$ipver" in
+    4) curl -4 -I --connect-timeout 6 --max-time 10 "$url" >/dev/null 2>&1 ;;
+    6) curl -6 -I --connect-timeout 6 --max-time 10 "$url" >/dev/null 2>&1 ;;
+    *) curl -I --connect-timeout 6 --max-time 10 "$url" >/dev/null 2>&1 ;;
+  esac
+}
+
+love_socks_test_url() {
+  local port="$1" url="$2"
+  curl -I --connect-timeout 6 --max-time 12 --socks5-hostname "127.0.0.1:${port}" "$url" >/dev/null 2>&1
+}
+
+love_socks_trace_warp() {
+  local port="$1"
+  curl -s --connect-timeout 8 --max-time 12 --socks5-hostname "127.0.0.1:${port}" https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -E '^warp=' | head -n1
+}
+
+love_socks_health_gate() {
+  local port="$1"
+  love_print_section "Love SOCKS Health Gate 127.0.0.1:${port}"
+
+  if ! ss -lntp 2>/dev/null | grep -q ":${port}"; then
+    warn "端口 ${port} 未监听。"
+    return 1
+  fi
+
+  if ! timeout 4 bash -c "</dev/tcp/127.0.0.1/${port}" >/dev/null 2>&1; then
+    warn "端口 ${port} 虽然监听，但本机 TCP 连接失败。"
+    return 1
+  fi
+
+  local trace
+  trace="$(curl -s --connect-timeout 8 --max-time 12 --socks5-hostname "127.0.0.1:${port}" https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null || true)"
+  echo "$trace" | grep -E '^(ip|colo|warp)=' || true
+
+  if ! echo "$trace" | grep -Eq '^warp=(on|plus)$'; then
+    warn "SOCKS ${port} 没有通过 Cloudflare WARP trace。"
+    return 1
+  fi
+
+  if ! love_socks_test_url "$port" "https://github.com"; then
+    warn "SOCKS ${port} 无法访问 GitHub。"
+    return 1
+  fi
+
+  log "SOCKS ${port} 通过健康检查：监听 + TCP + WARP trace + GitHub。"
+  return 0
+}
+
+love_warp_full_precheck_v12() {
+  love_print_section "Love v12 Full Precheck"
+
+  echo "Version: ${VERSION:-unknown}"
+  echo "OS: $(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")"
+  echo "Kernel: $(uname -r)"
+  echo "Arch: $(uname -m) -> $(love_arch_normalize)"
+  echo "Virt: $(systemd-detect-virt 2>/dev/null || true)"
+
+  echo
+  echo "[Network stack]"
+  if love_direct_test_url 4 "https://github.com"; then echo "IPv4 outbound: yes"; else echo "IPv4 outbound: no"; fi
+  if love_direct_test_url 6 "https://github.com"; then echo "IPv6 outbound: yes"; else echo "IPv6 outbound: no"; fi
+
+  echo
+  echo "[Loopback]"
+  ip link show lo 2>/dev/null | head -n1 || true
+  ip addr show lo 2>/dev/null | grep -E '127\.0\.0\.1|::1' || true
+  ping -c 1 -W 1 127.0.0.1 >/dev/null 2>&1 && echo "lo ping: ok" || echo "lo ping: fail"
+
+  echo
+  echo "[TUN / WireGuard]"
+  [[ -c /dev/net/tun ]] && echo "/dev/net/tun: yes" || echo "/dev/net/tun: no"
+  modprobe wireguard >/dev/null 2>&1 || true
+  lsmod 2>/dev/null | grep -q '^wireguard' && echo "wireguard kernel: yes" || echo "wireguard kernel: no"
+
+  echo
+  echo "[Downloads]"
+  curl -6 -I --connect-timeout 6 --max-time 10 https://github.com >/dev/null 2>&1 && echo "GitHub via IPv6: yes" || echo "GitHub via IPv6: no"
+  curl -4 -I --connect-timeout 6 --max-time 10 https://github.com >/dev/null 2>&1 && echo "GitHub via IPv4: yes" || echo "GitHub via IPv4: no"
+  curl -I --connect-timeout 6 --max-time 10 https://gitlab.com >/dev/null 2>&1 && echo "GitLab: yes" || echo "GitLab: no"
+
+  echo
+  echo "[Current SOCKS]"
+  ss -lntp 2>/dev/null | grep -E ':(40000|40001|40002)' || true
+}
+
+love_install_base_deps_v12() {
+  apt update || true
+  apt install -y curl jq ca-certificates file unzip tar iproute2 iputils-ping wireguard-tools tcpdump || true
+}
+
+love_download_with_fallbacks() {
+  local out="$1"
+  shift
+  local urls=("$@")
+  local u
+
+  rm -f "$out"
+  for u in "${urls[@]}"; do
+    [[ -n "$u" ]] || continue
+    warn "尝试下载：$u"
+    if curl -6 -L --fail --connect-timeout 20 --max-time 120 --retry 1 -o "$out" "$u"; then
+      [[ -s "$out" ]] && return 0
+    fi
+    if curl -L --fail --connect-timeout 20 --max-time 120 --retry 1 -o "$out" "$u"; then
+      [[ -s "$out" ]] && return 0
+    fi
+  done
+  return 1
+}
+
+love_download_wireproxy_v12() {
+  love_print_section "Love v12 WireProxy Download"
+  love_install_base_deps_v12
+
+  local arch tmp url1 url2 url3 url4 asset bin
+  arch="$(love_arch_normalize)"
+  [[ "$arch" != "unknown" ]] || die "不支持的架构：$(uname -m)"
+
+  tmp="/tmp/love-wireproxy-v12"
+  rm -rf "$tmp"
+  mkdir -p "$tmp"
+
+  url1="https://github.com/pufferffish/wireproxy/releases/download/v1.0.9/wireproxy_linux_${arch}.tar.gz"
+  url2="https://ghproxy.net/${url1}"
+  url3="https://gh-proxy.com/${url1}"
+  url4="https://hub.gitmirror.com/${url1}"
+
+  if ! love_download_with_fallbacks "$tmp/wireproxy.tar.gz" "$url1" "$url2" "$url3" "$url4"; then
+    die "WireProxy 下载失败：GitHub/反代均不可用。"
+  fi
+
+  file "$tmp/wireproxy.tar.gz"
+  tar -xzf "$tmp/wireproxy.tar.gz" -C "$tmp" || die "WireProxy 解压失败。"
+
+  bin="$(find "$tmp" -type f -exec file {} \; | awk -F: '/ELF/ {print $1; exit}')"
+  [[ -n "$bin" ]] || {
+    find "$tmp" -type f -maxdepth 3 -print -exec file {} \;
+    die "未找到 ELF 二进制，下载内容可能错误。"
+  }
+
+  file "$bin"
+  install -m 755 "$bin" /usr/local/bin/wireproxy
+  file /usr/local/bin/wireproxy
+
+  if ! /usr/local/bin/wireproxy --help >/dev/null 2>&1; then
+    warn "wireproxy --help 未返回正常状态，但继续尝试。"
+  fi
+
+  log "WireProxy 安装完成。"
+}
+
+love_wgcf_prepare_profile_v12() {
+  love_print_section "Love v12 WGCF Profile"
+  love_install_base_deps_v12
+
+  mkdir -p /opt/Love/warp /etc/wireguard
+  cd /opt/Love/warp || exit 1
+
+  if ! love_cmd_exists wgcf; then
+    if declare -F love_download_latest_wgcf >/dev/null 2>&1; then
+      love_download_latest_wgcf
+    else
+      warn "未找到 wgcf 下载函数，尝试 apt 安装 wgcf。"
+      apt install -y wgcf || true
+    fi
+  fi
+
+  love_cmd_exists wgcf || die "wgcf 不存在，无法生成 WARP profile。"
+
+  if [[ ! -f wgcf-account.toml ]]; then
+    yes | wgcf register
+  fi
+
+  wgcf generate
+  [[ -f /opt/Love/warp/wgcf-profile.conf ]] || die "wgcf-profile.conf 生成失败。"
+  log "wgcf-profile.conf 已生成。"
+}
+
+love_fix_loopback_v12() {
+  love_print_section "Love v12 Loopback Fix"
+  ip link set lo up || true
+  ip addr add 127.0.0.1/8 dev lo 2>/dev/null || true
+  iptables -I INPUT 1 -i lo -j ACCEPT 2>/dev/null || true
+  iptables -I OUTPUT 1 -o lo -j ACCEPT 2>/dev/null || true
+  ufw allow in on lo >/dev/null 2>&1 || true
+  ufw allow out on lo >/dev/null 2>&1 || true
+  ping -c 1 -W 1 127.0.0.1 && log "loopback 正常。" || warn "loopback 仍异常。"
+}
+
+love_wireproxy_endpoint_set_v12() {
+  local endpoint="${1:-[2606:4700:d0::a29f:c001]:2408}"
+  [[ -f /etc/wireproxy/warp.conf ]] || return 0
+  if grep -q '^Endpoint = ' /etc/wireproxy/warp.conf; then
+    sed -i "s#^Endpoint = .*#Endpoint = ${endpoint}#" /etc/wireproxy/warp.conf
+  else
+    sed -i "/^\[Peer\]/a Endpoint = ${endpoint}" /etc/wireproxy/warp.conf
+  fi
+}
+
+love_wireproxy_make_service_v12() {
+  local port="${1:-40001}"
+  local profile="/opt/Love/warp/wgcf-profile.conf"
+
+  [[ -f "$profile" ]] || love_wgcf_prepare_profile_v12
+  [[ -f "$profile" ]] || die "找不到 WARP profile：$profile"
+
+  [[ -x /usr/local/bin/wireproxy ]] || love_download_wireproxy_v12
+
+  mkdir -p /etc/wireproxy
+  cp "$profile" /etc/wireproxy/warp.conf
+  sed -i '/^DNS =/d' /etc/wireproxy/warp.conf
+
+  # Prefer IPv6 endpoint for IPv6-only VPS.
+  love_wireproxy_endpoint_set_v12 "[2606:4700:d0::a29f:c001]:2408"
+
+  cat >> /etc/wireproxy/warp.conf <<EOF
+
+[Socks5]
+BindAddress = 127.0.0.1:${port}
+EOF
+
+  cat > /etc/systemd/system/love-wireproxy.service <<EOF
+[Unit]
+Description=Love WireProxy WARP SOCKS5
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wireproxy -c /etc/wireproxy/warp.conf
+Restart=always
+RestartSec=3
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl daemon-reload
+  systemctl enable --now love-wireproxy.service
+  sleep 3
+}
+
+love_wireproxy_try_endpoints_v12() {
+  local port="${1:-40001}"
+  local ep
+  local endpoints=(
+    "[2606:4700:d0::a29f:c001]:2408"
+    "[2606:4700:d0::a29f:c002]:2408"
+    "[2606:4700:d0::a29f:c003]:2408"
+    "engage.cloudflareclient.com:2408"
+    "162.159.192.1:2408"
+    "162.159.192.2:2408"
+    "162.159.193.1:2408"
+  )
+
+  for ep in "${endpoints[@]}"; do
+    warn "尝试 WireProxy Endpoint：$ep"
+    love_wireproxy_endpoint_set_v12 "$ep"
+    systemctl restart love-wireproxy.service
+    sleep 4
+    systemctl status love-wireproxy.service --no-pager | head -n 12 || true
+    ss -lntp | grep ":${port}" || true
+
+    if love_socks_health_gate "$port"; then
+      log "WireProxy Endpoint 可用：$ep"
+      echo "$ep" > /opt/Love/warp/wireproxy-working-endpoint.txt
+      return 0
+    fi
+  done
+
+  warn "所有 WireProxy endpoint 健康检查失败。"
+  journalctl -u love-wireproxy.service -n 120 -l --no-pager || true
+  return 1
+}
+
+love_wireproxy_auto_v12() {
+  local port="${1:-40001}"
+  love_print_section "Love v12 WireProxy Auto"
+  love_fix_loopback_v12
+  love_download_wireproxy_v12
+  love_wgcf_prepare_profile_v12
+  love_wireproxy_make_service_v12 "$port"
+  love_wireproxy_try_endpoints_v12 "$port"
+}
+
+love_warp_cli_proxy_v12() {
+  local port="${1:-40000}"
+  love_print_section "Love v12 Official WARP Proxy"
+  love_fix_loopback_v12
+
+  if declare -F love_warp_set_proxy_mode >/dev/null 2>&1; then
+    love_warp_set_proxy_mode "$port" || true
+  else
+    if ! love_cmd_exists warp-cli; then
+      warn "warp-cli 不存在，跳过官方 Proxy。"
+      return 1
+    fi
+    systemctl restart warp-svc || true
+    warp-cli --accept-tos disconnect >/dev/null 2>&1 || warp-cli disconnect >/dev/null 2>&1 || true
+    warp-cli --accept-tos mode proxy >/dev/null 2>&1 || warp-cli mode proxy >/dev/null 2>&1 || true
+    warp-cli --accept-tos proxy port "$port" >/dev/null 2>&1 || warp-cli proxy port "$port" >/dev/null 2>&1 || true
+    warp-cli --accept-tos connect >/dev/null 2>&1 || warp-cli connect >/dev/null 2>&1 || true
+    sleep 5
+  fi
+
+  love_socks_health_gate "$port"
+}
+
+love_singbox_switch_warp_socks_v12() {
+  local port="$1"
+  local mode="${2:-smart}"
+  [[ -f /etc/sing-box/config.json ]] || die "未找到 /etc/sing-box/config.json"
+
+  if ! love_socks_health_gate "$port"; then
+    die "SOCKS ${port} 未通过健康检查，拒绝切换 sing-box，避免节点出站中断。"
+  fi
+
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.v12-warp.$(date +%F-%H%M%S)
+
+  if [[ "$mode" == "smart" ]]; then
+    jq --argjson port "$port" '
+      .outbounds = (
+        [.outbounds[]? | select(.tag!="warp-socks")] +
+        [{
+          type:"socks",
+          tag:"warp-socks",
+          server:"127.0.0.1",
+          server_port:$port,
+          version:"5"
+        }]
+      ) |
+      .route = (.route // {}) |
+      .route.rules = [
+        {ip_is_private:true, outbound:"block"},
+        {port:[25,465,587], outbound:"block"},
+        {protocol:"bittorrent", outbound:"block"},
+        {domain_suffix:["github.com","githubusercontent.com","githubassets.com","github.io","api.github.com","collector.github.com","alive.github.com","microsoft.com","windows.com","msftconnecttest.com","google.com","gstatic.com","googleapis.com"], outbound:"warp-socks"},
+        {ip_version:4, outbound:"warp-socks"},
+        {ip_version:6, outbound:"direct"}
+      ] |
+      .route.final = "warp-socks"
+    ' /etc/sing-box/config.json > /tmp/love-singbox-v12.json
+  else
+    jq --argjson port "$port" '
+      .outbounds = (
+        [.outbounds[]? | select(.tag!="warp-socks")] +
+        [{
+          type:"socks",
+          tag:"warp-socks",
+          server:"127.0.0.1",
+          server_port:$port,
+          version:"5"
+        }]
+      ) |
+      .route = (.route // {}) |
+      .route.final = "warp-socks"
+    ' /etc/sing-box/config.json > /tmp/love-singbox-v12.json
+  fi
+
+  mv /tmp/love-singbox-v12.json /etc/sing-box/config.json
+  /usr/local/bin/sing-box check -c /etc/sing-box/config.json
+  systemctl restart sing-box
+  log "sing-box 已安全切换到 warp-socks:${port}，模式：${mode}"
+}
+
+love_singbox_restore_direct_v12() {
+  [[ -f /etc/sing-box/config.json ]] || die "未找到 /etc/sing-box/config.json"
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.v12-restore.$(date +%F-%H%M%S)
+  jq '
+    .outbounds = ([.outbounds[]? | select(.tag!="warp-socks")]) |
+    .route = (.route // {}) |
+    .route.rules = ((.route.rules // []) | map(select((.ip_version? == 4 or .ip_version? == 6 or .domain_suffix? != null) | not))) |
+    .route.final = "direct"
+  ' /etc/sing-box/config.json > /tmp/love-singbox-direct.json && mv /tmp/love-singbox-direct.json /etc/sing-box/config.json
+  /usr/local/bin/sing-box check -c /etc/sing-box/config.json
+  systemctl restart sing-box
+  log "sing-box 已恢复 direct。"
+}
+
+love_warp_auto_fix_v12() {
+  love_print_section "Love v12 Auto Fix / Decision Engine"
+  love_warp_full_precheck_v12
+
+  local chosen_port=""
+
+  warn "阶段 1：尝试官方 WARP Proxy 40000。"
+  if love_warp_cli_proxy_v12 40000; then
+    chosen_port="40000"
+  else
+    warn "官方 WARP Proxy 40000 不可用，进入 WireProxy fallback。"
+  fi
+
+  if [[ -z "$chosen_port" ]]; then
+    warn "阶段 2：尝试 WireProxy 40001。"
+    if love_wireproxy_auto_v12 40001; then
+      chosen_port="40001"
+    fi
+  fi
+
+  if [[ -z "$chosen_port" ]]; then
+    warn "阶段 3：SOCKS 方案失败，不切换 sing-box。"
+    warn "建议改用 WGCF Non-global / wireguard-go fallback，或保留 prefer_ipv6。"
+    return 1
+  fi
+
+  warn "健康检查通过，准备安全切换 sing-box。"
+  love_singbox_switch_warp_socks_v12 "$chosen_port" smart
+
+  love_print_section "Love v12 Final Test"
+  jq '{final:.route.final, warp_socks:[.outbounds[]? | select(.tag=="warp-socks")]}' /etc/sing-box/config.json
+  curl -s --connect-timeout 8 --socks5-hostname "127.0.0.1:${chosen_port}" https://www.cloudflare.com/cdn-cgi/trace | grep -E '^(ip|colo|warp)=' || true
+  log "Auto Fix 完成。V2RayN -> HY2 -> sing-box -> WARP SOCKS 已联动。"
+}
+
+love_warp_report_v12() {
+  love_print_section "Love v12 Report"
+  echo "Version: ${VERSION:-unknown}"
+  echo
+  echo "[sing-box]"
+  systemctl status sing-box --no-pager | head -n 20 || true
+  jq '{route:.route, warp_socks:[.outbounds[]? | select(.tag=="warp-socks")], inbounds:[.inbounds[]? | {tag,type,listen,listen_port}]}' /etc/sing-box/config.json 2>/dev/null || true
+
+  echo
+  echo "[wireproxy]"
+  command -v wireproxy || true
+  systemctl status love-wireproxy.service --no-pager | head -n 20 || true
+  ss -lntp | grep -E ':(40000|40001)' || true
+
+  echo
+  echo "[official warp]"
+  warp-cli --accept-tos status 2>/dev/null || warp-cli status 2>/dev/null || true
+
+  echo
+  echo "[SOCKS health]"
+  love_socks_health_gate 40000 || true
+  love_socks_health_gate 40001 || true
+}
+
+love_warp_final_menu_v12() {
+  while true; do
+    love_print_section "Love v12 WARP Decision Engine Final"
+    echo "1) Auto Fix：自动检测 + 自动 fallback + 成功才切 sing-box"
+    echo "2) Smart Split：IPv6 direct，IPv4/GitHub/Microsoft 走 WARP"
+    echo "3) Official WARP Proxy 40000 健康检查/修复"
+    echo "4) WireProxy 40001 安装/修复/endpoint 自动尝试"
+    echo "5) SOCKS 健康检查 40000/40001"
+    echo "6) sing-box 安全切换到 40000"
+    echo "7) sing-box 安全切换到 40001"
+    echo "8) 恢复 sing-box direct"
+    echo "9) 完整诊断报告"
+    echo "10) Full Precheck"
+    echo "0) 返回"
+    read -rp "请选择: " x
+    case "$x" in
+      1) love_warp_auto_fix_v12 ;;
+      2)
+        if love_socks_health_gate 40001; then love_singbox_switch_warp_socks_v12 40001 smart
+        elif love_socks_health_gate 40000; then love_singbox_switch_warp_socks_v12 40000 smart
+        else love_warp_auto_fix_v12
+        fi
+        ;;
+      3) love_warp_cli_proxy_v12 40000 ;;
+      4) love_wireproxy_auto_v12 40001 ;;
+      5) love_socks_health_gate 40000 || true; love_socks_health_gate 40001 || true ;;
+      6) love_singbox_switch_warp_socks_v12 40000 all ;;
+      7) love_singbox_switch_warp_socks_v12 40001 all ;;
+      8) love_singbox_restore_direct_v12 ;;
+      9) love_warp_report_v12 ;;
+      10) love_warp_full_precheck_v12 ;;
       0) return 0 ;;
       *) warn "无效选择。" ;;
     esac
@@ -6356,7 +6861,8 @@ love_warp_manager_menu() {
   while true; do
     echo
     echo "================ Love Native WARP Manager ================"
-    echo "1) Smart Split：IPv6 direct，IPv4 走 WARP（推荐）"
+    echo "1) Auto Fix：Decision Engine 自动检测/自动 fallback（最终推荐）"
+    echo "2) Smart Split：IPv6 direct，IPv4 走 WARP（推荐）"
     echo "2) Superior WARP Proxy：sing-box 全部出站走 WARP SOCKS"
     echo "3) WARP 单栈 / 双栈：IPv4 Only / IPv6 Only / Dual Stack"
     echo "4) WARP 快速判断 / 修复建议"
@@ -7025,6 +7531,34 @@ main() {
       ;;
     catalog)
       show_all_node_catalog
+      ;;
+
+    warp-auto|warp-final|warp-v12|warp-decision)
+      love_warp_final_menu_v12
+      ;;
+    warp-auto-fix)
+      love_warp_auto_fix_v12
+      ;;
+    warp-report-v12|warp-report)
+      love_warp_report_v12
+      ;;
+    warp-precheck-v12|warp-precheck)
+      love_warp_full_precheck_v12
+      ;;
+    warp-wireproxy-fix|wireproxy-fix)
+      love_wireproxy_auto_v12 40001
+      ;;
+    warp-official-fix)
+      love_warp_cli_proxy_v12 40000
+      ;;
+    warp-safe-40000)
+      love_singbox_switch_warp_socks_v12 40000 smart
+      ;;
+    warp-safe-40001)
+      love_singbox_switch_warp_socks_v12 40001 smart
+      ;;
+    warp-restore-direct|warp-direct)
+      love_singbox_restore_direct_v12
       ;;
     *)
       main_menu
