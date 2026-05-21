@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.2.0-global-submenu-ui-final"
+VERSION="Love v13.6.0-old-catalog-exact-restore-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -9518,6 +9518,748 @@ github_publish_note(){
   echo "Love install-warp-command"
   echo "warp h"
   love_back
+}
+
+
+
+# ==============================================================================
+# Love v13.3 Node Catalog Full Restore Final
+# Restore full node catalog view while keeping compact category catalog.
+# ==============================================================================
+
+love_catalog_full_action() {
+  local n="$1"
+  case "$n" in
+    1|2|3|4|5|6) install_xray_stable ;;
+    7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30) install_singbox_native ;;
+    31|32|33|34|35|36) love_fix_hy2_now ;;
+    37|38|39|40|41|42|43|44) nginx_rp_menu ;;
+    45|46|47) argo_helper ;;
+    48|49|50) port_hopping_helper ;;
+    51|52|53|54|55|56|57|58|59|60) love_full_client_pack ;;
+    61) show_node_info ;;
+    62) export_subscription ;;
+    63) generate_qrcodes ;;
+    64) web_admin_page ;;
+    65) doctor_check ;;
+    66) show_status ;;
+    67) cfip_helper ;;
+    68) change_preferred_info_only ;;
+    69) speed_test ;;
+    70) health_check_nodes ;;
+    71) love_warp_auto_fix_v12 ;;
+    72) love_warp_manager_menu ;;
+    73) love_ipv6_outbound_menu ;;
+    74) love_fix_ipv6_only_outbound ;;
+    75) love_singbox_restore_direct_v12 ;;
+    76) love_warp_report_v12 ;;
+    77) users_menu_v7 ;;
+    78) logs_menu ;;
+    79) backup_configs ;;
+    80) setup_auto_backup ;;
+    81) snapshot_menu ;;
+    82) v8_validate_all ;;
+    83) v8_security_audit ;;
+    84) v8_dashboard ;;
+    85) v8_release_pack ;;
+    86) self_update_love ;;
+    87) update_core_menu ;;
+    88) repair_apt_dpkg ;;
+    89) set_ipv6_dns ;;
+    90) web_admin_page ;;
+    91) reset_sub_token ;;
+    92) notify_config_menu ;;
+    93) notify_nodes ;;
+    94) cert_status_check ;;
+    95) check_port_conflict_and_recommend ;;
+    96) oracle_security_template ;;
+    97) cloud_firewall_templates ;;
+    98) harden_menu ;;
+    99) uninstall_menu_v7 ;;
+    100) github_publish_note ;;
+    *) warn "无效选择。" ;;
+  esac
+}
+
+show_all_node_catalog_full() {
+  while true; do
+    love_menu_title "Love 完整节点目录" "Full Catalog 1-100"
+
+    printf "%bXray / Reality 稳定模式%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "1) Reality Vision" "2) Reality gRPC"
+    love_menu2 "3) Reality + HY2" "4) Reality 多用户"
+    love_menu2 "5) Reality 证书无关模式" "6) Xray 稳定模式重建"
+
+    echo
+    printf "%bsing-box 原生协议%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "7) VLESS Reality" "8) VLESS WS TLS"
+    love_menu2 "9) VLESS gRPC TLS" "10) VLESS TCP"
+    love_menu2 "11) VMess WS TLS" "12) VMess TCP"
+    love_menu2 "13) Trojan TLS" "14) Trojan WS"
+    love_menu2 "15) Shadowsocks 2022" "16) Hysteria2"
+    love_menu2 "17) TUIC v5" "18) NaiveProxy"
+    love_menu2 "19) ShadowTLS" "20) AnyTLS"
+    love_menu2 "21) Mixed inbound" "22) Socks inbound"
+    love_menu2 "23) HTTP inbound" "24) Direct outbound"
+    love_menu2 "25) DNS 规则模式" "26) IPv6 优先模式"
+    love_menu2 "27) 全协议自选安装" "28) 多协议组合安装"
+    love_menu2 "29) sing-box 配置检查" "30) sing-box 重建"
+
+    echo
+    printf "%bHY2 / UDP / 反代 / 隧道%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "31) HY2 自动修复" "32) HY2 订阅生成"
+    love_menu2 "33) HY2 证书修复" "34) HY2 端口检查"
+    love_menu2 "35) HY2 防火墙放行" "36) HY2 Reality 组合"
+    love_menu2 "37) Nginx WS 反代" "38) Nginx gRPC 反代"
+    love_menu2 "39) Nginx fallback 伪装" "40) Stream SNI 分流"
+    love_menu2 "41) 443 策略检测" "42) upstream 示例"
+    love_menu2 "43) Nginx 状态" "44) Nginx 回滚"
+    love_menu2 "45) Argo 临时隧道" "46) Argo API 隧道"
+    love_menu2 "47) Cloudflared 管理" "48) UDP 端口跳跃"
+    love_menu2 "49) Port Hopping 规则" "50) UDP 防火墙检测"
+
+    echo
+    printf "%b订阅 / 客户端导出%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "51) Raw URI 订阅" "52) Base64 订阅"
+    love_menu2 "53) Mihomo / Clash YAML" "54) sing-box client JSON"
+    love_menu2 "55) Shadowrocket" "56) NekoBox"
+    love_menu2 "57) V2RayN" "58) SFI / SFA / SFM"
+    love_menu2 "59) QR 二维码" "60) 完整客户端包"
+
+    echo
+    printf "%b状态 / 优选 / 诊断%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "61) 查看节点信息" "62) 重新导出订阅"
+    love_menu2 "63) 重新生成二维码" "64) Web 管理页"
+    love_menu2 "65) Love doctor 诊断" "66) 查看运行状态"
+    love_menu2 "67) cfip 优选 IP" "68) 修改导出地址"
+    love_menu2 "69) speed 连接测速" "70) 可用性检测"
+
+    echo
+    printf "%bWARP / IPv6-only 出站%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "71) WARP Auto Fix" "72) WARP Manager"
+    love_menu2 "73) IPv6-only 出站菜单" "74) prefer_ipv6 修复"
+    love_menu2 "75) 恢复 sing-box direct" "76) WARP 完整报告"
+
+    echo
+    printf "%b用户 / 日志 / 备份 / 安全%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "77) 多用户管理" "78) 日志菜单"
+    love_menu2 "79) 立即备份" "80) 定时备份"
+    love_menu2 "81) 快照 / 回滚" "82) validate 全量验证"
+    love_menu2 "83) audit 安全审计" "84) dashboard 仪表盘"
+    love_menu2 "85) release 发布包" "86) 在线更新"
+    love_menu2 "87) 更新核心" "88) 修复 apt/dpkg"
+    love_menu2 "89) IPv6 DNS" "90) Web 面板重建"
+    love_menu2 "91) 重置 token" "92) 通知配置"
+    love_menu2 "93) 推送节点信息" "94) 证书续签检查"
+    love_menu2 "95) 端口冲突检测" "96) Oracle 安全组模板"
+    love_menu2 "97) 云防火墙模板" "98) 安全加固"
+    love_menu2 "99) 卸载 / 清理" "100) GitHub 发布说明"
+    love_menu2 "0) 返回" ""
+
+    echo
+    love_ui_tip "说明：完整目录恢复了上一版的铺开式入口；同类协议最终会调用对应安装/修复函数。"
+    love_ui_tip "优选 IP：67；WARP Auto Fix：71；Web 面板：64/90。"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" n
+    [[ "$n" == "0" ]] && return 0
+    love_catalog_full_action "$n"
+  done
+}
+
+show_all_node_catalog() {
+  while true; do
+    love_menu_title "Love 全节点目录" "Compact + Full Catalog"
+
+    printf "%b精简分类入口%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "1) Xray Reality 稳定模式" "8) Trojan TLS 节点"
+    love_menu2 "2) sing-box 原生全协议" "9) VMess WS 节点"
+    love_menu2 "3) Hysteria2 UDP 高速节点" "10) VLESS WS 节点"
+    love_menu2 "4) Reality + HY2 组合节点" "11) gRPC 节点"
+    love_menu2 "5) ShadowTLS / AnyTLS" "12) TUIC / NaiveProxy"
+    love_menu2 "6) Argo / Cloudflared 隧道" "13) Nginx WS/gRPC 反代"
+    love_menu2 "7) Port Hopping UDP 跳跃" "14) 多用户订阅管理"
+
+    echo
+    printf "%b客户端导出%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "15) Raw URI 订阅" "20) sing-box client JSON"
+    love_menu2 "16) Base64 订阅" "21) Shadowrocket"
+    love_menu2 "17) Mihomo / Clash YAML" "22) NekoBox"
+    love_menu2 "18) V2RayN 链接" "23) SFI / SFA / SFM"
+    love_menu2 "19) 二维码 QR" "24) 完整客户端包"
+
+    echo
+    printf "%b常用维护%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "25) 查看当前节点 Love -n" "30) WARP Auto Fix"
+    love_menu2 "26) 重新生成订阅 Love sub" "31) Web 管理页 Love web"
+    love_menu2 "27) 重新生成二维码 Love qr" "32) 备份配置"
+    love_menu2 "28) 完整诊断 Love doctor" "33) 查看运行状态"
+    love_menu2 "29) 客户端导出" "34) 完整目录 1-100"
+
+    love_menu2 "0) 返回" ""
+    echo
+    love_ui_tip "如果你想看上一版接近 100 项的完整列表，选 34。"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" n
+    case "$n" in
+      1) install_xray_stable ;;
+      2) install_singbox_native ;;
+      3) love_fix_hy2_now ;;
+      4) install_xray_stable ;;
+      5) install_singbox_native ;;
+      6) argo_helper ;;
+      7) port_hopping_helper ;;
+      8|9|10|11|12) install_singbox_native ;;
+      13) nginx_rp_menu ;;
+      14) users_menu_v7 ;;
+      15|16) export_subscription ;;
+      17) generate_mihomo_yaml ;;
+      18) love_v2rayn ;;
+      19) generate_qrcodes ;;
+      20) love_singbox_json ;;
+      21) love_shadowrocket ;;
+      22) love_nekobox ;;
+      23) love_sfi_sfa_sfm ;;
+      24) love_full_client_pack ;;
+      25) show_node_info ;;
+      26) export_subscription ;;
+      27) generate_qrcodes ;;
+      28) doctor_check ;;
+      29) love_full_client_pack ;;
+      30) love_warp_auto_fix_v12 ;;
+      31) web_admin_page ;;
+      32) backup_configs ;;
+      33) show_status ;;
+      34) show_all_node_catalog_full ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v13.4 CFIP Auto Finder Final
+# Cloudflare preferred IP auto finder + safe warnings.
+# ==============================================================================
+
+love_cfip_file() {
+  echo "${LOVE_HOME:-/opt/Love}/cfip.list"
+}
+
+love_export_addr_file() {
+  echo "${LOVE_HOME:-/opt/Love}/preferred_addr"
+}
+
+love_cfip_save_one() {
+  local v="$1" f
+  f="$(love_cfip_file)"
+  mkdir -p "$(dirname "$f")"
+  [[ -n "$v" ]] || return 1
+  grep -qxF "$v" "$f" 2>/dev/null || echo "$v" >> "$f"
+}
+
+love_cfip_view() {
+  local f
+  f="$(love_cfip_file)"
+  love_menu_title "Love CFIP 当前优选列表" "Preferred IP / Domain"
+  if [[ ! -s "$f" ]]; then
+    warn "当前没有保存优选 IP / 域名。"
+    echo "文件位置：$f"
+    return 0
+  fi
+  nl -ba "$f"
+  echo
+  echo "第一个地址会被用于：4) 用第一个优选地址重写导出 Address 提示"
+}
+
+love_cfip_import_file() {
+  local p f
+  f="$(love_cfip_file)"
+  read -rp "输入文件路径，一行一个 IP / 域名: " p
+  [[ -f "$p" ]] || { warn "文件不存在：$p"; return 1; }
+  mkdir -p "$(dirname "$f")"
+  grep -Ev '^\s*($|#)' "$p" | sed 's/\r//g' >> "$f"
+  awk '!seen[$0]++' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+  log "已导入：$f"
+  love_cfip_view
+}
+
+love_cfip_rewrite_first() {
+  local f first pf
+  f="$(love_cfip_file)"
+  pf="$(love_export_addr_file)"
+  first="$(grep -Ev '^\s*($|#)' "$f" 2>/dev/null | head -n1)"
+  [[ -n "$first" ]] || { warn "优选列表为空，先添加或自动查找。"; return 1; }
+  mkdir -p "$(dirname "$pf")"
+  echo "$first" > "$pf"
+  log "已把第一个优选地址写入导出 Address 提示：$first"
+  log "建议继续执行：Love sub && Love qr && Love web"
+}
+
+love_cfip_generate_candidates() {
+  local mode="${1:-4}" count="${2:-80}" out="$3"
+  mkdir -p "$(dirname "$out")"
+  : > "$out"
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    warn "缺少 python3，无法生成 CIDR 候选。"
+    return 1
+  fi
+
+  if [[ "$mode" == "6" ]]; then
+    curl -fsSL --connect-timeout 8 --max-time 20 https://www.cloudflare.com/ips-v6 -o /tmp/love_cf_ips.txt || return 1
+  else
+    curl -fsSL --connect-timeout 8 --max-time 20 https://www.cloudflare.com/ips-v4 -o /tmp/love_cf_ips.txt || return 1
+  fi
+
+  python3 - "$mode" "$count" "$out" <<'PY'
+import sys, ipaddress, random
+mode=sys.argv[1]
+count=int(sys.argv[2])
+out=sys.argv[3]
+cidrs=[x.strip() for x in open('/tmp/love_cf_ips.txt') if x.strip() and not x.startswith('#')]
+res=[]
+per=max(1, count//max(1,len(cidrs)))
+for c in cidrs:
+    net=ipaddress.ip_network(c, strict=False)
+    first=int(net.network_address)+1
+    last=int(net.broadcast_address)-1 if net.version==4 else int(net.network_address)+net.num_addresses-2
+    if last <= first:
+        continue
+    for _ in range(per):
+        res.append(str(ipaddress.ip_address(random.randint(first,last))))
+random.shuffle(res)
+res=res[:count]
+open(out,'w').write('\n'.join(res)+'\n')
+PY
+}
+
+love_cfip_test_one() {
+  local ip="$1" host="$2" port="${3:-443}" max="${4:-5}"
+  # Output: ip time_total http_code
+  local res code total
+  res="$(curl -k -sS -o /dev/null \
+    --connect-timeout 3 --max-time "$max" \
+    --connect-to "${host}:${port}:${ip}:${port}" \
+    -w "%{time_connect} %{time_appconnect} %{time_total} %{http_code}" \
+    "https://${host}:${port}/cdn-cgi/trace" 2>/dev/null || true)"
+  [[ -n "$res" ]] || return 1
+  total="$(awk '{print $3}' <<< "$res")"
+  code="$(awk '{print $4}' <<< "$res")"
+  [[ "$code" =~ ^(200|204|301|302|403|404)$ ]] || return 1
+  printf "%s %s %s\n" "$ip" "$total" "$code"
+}
+
+love_cfip_auto_find() {
+  love_menu_title "Love CFIP 自动优选" "VPS 视角测速 / Cloudflare CDN"
+
+  echo "这个功能会自动从 Cloudflare 官方 IP 段抽样，测试 HTTPS 握手/访问速度。"
+  echo
+  printf "%b重要说明：%b\n" "$(lc yellow)" "$(lc reset)"
+  echo "1. 这是在 VPS 上测速，结果代表 VPS → Cloudflare，不一定代表你手机/电脑 → Cloudflare。"
+  echo "2. 真正给客户端用的优选 IP，最好在客户端网络上测。"
+  echo "3. 只适合 Cloudflare CDN / WS / gRPC / TLS 类节点。"
+  echo "4. 纯 HY2 直连 IPv6:端口 通常不要用 CF 优选 IP。"
+  echo
+
+  read -rp "测速域名/SNI [www.cloudflare.com]: " host
+  host="${host:-www.cloudflare.com}"
+
+  read -rp "测试 IPv4 还是 IPv6？[4/6，默认4]: " mode
+  mode="${mode:-4}"
+
+  read -rp "抽样数量 [80]: " count
+  count="${count:-80}"
+
+  local cand="/tmp/love_cfip_candidates.txt"
+  local result="/tmp/love_cfip_result.txt"
+  : > "$result"
+
+  log "正在生成 Cloudflare 候选 IP..."
+  love_cfip_generate_candidates "$mode" "$count" "$cand" || { warn "候选生成失败。"; return 1; }
+
+  log "开始测速，可能需要几十秒..."
+  local i=0 ok=0 line r
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    ((i++)) || true
+    r="$(love_cfip_test_one "$line" "$host" 443 6 || true)"
+    if [[ -n "$r" ]]; then
+      echo "$r" >> "$result"
+      ((ok++)) || true
+      printf "%b[OK]%b %s\n" "$(lc green)" "$(lc reset)" "$r"
+    else
+      printf "%b[FAIL]%b %s\n" "$(lc gray)" "$(lc reset)" "$line"
+    fi
+  done < "$cand"
+
+  if [[ "$ok" -eq 0 ]]; then
+    warn "没有测到可用 IP。可能是 VPS 直连该 IP 版本不通，或该域名不适合测试。"
+    return 1
+  fi
+
+  sort -k2,2n "$result" | head -n 20 > /tmp/love_cfip_top20.txt
+
+  love_menu_title "Love CFIP Top 20" "按 time_total 排序"
+  nl -ba /tmp/love_cfip_top20.txt
+
+  read -rp "保存前几个到优选列表？[5]: " keep
+  keep="${keep:-5}"
+
+  local f
+  f="$(love_cfip_file)"
+  mkdir -p "$(dirname "$f")"
+
+  awk -v k="$keep" 'NR<=k{print $1}' /tmp/love_cfip_top20.txt >> "$f"
+  awk '!seen[$0]++' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+
+  log "已保存 Top ${keep} 到：$f"
+  love_cfip_view
+
+  read -rp "是否立即用第一个优选地址重写导出 Address？[Y/n]: " y
+  y="${y:-Y}"
+  [[ "$y" =~ ^[Yy]$ ]] && love_cfip_rewrite_first
+}
+
+love_cfip_client_side_guide() {
+  love_menu_title "客户端侧优选 IP 建议" "更准确"
+  echo "Cloudflare 优选 IP 最好在客户端网络上测，因为最终是你的手机/电脑连接 Cloudflare。"
+  echo
+  echo "推荐方式："
+  echo "1. 在 Windows / Mac / 本地网络跑 CloudflareST 或同类测速工具。"
+  echo "2. 得到最快的 IP 列表。"
+  echo "3. 回到 VPS 执行：Love cfip"
+  echo "4. 选 1 手动保存，或 2 从文件批量导入。"
+  echo "5. 选 4 用第一个地址重写导出 Address。"
+  echo "6. 执行：Love sub && Love qr && Love web"
+  echo
+  echo "如果你是纯 HY2 直连 IPv6:30001，不建议使用 CF 优选 IP。"
+  love_back 2>/dev/null || true
+}
+
+cfip_helper() {
+  while true; do
+    love_menu_title "Love CFIP 优选 IP / 域名" "保存 / 自动查找 / 导出替换"
+    love_menu2 "1) 手动保存优选 IP / 域名" "5) 自动查找 Cloudflare 优选 IP"
+    love_menu2 "2) 从文件批量导入" "6) 客户端侧测速说明"
+    love_menu2 "3) 查看当前优选列表" "7) 清空优选列表"
+    love_menu2 "4) 用第一个优选地址重写导出 Address" "0) 返回"
+
+    echo
+    love_ui_tip "提示：自动查找是 VPS 视角；客户端实际最快 IP 建议在本地网络测速后导入。"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" c
+    case "$c" in
+      1)
+        read -rp "输入优选 IP / 域名: " v
+        love_cfip_save_one "$v"
+        love_cfip_view
+        ;;
+      2) love_cfip_import_file ;;
+      3) love_cfip_view ;;
+      4) love_cfip_rewrite_first ;;
+      5) love_cfip_auto_find ;;
+      6) love_cfip_client_side_guide ;;
+      7)
+        read -rp "确认清空优选列表？[y/N]: " y
+        [[ "$y" =~ ^[Yy]$ ]] && : > "$(love_cfip_file)"
+        ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+
+
+# ==============================================================================
+# Love v13.6 Old Catalog Exact Restore Final
+# Restore old uncompressed catalog exactly: 1-97, colored and actionable.
+# ==============================================================================
+
+love_safe_call() {
+  local fn="$1"; shift || true
+  if declare -F "$fn" >/dev/null 2>&1; then
+    "$fn" "$@"
+  else
+    warn "当前脚本未启用该功能函数：$fn"
+    echo "入口已保留，但这个函数在当前文件中不存在或旧版本命名不同。"
+  fi
+}
+
+love_old_catalog_action() {
+  local n="$1"
+  case "$n" in
+    1|2|3|4|5|6) love_safe_call install_xray_stable ;;
+    7) love_safe_call cfip_helper ;;
+
+    8|9|10|11|12|13|14|15|16|17|18|19|20) love_safe_call install_singbox_native ;;
+
+    21) love_safe_call argo_helper ;;
+    22) love_safe_call port_hopping_helper ;;
+    23) love_safe_call warp_helper ;;
+    24) love_safe_call show_status ;;
+    25) love_safe_call show_node_info ;;
+    26) love_safe_call export_subscription ;;
+    27) love_safe_call doctor_check ;;
+    28) love_safe_call repair_apt_dpkg ;;
+    29) love_safe_call set_ipv6_dns ;;
+    30) love_safe_call update_core_menu ;;
+    31) love_safe_call generate_qrcodes ;;
+    32) love_safe_call argo_api_create_tunnel ;;
+    33) love_safe_call hy2_realm_helper ;;
+    34) love_safe_call reload_protocols_helper ;;
+    35) love_safe_call serve_subscription_nginx ;;
+    36) love_safe_call generate_mihomo_yaml ;;
+    37) love_safe_call love_shadowrocket ;;
+    38) love_safe_call generate_client_exports ;;
+    39) love_safe_call self_update_love ;;
+    40) love_safe_call web_admin_page ;;
+    41) love_safe_call love_links ;;
+    42) love_safe_call love_singbox_json ;;
+    43) love_safe_call love_shadowrocket ;;
+    44) love_safe_call love_v2rayn ;;
+    45) love_safe_call love_nekobox ;;
+    46) love_safe_call love_sfi_sfa_sfm ;;
+    47) love_safe_call love_full_client_pack ;;
+    48) love_safe_call web_admin_page ;;
+    49) love_safe_call web_admin_page ;;
+    50) love_safe_call reset_sub_token ;;
+    51) love_safe_call notify_config_menu ;;
+    52) love_safe_call health_check_nodes ;;
+    53) love_safe_call setup_auto_backup ;;
+    54) love_safe_call cert_status_check ;;
+    55) love_safe_call check_port_conflict_and_recommend ;;
+    56) love_safe_call oracle_security_template ;;
+    57) love_safe_call users_menu_v7 ;;
+    58) love_safe_call precheck_env ;;
+    59) love_safe_call mode_wizard ;;
+    60) love_safe_call snapshot_menu ;;
+    61) love_safe_call users_menu_v7 ;;
+    62) love_safe_call support_matrix ;;
+    63) love_safe_call logs_menu ;;
+    64) love_safe_call pin_core_menu ;;
+    65) love_safe_call singbox_compat_check ;;
+    66) love_safe_call speed_test ;;
+    67) love_safe_call cfip_helper ;;
+    68) love_safe_call cloud_firewall_templates ;;
+    69) love_safe_call harden_menu ;;
+    70) love_safe_call uninstall_menu_v7 ;;
+    71) love_safe_call web_status_generate ;;
+    72) love_safe_call v8_validate_all ;;
+    73) love_safe_call v8_security_audit ;;
+    74) love_safe_call v8_dashboard ;;
+    75) love_safe_call v8_state_generate ;;
+    76) love_safe_call v8_release_pack ;;
+    77) love_safe_call v8_generate_readme ;;
+    78) love_safe_call v8_support_bundle ;;
+    79) love_safe_call v8_import_links ;;
+    80) love_safe_call v8_rotate_menu ;;
+    81) love_safe_call v8_test_suite ;;
+    82) love_safe_call v8_update_channel ;;
+    83) love_safe_call nginx_rp_menu ;;
+    84) love_safe_call nginx_ws_reverse_proxy ;;
+    85) love_safe_call nginx_grpc_reverse_proxy ;;
+    86) love_safe_call nginx_fallback_only ;;
+    87) love_safe_call nginx_stream_sni_passthrough ;;
+    88) love_safe_call nginx_rp_status ;;
+    89) love_safe_call nginx_rp_rollback ;;
+    90) love_safe_call love_fix_hy2_now ;;
+    91) love_safe_call love_ipv6_outbound_menu ;;
+    92) love_safe_call love_test_outbound_stack ;;
+    93) love_safe_call love_warp_hint ;;
+    94) love_safe_call love_warp_manager_menu ;;
+    95) love_safe_call love_install_cloudflare_warp_official ;;
+    96) love_safe_call love_warp_status ;;
+    97) love_safe_call love_test_outbound_stack ;;
+
+    98) love_safe_call love_cfip_auto_find ;;
+    99) love_safe_call love_cfip_view ;;
+    100) love_safe_call love_cfip_rewrite_first ;;
+    101) love_safe_call love_cfip_import_file ;;
+    102) love_safe_call love_cfip_client_side_guide ;;
+    103) love_safe_call love_warp_auto_fix_v12 ;;
+    104) love_safe_call love_singbox_restore_direct_v12 ;;
+    105) love_safe_call love_warp_report_v12 ;;
+    106) love_safe_call love_full_client_pack ;;
+    107) love_safe_call backup_configs ;;
+    108) love_safe_call github_publish_note ;;
+    *) warn "无效选择。" ;;
+  esac
+}
+
+show_all_node_catalog_full() {
+  while true; do
+    love_menu_title "Love 完整节点目录" "旧版原编号 1-97 + 新增扩展"
+
+    printf "%bA. 原生 Xray 稳定节点%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "1) VLESS + REALITY + Vision 443/tcp" "2) HY2 / Hysteria2 443/udp"
+    love_menu2 "3) IPv6 listen ::" "4) 有域名：Let's Encrypt"
+    love_menu2 "5) 无域名：Reality-only" "6) 无域名可选 HY2 自签"
+    love_menu2 "7) 优选 IP / 域名" ""
+
+    echo
+    printf "%bB. 原生 sing-box 节点%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "8) VLESS Reality" "9) Hysteria2"
+    love_menu2 "10) TUIC" "11) Shadowsocks"
+    love_menu2 "12) Trojan" "13) VMess WS"
+    love_menu2 "14) VLESS WS TLS" "15) H2 Reality"
+    love_menu2 "16) gRPC Reality" "17) AnyTLS"
+    love_menu2 "18) Naive" "19) ShadowTLS"
+
+    echo
+    printf "%bC. 高级能力 20-47%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "20) all 全协议" "21) Argo / Cloudflared"
+    love_menu2 "22) Port Hopping" "23) WARP 出站增强说明"
+    love_menu2 "24) 备份 / 状态 / 卸载" "25) Love -n 节点查看"
+    love_menu2 "26) Love sub 订阅导出" "27) Love doctor 全面诊断"
+    love_menu2 "28) Love repair apt/dpkg" "29) Love dns IPv6 DNS"
+    love_menu2 "30) Love -v 核心更新" "31) Love qr 二维码"
+    love_menu2 "32) Argo API Tunnel + DNS" "33) HY2 Realm 安全开关"
+    love_menu2 "34) Love -r 增删协议 / 重建" "35) 订阅静态服务 nginx"
+    love_menu2 "36) Mihomo / Clash YAML" "37) Shadowrocket 专用导出"
+    love_menu2 "38) NekoBox / V2RayN 导出" "39) 在线更新 Love"
+    love_menu2 "40) Web 静态管理页" "41) Love links 简洁链接"
+    love_menu2 "42) sing-box outbounds/client" "43) Shadowrocket 导出"
+    love_menu2 "44) V2RayN 导出" "45) NekoBox / NekoRay 导出"
+    love_menu2 "46) SFI / SFA / SFM JSON" "47) 完整客户端包 tar.gz"
+
+    echo
+    printf "%bC. 高级能力 48-71%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "48) Web Basic Auth 保护" "49) Web 一键复制链接"
+    love_menu2 "50) 订阅随机路径 token" "51) Telegram/Bark/Email 推送"
+    love_menu2 "52) 节点健康检测" "53) 定时备份 systemd"
+    love_menu2 "54) 证书续签状态检查" "55) 端口冲突检测与推荐"
+    love_menu2 "56) Oracle Cloud 安全组模板" "57) 多用户 UUID 管理"
+    love_menu2 "58) Love precheck 环境预检" "59) Love mode 安装模式"
+    love_menu2 "60) snapshot / rollback" "61) users 分用户订阅"
+    love_menu2 "62) support 客户端矩阵" "63) logs / errors 日志"
+    love_menu2 "64) pin 版本锁定" "65) compat sing-box 检测"
+    love_menu2 "66) speed 连接测速" "67) cfip Cloudflare 优选"
+    love_menu2 "68) cloud-firewall 模板" "69) harden 安全加固"
+    love_menu2 "70) uninstall soft/full" "71) web-status 状态页"
+
+    echo
+    printf "%bC. 高级能力 72-97%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "72) validate 全量验证" "73) audit 安全审计"
+    love_menu2 "74) dashboard 仪表盘" "75) state 状态 JSON"
+    love_menu2 "76) release GitHub 发布包" "77) readme README 生成"
+    love_menu2 "78) support-bundle 脱敏包" "79) import-links 外部导入"
+    love_menu2 "80) rotate token/Web 密码" "81) test-suite 测试套件"
+    love_menu2 "82) update-channel 更新通道" "83) nginx Nginx 反代菜单"
+    love_menu2 "84) nginx-ws WS 反代" "85) nginx-grpc gRPC 反代"
+    love_menu2 "86) nginx-fallback 伪装站" "87) nginx-stream SNI 分流"
+    love_menu2 "88) nginx-status 反代状态" "89) nginx-rollback 配置回滚"
+    love_menu2 "90) fix-hy2 HY2 自动修复" "91) fix-ipv6 prefer_ipv6"
+    love_menu2 "92) test-outbound 出站测试" "93) warp-hint WARP 提示"
+    love_menu2 "94) warp WARP Manager" "95) warp-install 官方 WARP"
+    love_menu2 "96) warp-status WARP 状态" "97) warp-test 出站测试"
+
+    echo
+    printf "%bD. V13 新增扩展 98-108%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "98) 自动查找 CF 优选 IP" "99) 查看 CFIP 列表"
+    love_menu2 "100) 第一优选写入导出" "101) 文件批量导入 CFIP"
+    love_menu2 "102) 客户端侧测速说明" "103) WARP Auto Fix"
+    love_menu2 "104) 恢复 sing-box direct" "105) WARP 完整报告"
+    love_menu2 "106) 完整客户端包刷新" "107) 立即备份"
+    love_menu2 "108) GitHub 发布说明" "0) 返回"
+
+    echo
+    love_ui_tip "说明：1-97 按旧版未精简目录恢复；98+ 是 V13 新增扩展。"
+    love_ui_tip "优选 IP：7 或 67；自动查找 CFIP：98；测速：66；WARP Manager：94。"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" n
+    [[ "$n" == "0" ]] && return 0
+    love_old_catalog_action "$n"
+  done
+}
+
+show_all_node_catalog() {
+  while true; do
+    love_menu_title "Love 全节点目录" "精简入口 + 旧版完整目录"
+
+    printf "%b精简分类入口%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "1) Xray Reality 稳定模式" "8) Trojan TLS 节点"
+    love_menu2 "2) sing-box 原生全协议" "9) VMess WS 节点"
+    love_menu2 "3) Hysteria2 UDP 高速节点" "10) VLESS WS 节点"
+    love_menu2 "4) Reality + HY2 组合节点" "11) gRPC 节点"
+    love_menu2 "5) ShadowTLS / AnyTLS" "12) TUIC / NaiveProxy"
+    love_menu2 "6) Argo / Cloudflared 隧道" "13) Nginx WS/gRPC 反代"
+    love_menu2 "7) Port Hopping UDP 跳跃" "14) 多用户订阅管理"
+
+    echo
+    printf "%b客户端导出%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "15) Raw URI 订阅" "20) sing-box client JSON"
+    love_menu2 "16) Base64 订阅" "21) Shadowrocket"
+    love_menu2 "17) Mihomo / Clash YAML" "22) NekoBox"
+    love_menu2 "18) V2RayN 链接" "23) SFI / SFA / SFM"
+    love_menu2 "19) 二维码 QR" "24) 完整客户端包"
+
+    echo
+    printf "%b常用维护%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "25) 查看当前节点 Love -n" "30) WARP Auto Fix"
+    love_menu2 "26) 重新生成订阅 Love sub" "31) Web 管理页 Love web"
+    love_menu2 "27) 重新生成二维码 Love qr" "32) 备份配置"
+    love_menu2 "28) 完整诊断 Love doctor" "33) 查看运行状态"
+    love_menu2 "29) 客户端导出" "34) 旧版完整目录 1-97"
+
+    echo
+    printf "%b优选 / 测速快捷入口%b\n" "$(lc green)" "$(lc reset)"
+    love_menu2 "35) CFIP 优选 IP 菜单" "38) 修改导出地址"
+    love_menu2 "36) 自动查找 CF 优选 IP" "39) 查看 CFIP 列表"
+    love_menu2 "37) speed 连接测速" "40) 客户端侧测速说明"
+    love_menu2 "0) 返回" ""
+
+    echo
+    love_ui_tip "旧版未精简完整目录选 34；优选 IP 选 35 或完整目录 7/67。"
+    echo
+
+    read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" n
+    case "$n" in
+      1) install_xray_stable ;;
+      2) install_singbox_native ;;
+      3) love_fix_hy2_now ;;
+      4) install_xray_stable ;;
+      5) install_singbox_native ;;
+      6) argo_helper ;;
+      7) port_hopping_helper ;;
+      8|9|10|11|12) install_singbox_native ;;
+      13) nginx_rp_menu ;;
+      14) users_menu_v7 ;;
+      15|16) export_subscription ;;
+      17) generate_mihomo_yaml ;;
+      18) love_v2rayn ;;
+      19) generate_qrcodes ;;
+      20) love_singbox_json ;;
+      21) love_shadowrocket ;;
+      22) love_nekobox ;;
+      23) love_sfi_sfa_sfm ;;
+      24) love_full_client_pack ;;
+      25) show_node_info ;;
+      26) export_subscription ;;
+      27) generate_qrcodes ;;
+      28) doctor_check ;;
+      29) love_full_client_pack ;;
+      30) love_warp_auto_fix_v12 ;;
+      31) web_admin_page ;;
+      32) backup_configs ;;
+      33) show_status ;;
+      34) show_all_node_catalog_full ;;
+      35) cfip_helper ;;
+      36) love_safe_call love_cfip_auto_find ;;
+      37) speed_test ;;
+      38) change_preferred_info_only ;;
+      39) love_safe_call love_cfip_view ;;
+      40) love_safe_call love_cfip_client_side_guide ;;
+      0) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
 }
 
 
