@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.19.0-singbox-name-clean-port-fix-final"
+VERSION="Love v13.20.0-singbox-client-link-fix-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.19.0-singbox-name-clean-port-fix-final"
+LOVE_SCRIPT_VERSION="Love v13.20.0-singbox-client-link-fix-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -12041,6 +12041,182 @@ main() {
       ;;
     *)
       love_original_main_v1319 "$@"
+      ;;
+  esac
+}
+
+
+
+# ==============================================================================
+# Love v13.20 sing-box client link fix
+# Fix VLESS WS TLS self-signed cert issue: add allowInsecure/insecure.
+# Fix TUIC compatibility: add allowInsecure/insecure aliases.
+# Fix duplicate LOVE-LOVE names.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.20.0-singbox-client-link-fix-final"
+
+love_fix_client_links_v1320() {
+  local roots f
+  roots="/opt/Love/subscribe /var/www/love-admin"
+  for d in $roots; do
+    [[ -d "$d" ]] || continue
+    while IFS= read -r -d '' f; do
+      [[ -f "$f" ]] || continue
+      case "$f" in
+        *.png|*.jpg|*.jpeg|*.gif|*.webp|*.zip|*.tar.gz) continue ;;
+      esac
+
+      sed -i \
+        -e 's/LOVE-LOVE-/LOVE-/g' \
+        -e 's/SB-REALITY/LOVE-REALITY/g' \
+        -e 's/SB-HY2/LOVE-HY2/g' \
+        -e 's/SB-TUIC/LOVE-TUIC/g' \
+        -e 's/SB-SS/LOVE-SS/g' \
+        -e 's/SB-TROJAN/LOVE-TROJAN/g' \
+        -e 's/SB-VMESS/LOVE-VMESS/g' \
+        -e 's/SB-VLESS/LOVE-VLESS/g' \
+        -e 's/SB-WSTLS/LOVE-WSTLS/g' \
+        -e 's/SB-GRPC/LOVE-GRPC/g' \
+        -e 's/SB-H2/LOVE-H2/g' \
+        -e 's/SB-ANYTLS/LOVE-ANYTLS/g' \
+        -e 's/SB-NAIVE/LOVE-NAIVE/g' \
+        -e 's/SB-SHADOWTLS/LOVE-SHADOWTLS/g' \
+        "$f" 2>/dev/null || true
+
+      if grep -qE 'vless://.*:50006' "$f" 2>/dev/null; then
+        sed -i \
+          -e '/vless:\/\/.*:50006/ s/#/\&allowInsecure=1\&insecure=1#/' \
+          -e '/vless:\/\/.*:50006/ s/&allowInsecure=1&insecure=1&allowInsecure=1&insecure=1/&allowInsecure=1&insecure=1/g' \
+          "$f" 2>/dev/null || true
+      fi
+
+      if grep -qE 'tuic://.*:50002' "$f" 2>/dev/null; then
+        sed -i \
+          -e '/tuic:\/\/.*:50002/ s/#/\&allowInsecure=1\&insecure=1#/' \
+          -e '/tuic:\/\/.*:50002/ s/&allowInsecure=1&insecure=1&allowInsecure=1&insecure=1/&allowInsecure=1&insecure=1/g' \
+          "$f" 2>/dev/null || true
+      fi
+    done < <(find "$d" -type f -print0 2>/dev/null)
+  done
+
+  for f in /opt/Love/subscribe/mihomo.yaml /opt/Love/subscribe/mihomo-provider.yaml /opt/Love/subscribe/clash_like.yaml /var/www/love-admin/sub/mihomo.yaml; do
+    [[ -f "$f" ]] || continue
+    sed -i 's/LOVE-LOVE-/LOVE-/g' "$f" 2>/dev/null || true
+    python3 - "$f" <<'PY' 2>/dev/null || true
+import sys, re
+p=sys.argv[1]
+lines=open(p,encoding='utf-8',errors='ignore').read().splitlines()
+out=[]
+in_target=False
+has_skip=False
+for line in lines:
+    if re.match(r'\s*-\s+name:\s*"?LOVE-(TUIC|VLESS-WS-TLS)', line):
+        if in_target and not has_skip:
+            out.append('    skip-cert-verify: true')
+        in_target=True
+        has_skip=False
+    elif re.match(r'\s*-\s+name:', line):
+        if in_target and not has_skip:
+            out.append('    skip-cert-verify: true')
+        in_target=False
+        has_skip=False
+    if in_target and 'skip-cert-verify:' in line:
+        has_skip=True
+    out.append(line)
+if in_target and not has_skip:
+    out.append('    skip-cert-verify: true')
+open(p,'w',encoding='utf-8').write('\n'.join(out)+'\n')
+PY
+  done
+
+  if [[ -f /opt/Love/subscribe/all.txt ]]; then
+    if base64 --help 2>/dev/null | grep -q -- '-w'; then
+      base64 -w0 /opt/Love/subscribe/all.txt > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    else
+      base64 /opt/Love/subscribe/all.txt | tr -d '\n' > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    fi
+  fi
+}
+
+love_show_fixed_client_links_v1320() {
+  love_menu_title "Love 客户端链接修复结果" "TUIC / VLESS WS TLS"
+  echo "VLESS WS TLS 应包含：allowInsecure=1&insecure=1"
+  echo "TUIC 应包含：allow_insecure=1&allowInsecure=1&insecure=1"
+  echo
+  grep -RniE "TUIC|50002|VLESS-WS-TLS|50006|vless.*50006|tuic.*50002" /opt/Love/subscribe /var/www/love-admin 2>/dev/null | head -40 || true
+}
+
+love_client_link_fix_v1320() {
+  love_menu_title "Love 客户端链接参数修复" "Self-signed TLS compatibility"
+
+  echo "修复内容："
+  echo "1. 修复 VLESS WS TLS 自签证书错误：x509 unknown authority。"
+  echo "2. 给 VLESS WS TLS 链接补 allowInsecure=1&insecure=1。"
+  echo "3. 给 TUIC 链接同时保留 allow_insecure / allowInsecure / insecure。"
+  echo "4. 清理 LOVE-LOVE 重复名称。"
+  echo
+
+  export_subscription >/dev/null 2>&1 || true
+  generate_mihomo_yaml >/dev/null 2>&1 || true
+  generate_client_exports >/dev/null 2>&1 || true
+
+  love_fix_client_links_v1320
+  generate_qrcodes quiet >/dev/null 2>&1 || generate_qrcodes >/dev/null 2>&1 || true
+  web_admin_page >/dev/null 2>&1 || true
+  love_fix_client_links_v1320
+
+  log "客户端链接参数修复完成。"
+  love_show_fixed_client_links_v1320
+}
+
+if declare -F export_subscription >/dev/null 2>&1 && ! declare -F love_original_export_subscription_v1320 >/dev/null 2>&1; then
+  eval "$(declare -f export_subscription | sed '1s/^export_subscription/love_original_export_subscription_v1320/')"
+  export_subscription() {
+    love_original_export_subscription_v1320 "$@"
+    love_fix_client_links_v1320
+  }
+fi
+
+if declare -F generate_client_exports >/dev/null 2>&1 && ! declare -F love_original_generate_client_exports_v1320 >/dev/null 2>&1; then
+  eval "$(declare -f generate_client_exports | sed '1s/^generate_client_exports/love_original_generate_client_exports_v1320/')"
+  generate_client_exports() {
+    love_original_generate_client_exports_v1320 "$@"
+    love_fix_client_links_v1320
+  }
+fi
+
+if declare -F generate_mihomo_yaml >/dev/null 2>&1 && ! declare -F love_original_generate_mihomo_yaml_v1320 >/dev/null 2>&1; then
+  eval "$(declare -f generate_mihomo_yaml | sed '1s/^generate_mihomo_yaml/love_original_generate_mihomo_yaml_v1320/')"
+  generate_mihomo_yaml() {
+    love_original_generate_mihomo_yaml_v1320 "$@"
+    love_fix_client_links_v1320
+  }
+fi
+
+if declare -F web_admin_page >/dev/null 2>&1 && ! declare -F love_original_web_admin_page_v1320 >/dev/null 2>&1; then
+  eval "$(declare -f web_admin_page | sed '1s/^web_admin_page/love_original_web_admin_page_v1320/')"
+  web_admin_page() {
+    love_original_web_admin_page_v1320 "$@"
+    love_fix_client_links_v1320
+  }
+fi
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1320 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1320/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.20.0-singbox-client-link-fix-final}"
+  case "${1:-}" in
+    link-fix|client-fix|fix-links)
+      love_client_link_fix_v1320
+      ;;
+    show-links|links-check)
+      love_show_fixed_client_links_v1320
+      ;;
+    *)
+      love_original_main_v1320 "$@"
       ;;
   esac
 }
