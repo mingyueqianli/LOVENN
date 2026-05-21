@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.18.0-web-theme-clean-final"
+VERSION="Love v13.19.0-singbox-name-clean-port-fix-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.18.0-web-theme-clean-final"
+LOVE_SCRIPT_VERSION="Love v13.19.0-singbox-name-clean-port-fix-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -11836,6 +11836,213 @@ EOF
   echo
   echo "主题检查："
   echo "  grep -n 'theme-radio\\|绿色护眼\\|Pure CSS' /var/www/love-admin/index.html"
+}
+
+
+
+# ==============================================================================
+# Love v13.19 sing-box name clean + port fix
+# 1) Remove "SB" from exported sing-box node names.
+# 2) Auto-open sing-box full-protocol ports according to /etc/sing-box/config.json.
+# 3) Add commands: Love sing-fix / Love sing-debug / Love clean-names
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.19.0-singbox-name-clean-port-fix-final"
+
+love_clean_singbox_node_names_v1319() {
+  local roots f
+  roots="/opt/Love/subscribe /var/www/love-admin"
+  for d in $roots; do
+    [[ -d "$d" ]] || continue
+    while IFS= read -r -d '' f; do
+      [[ -f "$f" ]] || continue
+      case "$f" in
+        *.png|*.jpg|*.jpeg|*.gif|*.webp|*.zip|*.tar.gz) continue ;;
+      esac
+      sed -i \
+        -e 's/SB-REALITY/LOVE-REALITY/g' \
+        -e 's/SB-HY2/LOVE-HY2/g' \
+        -e 's/SB-TUIC/LOVE-TUIC/g' \
+        -e 's/SB-SS/LOVE-SS/g' \
+        -e 's/SB-TROJAN/LOVE-TROJAN/g' \
+        -e 's/SB-VMESS/LOVE-VMESS/g' \
+        -e 's/SB-VLESS/LOVE-VLESS/g' \
+        -e 's/SB-WSTLS/LOVE-WSTLS/g' \
+        -e 's/SB-GRPC/LOVE-GRPC/g' \
+        -e 's/SB-H2/LOVE-H2/g' \
+        -e 's/SB-ANYTLS/LOVE-ANYTLS/g' \
+        -e 's/SB-NAIVE/LOVE-NAIVE/g' \
+        -e 's/SB-SHADOWTLS/LOVE-SHADOWTLS/g' \
+        -e 's/#SB-/#LOVE-/g' \
+        -e 's/name: SB-/name: LOVE-/g' \
+        -e 's/name: "SB-/name: "LOVE-/g' \
+        -e "s/name: 'SB-/name: 'LOVE-/g" \
+        "$f" 2>/dev/null || true
+    done < <(find "$d" -type f -print0 2>/dev/null)
+  done
+
+  if [[ -f /opt/Love/subscribe/all.txt ]]; then
+    if base64 --help 2>/dev/null | grep -q -- '-w'; then
+      base64 -w0 /opt/Love/subscribe/all.txt > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    else
+      base64 /opt/Love/subscribe/all.txt | tr -d '\n' > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    fi
+  fi
+}
+
+love_singbox_open_ports_from_config_v1319() {
+  local cfg="/etc/sing-box/config.json"
+  [[ -f "$cfg" ]] || { warn "未找到 $cfg"; return 1; }
+  command -v jq >/dev/null 2>&1 || { warn "缺少 jq"; return 1; }
+
+  love_menu_title "Love sing-box 全协议端口修复" "Open ports from config"
+
+  echo "将按当前 /etc/sing-box/config.json 自动放行端口："
+  jq -r '.inbounds[]? | [.tag,.type,.listen_port] | @tsv' "$cfg" 2>/dev/null || true
+  echo
+
+  while IFS=$'\t' read -r tag typ port; do
+    [[ -n "$port" && "$port" != "null" ]] || continue
+    case "$typ" in
+      hysteria2|tuic)
+        ufw allow "${port}/udp" >/dev/null 2>&1 || true
+        printf "%b[OK]%b %-18s %-12s %s/udp\n" "$(lc green)" "$(lc reset)" "$tag" "$typ" "$port"
+        ;;
+      shadowsocks)
+        ufw allow "${port}/tcp" >/dev/null 2>&1 || true
+        ufw allow "${port}/udp" >/dev/null 2>&1 || true
+        printf "%b[OK]%b %-18s %-12s %s/tcp+udp\n" "$(lc green)" "$(lc reset)" "$tag" "$typ" "$port"
+        ;;
+      *)
+        ufw allow "${port}/tcp" >/dev/null 2>&1 || true
+        printf "%b[OK]%b %-18s %-12s %s/tcp\n" "$(lc green)" "$(lc reset)" "$tag" "$typ" "$port"
+        ;;
+    esac
+  done < <(jq -r '.inbounds[]? | [.tag,.type,.listen_port] | @tsv' "$cfg" 2>/dev/null)
+
+  ufw reload >/dev/null 2>&1 || true
+}
+
+love_singbox_full_fix_v1319() {
+  love_menu_title "Love sing-box 全协议修复" "Name Clean + Port Fix + Restart"
+
+  echo "修复内容："
+  echo "1. 去掉导出节点名称里的 SB 前缀，改成 LOVE。"
+  echo "2. 按当前 sing-box 配置自动放行 50000-50011 等实际端口。"
+  echo "3. 检查配置并重启 sing-box。"
+  echo "4. 重新生成订阅、二维码、Web。"
+  echo
+
+  love_clean_singbox_node_names_v1319
+  love_singbox_open_ports_from_config_v1319 || true
+
+  if command -v sing-box >/dev/null 2>&1; then
+    sing-box check -c /etc/sing-box/config.json || return 1
+  elif [[ -x /usr/local/bin/sing-box ]]; then
+    /usr/local/bin/sing-box check -c /etc/sing-box/config.json || return 1
+  fi
+
+  systemctl restart sing-box
+  sleep 2
+
+  echo
+  printf "%b当前监听：%b\n" "$(lc green)" "$(lc reset)"
+  ss -lntup | grep -E '50000|50001|50002|50003|50004|50005|50006|50007|50008|50009|50010|50011|30001|sing-box' || true
+
+  echo
+  printf "%b当前入站：%b\n" "$(lc green)" "$(lc reset)"
+  jq -r '.inbounds[]? | [.tag,.type,.listen,.listen_port] | @tsv' /etc/sing-box/config.json 2>/dev/null || true
+
+  export_subscription >/dev/null 2>&1 || true
+  love_clean_singbox_node_names_v1319
+  generate_qrcodes quiet >/dev/null 2>&1 || generate_qrcodes >/dev/null 2>&1 || true
+  web_admin_page >/dev/null 2>&1 || true
+
+  echo
+  log "sing-box 全协议修复完成。"
+  echo "建议打开 Web：Love web 或 http://[你的IPv6]:8099/?v=119"
+}
+
+love_singbox_debug_v1319() {
+  love_menu_title "Love sing-box 全协议诊断" "Reality / TUIC / SS / Trojan / WS TLS"
+
+  echo "1) 当前入站："
+  jq -r '.inbounds[]? | [.tag,.type,.listen,.listen_port] | @tsv' /etc/sing-box/config.json 2>/dev/null || true
+
+  echo
+  echo "2) 当前 TCP/UDP 监听："
+  ss -lntup | grep -E '50000|50001|50002|50003|50004|50005|50006|50007|50008|50009|50010|50011|30001|sing-box' || true
+
+  echo
+  echo "3) UFW 状态："
+  ufw status || true
+
+  echo
+  echo "4) sing-box 最近日志："
+  journalctl -u sing-box -n 80 -l --no-pager || true
+
+  echo
+  echo "判断："
+  echo "- Reality / Trojan / VLESS WS TLS 是 TCP，不通优先看 TCP 端口是否放行。"
+  echo "- TUIC / HY2 是 UDP，不通优先看 UDP 端口是否放行。"
+  echo "- SS 通常 TCP/UDP 都可能用，建议两个都放行。"
+  echo "- 如果端口有监听、有放行，但客户端仍不通，下一步看客户端链接参数：address、port、uuid/password、sni、flow、insecure。"
+}
+
+if declare -F export_subscription >/dev/null 2>&1 && ! declare -F love_original_export_subscription_v1319 >/dev/null 2>&1; then
+  eval "$(declare -f export_subscription | sed '1s/^export_subscription/love_original_export_subscription_v1319/')"
+  export_subscription() {
+    love_original_export_subscription_v1319 "$@"
+    love_clean_singbox_node_names_v1319
+  }
+fi
+
+if declare -F generate_client_exports >/dev/null 2>&1 && ! declare -F love_original_generate_client_exports_v1319 >/dev/null 2>&1; then
+  eval "$(declare -f generate_client_exports | sed '1s/^generate_client_exports/love_original_generate_client_exports_v1319/')"
+  generate_client_exports() {
+    love_original_generate_client_exports_v1319 "$@"
+    love_clean_singbox_node_names_v1319
+  }
+fi
+
+if declare -F generate_mihomo_yaml >/dev/null 2>&1 && ! declare -F love_original_generate_mihomo_yaml_v1319 >/dev/null 2>&1; then
+  eval "$(declare -f generate_mihomo_yaml | sed '1s/^generate_mihomo_yaml/love_original_generate_mihomo_yaml_v1319/')"
+  generate_mihomo_yaml() {
+    love_original_generate_mihomo_yaml_v1319 "$@"
+    love_clean_singbox_node_names_v1319
+  }
+fi
+
+if declare -F install_singbox_native >/dev/null 2>&1 && ! declare -F love_original_install_singbox_native_v1319 >/dev/null 2>&1; then
+  eval "$(declare -f install_singbox_native | sed '1s/^install_singbox_native/love_original_install_singbox_native_v1319/')"
+  install_singbox_native() {
+    love_original_install_singbox_native_v1319 "$@"
+    love_singbox_open_ports_from_config_v1319 || true
+    love_clean_singbox_node_names_v1319 || true
+  }
+fi
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1319 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1319/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.19.0-singbox-name-clean-port-fix-final}"
+  case "${1:-}" in
+    sing-fix|fix-sing|singbox-fix)
+      love_singbox_full_fix_v1319
+      ;;
+    sing-debug|debug-sing|singbox-debug)
+      love_singbox_debug_v1319
+      ;;
+    clean-names|name-clean)
+      love_clean_singbox_node_names_v1319
+      log "节点名称清理完成。"
+      ;;
+    *)
+      love_original_main_v1319 "$@"
+      ;;
+  esac
 }
 
 
