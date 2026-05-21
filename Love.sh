@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v12.1.0-fs-style-full-menu-final"
+VERSION="Love v12.2.0-web-panel-final-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -2494,13 +2494,23 @@ web_admin_page() {
   echo
   echo "================ Love Web 管理页 ================"
   warn "静态管理页：展示状态、订阅、二维码、复制按钮；不在浏览器执行 root 命令。"
+
   read -rp "Web 管理页端口 [8099]: " port
   port="${port:-8099}"
 
   read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " auth_on
   auth_on="${auth_on:-Y}"
+
   local web_user="love"
   local web_pass=""
+  local auth_file="/etc/nginx/.love_web_htpasswd"
+
+  install_base >/dev/null 2>&1 || true
+  apt install -y nginx apache2-utils >/dev/null 2>&1 || true
+
+  # Avoid nginx binding 80 when Apache already owns it.
+  rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/null || true
+
   if [[ "$auth_on" =~ ^[Yy]$ ]]; then
     read -rp "Web 用户名 [love]: " web_user
     web_user="${web_user:-love}"
@@ -2510,13 +2520,16 @@ web_admin_page() {
       web_pass="$(random_token 8)"
       warn "自动生成 Web 密码：${web_pass}"
     fi
-    mkdir -p "${LOVE_HOME}/auth"
+
     if command -v htpasswd >/dev/null 2>&1; then
-      htpasswd -bc "${LOVE_HOME}/auth/htpasswd" "$web_user" "$web_pass" >/dev/null
+      htpasswd -bc "$auth_file" "$web_user" "$web_pass" >/dev/null
     else
-      printf "%s:$(openssl passwd -apr1 "%s")\n" "$web_user" "$web_pass" > "${LOVE_HOME}/auth/htpasswd"
+      printf "%s:$(openssl passwd -apr1 "%s")
+" "$web_user" "$web_pass" > "$auth_file"
     fi
-    chmod 600 "${LOVE_HOME}/auth/htpasswd"
+
+    chown root:www-data "$auth_file"
+    chmod 640 "$auth_file"
   fi
 
   local token
@@ -2526,13 +2539,37 @@ web_admin_page() {
   generate_qrcodes quiet >/dev/null 2>&1 || true
   love_full_client_pack >/dev/null 2>&1 || true
 
-  install_base >/dev/null 2>&1 || true
   mkdir -p "${LOVE_WEB}/${token}/subscribe" "${LOVE_WEB}/${token}/qr" "${LOVE_WEB}/${token}/clients" "${LOVE_WEB}/${token}/sing-box"
 
   cp -a "${LOVE_SUB}/." "${LOVE_WEB}/${token}/subscribe/" 2>/dev/null || true
   cp -a "${LOVE_SUB}/qr/." "${LOVE_WEB}/${token}/qr/" 2>/dev/null || true
   cp -a "${LOVE_SUB}/clients/." "${LOVE_WEB}/${token}/clients/" 2>/dev/null || true
   cp -a "${LOVE_SUB}/sing-box/." "${LOVE_WEB}/${token}/sing-box/" 2>/dev/null || true
+
+  # Root page prevents 403 when opening http://IP:PORT/
+  cat > "${LOVE_WEB}/index.html" <<EOF
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Love Admin Panel</title>
+<style>
+body{font-family:Arial,sans-serif;background:#0f172a;color:#e5e7eb;padding:40px}
+.card{max-width:820px;margin:auto;background:#111827;padding:28px;border-radius:16px}
+h1{color:#fff} a{color:#93c5fd} code{background:#020617;padding:4px 8px;border-radius:6px}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Love Admin Panel</h1>
+    <p>Status: OK</p>
+    <p>This is a static management page. It does not execute root commands in browser.</p>
+    <p>Love Web Panel is running on <code>${port}</code>.</p>
+    <p><a href="/${token}/">Open Token Panel</a></p>
+  </div>
+</body>
+</html>
+EOF
 
   cat > "${LOVE_WEB}/${token}/index.html" <<'EOF'
 <!doctype html>
@@ -2620,50 +2657,63 @@ window.onload=loadRaw;
 <code>Love qr</code><br>
 <code>Love doctor</code><br>
 <code>Love check</code><br>
+<code>Love warp</code><br>
+<code>Love warp-auto-fix</code><br>
 <code>Love backup-auto</code>
 </div>
 </body>
 </html>
 EOF
 
+  chown -R www-data:www-data "${LOVE_WEB}"
+  chmod 755 /var /var/www "${LOVE_WEB}" 2>/dev/null || true
+  find "${LOVE_WEB}" -type d -exec chmod 755 {} \; 2>/dev/null || true
+  find "${LOVE_WEB}" -type f -exec chmod 644 {} \; 2>/dev/null || true
+
   cat > /etc/nginx/sites-available/love-admin <<EOF
 server {
     listen ${port};
     listen [::]:${port};
     server_name _;
+
     root ${LOVE_WEB};
     index index.html;
 
-    location / {
-        try_files \$uri \$uri/ =404;
 EOF
 
   if [[ "$auth_on" =~ ^[Yy]$ ]]; then
     cat >> /etc/nginx/sites-available/love-admin <<EOF
-        auth_basic "Love Admin";
-        auth_basic_user_file ${LOVE_HOME}/auth/htpasswd;
+    auth_basic "Love Admin";
+    auth_basic_user_file ${auth_file};
+
 EOF
   fi
 
   cat >> /etc/nginx/sites-available/love-admin <<'EOF'
+    location / {
+        try_files $uri $uri/ =404;
     }
 }
 EOF
 
   ln -sf /etc/nginx/sites-available/love-admin /etc/nginx/sites-enabled/love-admin
+
   nginx -t
-  systemctl enable nginx
+  systemctl enable nginx >/dev/null 2>&1 || true
   systemctl restart nginx
-  command -v ufw >/dev/null 2>&1 && ufw allow "${port}/tcp" || true
+
+  command -v ufw >/dev/null 2>&1 && ufw allow "${port}/tcp" >/dev/null 2>&1 || true
 
   log "Love Web 管理页已开启："
-  echo "URL: http://服务器IP:${port}/${token}/"
+  echo "Root URL: http://服务器IP:${port}/"
+  echo "Token URL: http://服务器IP:${port}/${token}/"
   if [[ "$auth_on" =~ ^[Yy]$ ]]; then
     echo "User: ${web_user}"
     echo "Pass: ${web_pass}"
   fi
   echo "Token path: ${token}"
 }
+
 
 
 
