@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.15.0-web-theme-floating-final"
+VERSION="Love v13.16.0-web-theme-js-fix-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -2134,22 +2134,66 @@ EOF
 </div>
 <script>
 (function(){
-  var saved = localStorage.getItem('loveTheme') || 'dark';
-  setLoveTheme(saved);
+  function byId(id){ return document.getElementById(id); }
+
+  window.setLoveTheme = function(theme){
+    theme = (theme === 'green') ? 'green' : 'dark';
+
+    document.body.classList.remove('theme-dark','theme-green');
+    document.body.classList.add('theme-' + theme);
+    document.documentElement.setAttribute('data-love-theme', theme);
+
+    try { localStorage.setItem('loveTheme', theme); } catch(e) {}
+
+    var all = ['themeDark','themeGreen','floatThemeDark','floatThemeGreen'];
+    all.forEach(function(id){
+      var el = byId(id);
+      if(!el){ return; }
+      var isGreen = id.toLowerCase().indexOf('green') >= 0;
+      el.classList.toggle('active', isGreen ? theme === 'green' : theme === 'dark');
+    });
+
+    // Hard fallback: even if CSS variables fail, colors still change.
+    if(theme === 'green'){
+      document.body.style.background = '#edf7ed';
+      document.body.style.color = '#12351f';
+    }else{
+      document.body.style.background = '#0f172a';
+      document.body.style.color = '#e5e7eb';
+    }
+  };
+
+  function bindThemeButtons(){
+    [
+      ['themeDark','dark'],
+      ['themeGreen','green'],
+      ['floatThemeDark','dark'],
+      ['floatThemeGreen','green']
+    ].forEach(function(pair){
+      var el = byId(pair[0]);
+      if(el){
+        el.onclick = function(ev){
+          if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+          window.setLoveTheme(pair[1]);
+          return false;
+        };
+      }
+    });
+  }
+
+  function init(){
+    bindThemeButtons();
+    var saved = 'dark';
+    try { saved = localStorage.getItem('loveTheme') || 'dark'; } catch(e) {}
+    window.setLoveTheme(saved);
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  }else{
+    init();
+  }
 })();
-function setLoveTheme(theme){
-  if(theme !== 'green'){ theme = 'dark'; }
-  document.body.classList.remove('theme-dark','theme-green');
-  document.body.classList.add('theme-' + theme);
-  localStorage.setItem('loveTheme', theme);
-  var ids = ['themeDark','themeGreen','floatThemeDark','floatThemeGreen'];
-  ids.forEach(function(id){
-    var el = document.getElementById(id);
-    if(!el){ return; }
-    var isGreen = id.toLowerCase().indexOf('green') >= 0;
-    el.classList.toggle('active', isGreen ? theme === 'green' : theme === 'dark');
-  });
-}
 </script>
 </body>
 </html>
@@ -11041,7 +11085,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.15.0-web-theme-floating-final"
+LOVE_SCRIPT_VERSION="Love v13.16.0-web-theme-js-fix-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -11336,17 +11380,23 @@ web_admin_page() {
     table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
     td,th{border-bottom:1px solid var(--border);padding:10px;text-align:left}
     th{color:var(--yellow)}
+    body.theme-green .hero{background:linear-gradient(135deg,#1b5e20,#81c784)!important;}
+    body.theme-green .card, body.theme-green table, body.theme-green .themebar{background:#ffffff!important;color:#12351f!important;}
+    body.theme-green code, body.theme-green pre{background:#f2fff2!important;color:#12351f!important;}
+    body.theme-green h2{color:#1b5e20!important;}
+    body.theme-green a{color:#0f766e!important;}
+
   </style>
 </head>
 <body class="theme-dark">
 <div class="floating-theme" title="切换 Web 页面主题">
-  <button type="button" id="floatThemeDark" onclick="setLoveTheme('dark')">深色</button>
-  <button type="button" id="floatThemeGreen" onclick="setLoveTheme('green')">护眼绿</button>
+  <button type="button" id="floatThemeDark" onclick="setLoveTheme('dark')">深色主题</button>
+  <button type="button" id="floatThemeGreen" onclick="setLoveTheme('green')">绿色护眼</button>
 </div>
 <div class="wrap">
   <div class="hero">
     <h1>Love Admin Panel</h1>
-    <div>Status: <span class="ok">OK</span></div>
+    <div>Status: <span class="ok">OK</span> · Theme Switch: <span class="ok">Enabled</span></div>
     <div class="muted">这是静态管理页，只展示节点、订阅、二维码、下载入口；不会在浏览器执行 root 命令。</div>
     <div class="muted">Base URL: ${base}</div>
   </div>
