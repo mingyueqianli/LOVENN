@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v11.0.0-wireproxy-direct-download"
+VERSION="Love v11.1.0-wireproxy-service-check"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -5371,7 +5371,7 @@ love_download_latest_wireproxy() {
   rm -rf "$tmp"
   mkdir -p "$tmp"
 
-  url="https://github.com/whyvl/wireproxy/releases/download/v1.0.9/wireproxy_linux_${arch}.tar.gz"
+  url="https://github.com/pufferffish/wireproxy/releases/download/v1.0.9/wireproxy_linux_${arch}.tar.gz"
 
   warn "尝试直接下载 WireProxy：$url"
   if ! curl -6 -L --connect-timeout 25 --retry 2 -o "$tmp/wireproxy.asset" "$url"; then
@@ -5449,7 +5449,15 @@ EOF
   sleep 3
 
   systemctl status love-wireproxy.service --no-pager || true
-  ss -lntp | grep ":${port}" || true
+
+  if ! ss -lntp | grep -q ":${port}"; then
+    warn "WireProxy 未监听 127.0.0.1:${port}，输出最近日志："
+    journalctl -u love-wireproxy.service -n 80 -l --no-pager || true
+    warn "WireProxy 启动失败，暂不修改 sing-box 出站，避免把流量切到不可用端口。"
+    return 1
+  fi
+
+  log "WireProxy 已监听：127.0.0.1:${port}"
 
   if [[ "$use_sb" =~ ^[Yy]$ ]]; then
     love_singbox_route_via_warp_proxy "$port"
@@ -6840,6 +6848,12 @@ main() {
       ;;
     wireproxy-install|warp-wireproxy-install)
       love_download_latest_wireproxy
+      ;;
+    wireproxy-status|warp-wireproxy-status)
+      command -v wireproxy || true
+      systemctl status love-wireproxy.service --no-pager || true
+      journalctl -u love-wireproxy.service -n 80 -l --no-pager || true
+      ss -lntp | grep -E ":(40001|40000)" || true
       ;;
     warp-g|warp-global)
       love_warp_global_toggle_menu
