@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v10.8.0-warp-stack-menu"
+VERSION="Love v10.9.0-wireproxy-deps-fix"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -5261,9 +5261,19 @@ love_warp_super_status() {
 # V10.6 WARP All Modes: 4 / 6 / d / c / l / w / g / s
 # ------------------------------------------------------------------------------
 
+
+love_install_optional_dns_resolver() {
+  # WireProxy does not require openresolv. It is only useful for wg-quick DNS handling.
+  # Some Ubuntu/Virtuozzo templates do not provide openresolv, so never fail here.
+  apt install -y openresolv >/dev/null 2>&1 || \
+  apt install -y resolvconf >/dev/null 2>&1 || \
+  warn "openresolv/resolvconf 不可用，已跳过；WireProxy 模式不依赖它。"
+}
+
 love_wgcf_prepare_profile() {
   apt update
-  apt install -y curl jq wireguard-tools iproute2 openresolv ca-certificates file unzip
+  apt install -y curl jq wireguard-tools iproute2 ca-certificates file unzip
+  love_install_optional_dns_resolver
 
   if ! command -v wgcf >/dev/null 2>&1; then
     love_download_latest_wgcf
@@ -5397,7 +5407,11 @@ love_warp_wireproxy_mode() {
   love_wgcf_prepare_profile
 
   if ! command -v wireproxy >/dev/null 2>&1; then
-    love_download_latest_wireproxy
+    love_download_latest_wireproxy || {
+      warn "wireproxy 自动下载失败。可能是 GitHub API/DNS 暂时不可用。"
+      warn "可先确认 WARP/网络后重试：Love warp w"
+      return 1
+    }
   fi
 
   mkdir -p /etc/wireproxy
@@ -5783,7 +5797,8 @@ love_wireguard_go_fallback() {
   warn "这是 WireGuard userspace fallback，不调用第三方 WARP 脚本。"
 
   apt update
-  apt install -y wireguard-tools wireguard-go resolvconf openresolv || true
+  apt install -y wireguard-tools wireguard-go || true
+  love_install_optional_dns_resolver
 
   if ! command -v wireguard-go >/dev/null 2>&1; then
     warn "系统源没有 wireguard-go。将继续使用 wireguard-tools 或建议使用 WireProxy。"
@@ -6225,7 +6240,8 @@ love_install_wgcf_wireguard() {
   [[ "$ok" =~ ^[Yy]$ ]] || return 0
 
   apt update
-  apt install -y curl jq wireguard-tools iproute2 openresolv ca-certificates file unzip
+  apt install -y curl jq wireguard-tools iproute2 ca-certificates file unzip
+  love_install_optional_dns_resolver
 
   if ! command -v wgcf >/dev/null 2>&1; then
     love_download_latest_wgcf
@@ -6812,6 +6828,11 @@ main() {
       ;;
     warp-w|wireproxy)
       love_warp_wireproxy_mode
+      ;;
+    warp-fix-deps)
+      apt update || true
+      apt install -y curl jq wireguard-tools iproute2 ca-certificates file unzip tar
+      love_install_optional_dns_resolver
       ;;
     warp-g|warp-global)
       love_warp_global_toggle_menu
