@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.21.0-singbox-no-sb-source-final"
+VERSION="Love v13.28.0-disk-guard-stable-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -2202,7 +2202,7 @@ EOF
   log "二维码已生成：${LOVE_SUB}/qr/"
   ls -lah "${LOVE_SUB}/qr/" || true
 
-  [[ "$1" == "quiet" ]] && return 0
+  [[ "${1:-}" == "quiet" ]] && return 0
 
   [[ -f "${LOVE_SUB}/qr/node-1.ansi" ]] && { echo; echo "第一个节点二维码："; cat "${LOVE_SUB}/qr/node-1.ansi"; }
 }
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.21.0-singbox-no-sb-source-final"
+LOVE_SCRIPT_VERSION="Love v13.28.0-disk-guard-stable-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -12314,6 +12314,281 @@ main() {
     *)
       love_original_main_v1321 "$@"
       ;;
+  esac
+}
+
+
+
+# ==============================================================================
+# Love v13.28 Disk Guard Stable Final
+# Prevent /opt/Love/subscribe from growing to GB.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.28.0-disk-guard-stable-final"
+
+love_avail_mb_v1328() { df -Pm / 2>/dev/null | awk 'NR==2{print $4+0}'; }
+love_dir_mb_v1328() { du -sm "$1" 2>/dev/null | awk '{print $1+0}'; }
+
+love_disk_guard_v1328() {
+  local min="${1:-200}" avail
+  avail="$(love_avail_mb_v1328)"
+  if [[ -z "$avail" || "$avail" -lt "$min" ]]; then
+    echo "[ERROR] 根分区剩余空间不足：${avail:-0} MB，至少需要 ${min} MB。"
+    echo "先执行：Love clean-cache，然后检查 df -h。"
+    return 1
+  fi
+  return 0
+}
+
+love_clean_generated_cache_v1328() {
+  love_menu_title "Love 安全清理生成缓存" "Disk Guard"
+  echo "只清理可重新生成的缓存，不删除真实节点配置。"
+  echo "保留 /etc/sing-box/config.json、/opt/Love/Love.sh、/opt/Love/client-info。"
+  echo
+
+  mkdir -p /root/love-safe-backup
+  cp -a /opt/Love/Love.sh /root/love-safe-backup/Love.sh.bak 2>/dev/null || true
+  cp -a /opt/Love/client-info /root/love-safe-backup/client-info.bak 2>/dev/null || true
+  cp -a /opt/Love/subscribe/all.txt /root/love-safe-backup/all.txt.bak 2>/dev/null || true
+  cp -a /opt/Love/subscribe/all_base64.txt /root/love-safe-backup/all_base64.txt.bak 2>/dev/null || true
+
+  rm -f /opt/Love/subscribe/clients/sed*
+  rm -f /opt/Love/subscribe/clients/推荐节点.txt
+  rm -f /opt/Love/subscribe/clients/节点清晰版.txt
+  rm -f /opt/Love/subscribe/clients/nodes-clean.txt
+  rm -f /opt/Love/subscribe/clients/all-clean-uri.txt
+  rm -f /opt/Love/subscribe/推荐节点.txt
+  rm -f /opt/Love/subscribe/节点清晰版.txt
+  rm -f /opt/Love/subscribe/nodes-clean.txt
+  rm -f /opt/Love/subscribe/all-clean-uri.txt
+  find /opt/Love/subscribe/clients -type f -size +10M -print -delete 2>/dev/null || true
+  find /opt/Love/subscribe -maxdepth 1 -type f \( -name "*.png" -o -name "*.svg" -o -name "*.html" -o -name "*.yaml" -o -name "*.zip" -o -name "*.tar.gz" \) -print -delete 2>/dev/null || true
+  rm -rf /opt/Love/subscribe/qr/*
+  rm -rf /var/www/love-admin/*
+  rm -rf /opt/Love/backup/* /opt/Love/snapshots/* /opt/Love/release/* /opt/Love/reports/* /opt/Love/logs/* /opt/Love/import/* /opt/Love/nginx/*
+  apt clean >/dev/null 2>&1 || true
+  journalctl --vacuum-size=30M >/dev/null 2>&1 || true
+  truncate -s 0 /var/log/syslog 2>/dev/null || true
+  truncate -s 0 /var/log/auth.log 2>/dev/null || true
+  truncate -s 0 /var/log/nginx/access.log 2>/dev/null || true
+  truncate -s 0 /var/log/nginx/error.log 2>/dev/null || true
+  sync
+  df -h
+  du -xhd1 /opt/Love 2>/dev/null | sort -h || true
+}
+
+love_disk_check_v1328() {
+  love_menu_title "Love 磁盘检查" "Disk / Subscribe / Big files"
+  df -h /
+  echo
+  df -i /
+  echo
+  du -xhd1 /opt/Love 2>/dev/null | sort -h || true
+  echo
+  find /opt/Love -xdev -type f -size +5M -printf '%s %p\n' 2>/dev/null | sort -n | tail -30 || true
+}
+
+love_fix_line_v1328() {
+  local line="$1"
+  line="${line//$'\r'/}"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+  if [[ "$line" == vless://*":50006"* ]]; then
+    [[ "$line" != *"allowInsecure=1"* ]] && line="${line//#/&allowInsecure=1#}"
+    [[ "$line" != *"insecure=1"* ]] && line="${line//#/&insecure=1#}"
+  fi
+  if [[ "$line" == tuic://*":50002"* ]]; then
+    [[ "$line" != *"allow_insecure=1"* ]] && line="${line//#/&allow_insecure=1#}"
+    [[ "$line" != *"allowInsecure=1"* ]] && line="${line//#/&allowInsecure=1#}"
+    [[ "$line" != *"insecure=1"* ]] && line="${line//#/&insecure=1#}"
+  fi
+  echo "$line"
+}
+
+love_label_v1328() {
+  local line="$1"
+  case "$line" in
+    vless://*:50000*) echo "01-LOVE-REALITY-50000【推荐｜TCP｜无域名首选】" ;;
+    hysteria2://*:50001*|hy2://*:50001*) echo "02-LOVE-HY2-50001【推荐｜UDP｜速度优先】" ;;
+    hysteria2://*:30001*|hy2://*:30001*) echo "03-LOVE-HY2-30001【旧节点｜UDP｜保留兼容】" ;;
+    tuic://*:50002*) echo "04-LOVE-TUIC-50002【备用｜UDP｜建议 sing-box/NekoBox】" ;;
+    ss://*:50003*) echo "05-LOVE-SS-50003【兼容｜TCP/UDP】" ;;
+    trojan://*:50004*) echo "06-LOVE-TROJAN-50004【兼容｜TCP｜TLS】" ;;
+    vmess://*) echo "07-LOVE-VMESS-WS-50005【兼容｜TCP｜WS】" ;;
+    vless://*:50006*) echo "08-LOVE-VLESS-WS-TLS-50006【备用｜TCP｜自签需允许不安全】" ;;
+    vless://*:50007*) echo "09-LOVE-H2-REALITY-50007【高级｜TCP】" ;;
+    vless://*:50008*) echo "10-LOVE-GRPC-REALITY-50008【高级｜TCP】" ;;
+    anytls://*:50009*) echo "11-LOVE-ANYTLS-50009【高级｜TCP】" ;;
+    https://*:50010*|naive+https://*:50010*) echo "12-LOVE-NAIVE-50010【高级｜TCP】" ;;
+    shadowtls://*:50011*) echo "13-LOVE-SHADOWTLS-50011【高级｜TCP】" ;;
+    *) echo "${line##*#}" ;;
+  esac
+}
+
+love_set_label_v1328() {
+  local line="$1" label
+  label="$(love_label_v1328 "$line")"
+  [[ "$line" == *"#"* ]] && echo "${line%%#*}#${label}" || echo "${line}#${label}"
+}
+
+love_collect_links_safe_v1328() {
+  grep -hE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' \
+    /opt/Love/client-info/xray-client-info.txt \
+    /opt/Love/client-info/sing-box-client-info.txt \
+    /opt/Love/node_info.txt \
+    2>/dev/null | sed 's/\r$//' | awk '!seen[$0]++' || true
+}
+
+love_sub_safe_v1328() {
+  love_menu_title "Love 订阅安全导出" "Stable / Disk Guard / No Recursion"
+  love_disk_guard_v1328 200 || return 1
+  mkdir -p /opt/Love/subscribe /opt/Love/subscribe/clients
+  local raw="/opt/Love/subscribe/all.txt" b64="/opt/Love/subscribe/all_base64.txt" html="/opt/Love/subscribe/index.html" yaml="/opt/Love/subscribe/clash_like.yaml" tmp="/tmp/love_sub_safe.$$"
+
+  echo "[1/4] 从 client-info 收集节点，不读取 subscribe/clients 输出目录..."
+  : > "$tmp"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    love_set_label_v1328 "$(love_fix_line_v1328 "$line")" >> "$tmp"
+  done < <(love_collect_links_safe_v1328)
+  awk '!seen[$0]++' "$tmp" > "$raw"
+  rm -f "$tmp"
+
+  cp -f "$raw" /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/nekobox-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/sing-box-uri.txt 2>/dev/null || true
+
+  echo "[2/4] 生成 Base64..."
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then base64 -w0 "$raw" > "$b64" 2>/dev/null || true; else base64 "$raw" | tr -d '\n' > "$b64" 2>/dev/null || true; fi
+
+  echo "[3/4] 生成简易 HTML / YAML..."
+  { echo "<!doctype html><html><head><meta charset='utf-8'><title>Love Subscription</title></head><body><pre>"; sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g' "$raw"; echo "</pre></body></html>"; } > "$html"
+  { echo "# Love URI subscription list"; echo "links:"; awk '{gsub(/"/,"\\\""); print "  - \"" $0 "\""}' "$raw"; } > "$yaml"
+
+  echo "[4/4] 生成小型 TXT 速查..."
+  love_txt_safe_v1328 >/dev/null 2>&1 || true
+
+  echo
+  log "订阅安全导出完成："
+  echo "Raw:    $raw"
+  echo "Base64: $b64"
+  echo "HTML:   $html"
+  echo "TXT:    /opt/Love/subscribe/推荐节点.txt"
+
+  local sub_mb; sub_mb="$(love_dir_mb_v1328 /opt/Love/subscribe)"
+  if [[ "$sub_mb" -gt 100 ]]; then
+    warn "/opt/Love/subscribe 已超过 ${sub_mb} MB，自动清理异常缓存。"
+    love_clean_generated_cache_v1328
+  fi
+}
+
+love_txt_safe_v1328() {
+  love_disk_guard_v1328 100 || return 1
+  mkdir -p /opt/Love/subscribe
+  local raw="/opt/Love/subscribe/all.txt" clean="/opt/Love/subscribe/节点清晰版.txt" rec="/opt/Love/subscribe/推荐节点.txt" all="/opt/Love/subscribe/all-clean-uri.txt" simple="/opt/Love/subscribe/nodes-clean.txt"
+  [[ -s "$raw" ]] || love_sub_safe_v1328 >/dev/null 2>&1 || true
+  : > "$clean"; : > "$rec"; : > "$all"; : > "$simple"
+  { echo "Love 节点清晰版 / Clean Node List"; echo "生成时间: $(date)"; echo "说明：全部节点都保留；推荐节点只是精选入口，不代表删除其他节点。"; echo; echo "================ 推荐节点 ================"; } >> "$clean"
+  echo "# Love 推荐节点 / Recommended" >> "$rec"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    fixed="$(love_set_label_v1328 "$(love_fix_line_v1328 "$line")")"
+    echo "$fixed" >> "$all"
+    case "$fixed" in
+      *"REALITY-50000"*|*"HY2-50001"*|*"HY2-30001"*|*"TROJAN-50004"*|*"VLESS-WS-TLS-50006"*)
+        echo "$fixed" >> "$rec"; { echo; echo "【${fixed##*#}】"; echo "$fixed"; } >> "$clean" ;;
+    esac
+  done < "$raw"
+  { echo; echo "================ 全部节点 ================"; cat "$all"; } >> "$clean"
+  { echo "推荐节点："; cat "$rec"; echo; echo "全部节点："; cat "$all"; } > "$simple"
+  mkdir -p /opt/Love/subscribe/clients
+  cat > /opt/Love/subscribe/clients/READ_ME_TXT位置.txt <<EOF
+TXT 文件在：
+/opt/Love/subscribe/推荐节点.txt
+/opt/Love/subscribe/节点清晰版.txt
+/opt/Love/subscribe/all-clean-uri.txt
+EOF
+  log "TXT 安全生成完成："
+  echo "  $rec"
+  echo "  $clean"
+  echo "  $all"
+}
+
+web_admin_page() {
+  love_menu_title "Love Web 管理页" "Safe / No Auto Generate"
+  love_disk_guard_v1328 100 || return 1
+  local web_port auth user pass webroot conf host base
+  read -rp "Web 管理页端口 [8099]: " web_port; web_port="${web_port:-8099}"; [[ "$web_port" =~ ^[0-9]+$ ]] || web_port="8099"
+  read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " auth; auth="${auth:-Y}"
+  user="love"; pass=""
+  if [[ "$auth" =~ ^[Yy]$ ]]; then read -rp "Web 用户名 [love]: " user; user="${user:-love}"; read -rp "Web 密码，留空自动生成: " pass; [[ -z "$pass" ]] && pass="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"; fi
+  webroot="/var/www/love-admin"; conf="/etc/nginx/sites-available/love-admin"
+  command -v nginx >/dev/null 2>&1 || { echo "[ERROR] nginx 未安装。"; return 1; }
+  [[ "$auth" =~ ^[Yy]$ ]] && ! command -v htpasswd >/dev/null 2>&1 && { echo "[ERROR] htpasswd 未安装。"; return 1; }
+  rm -rf "$webroot"; rm -f /etc/nginx/sites-enabled/love-admin /etc/nginx/sites-available/love-admin 2>/dev/null || true
+  mkdir -p "$webroot/sub" "$webroot/qr" "$webroot/clients" "$webroot/downloads" /etc/nginx/sites-available /etc/nginx/sites-enabled
+  cp -a /opt/Love/subscribe/. "$webroot/sub/" 2>/dev/null || true
+  cp -a /opt/Love/subscribe/qr/. "$webroot/qr/" 2>/dev/null || true
+  cp -a /opt/Love/subscribe/clients/. "$webroot/clients/" 2>/dev/null || true
+  host="$(ip -6 addr show scope global 2>/dev/null | awk '/inet6/{print $2}' | cut -d/ -f1 | head -n1)"
+  [[ -n "$host" ]] && base="http://[${host}]:${web_port}" || base="http://YOUR_SERVER_IP:${web_port}"
+  cp -f /opt/Love/subscribe/all.txt "$webroot/node-links.txt" 2>/dev/null || true
+  cat > "$webroot/index.html" <<EOF
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love Admin Panel</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;background:#edf7ed;color:#12351f;margin:0;padding:24px}.wrap{max-width:1000px;margin:auto}.hero{background:linear-gradient(135deg,#1b5e20,#81c784);padding:24px;border-radius:20px;color:white}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:18px}.card{background:white;border:1px solid #b9d8bd;border-radius:16px;padding:16px}a{color:#0f766e;word-break:break-all}.btn{display:inline-block;background:#2e7d32;color:white;padding:9px 12px;border-radius:10px;margin:4px 4px 4px 0;text-decoration:none}pre{background:#f2fff2;padding:12px;border-radius:12px;white-space:pre-wrap}</style></head>
+<body><div class="wrap"><div class="hero"><h1>Love Admin Panel</h1><p>Status: OK · Safe Web · Port: ${web_port}</p><p>${base}</p></div>
+<h2>清晰 TXT / 推荐导入</h2><div class="grid"><div class="card"><h3>推荐节点</h3><a class="btn" href="/sub/推荐节点.txt">下载 推荐节点.txt</a></div><div class="card"><h3>节点清晰版</h3><a class="btn" href="/sub/节点清晰版.txt">下载 节点清晰版.txt</a></div><div class="card"><h3>全部节点</h3><a class="btn" href="/sub/all-clean-uri.txt">下载 all-clean-uri.txt</a></div></div>
+<h2>订阅 / 二维码</h2><div class="grid"><div class="card"><h3>Raw 订阅</h3><a class="btn" href="/sub/all.txt">打开 all.txt</a></div><div class="card"><h3>Base64</h3><a class="btn" href="/sub/all_base64.txt">打开 all_base64.txt</a></div><div class="card"><h3>二维码</h3><a class="btn" href="/qr/">打开 QR 目录</a></div></div>
+<h2>常用命令</h2><pre>Love clean-cache
+Love disk-check
+Love sub
+Love qr
+Love txt
+Love web</pre></div></body></html>
+EOF
+  if [[ "$auth" =~ ^[Yy]$ ]]; then htpasswd -bc /etc/nginx/.love_web_htpasswd "$user" "$pass" >/dev/null || return 1; else rm -f /etc/nginx/.love_web_htpasswd; fi
+  cat > "$conf" <<EOF
+server {
+    listen ${web_port};
+    listen [::]:${web_port};
+    server_name _;
+    root ${webroot};
+    index index.html;
+    autoindex on;
+    charset utf-8;
+EOF
+  if [[ "$auth" =~ ^[Yy]$ ]]; then cat >> "$conf" <<EOF
+    auth_basic "Love Admin";
+    auth_basic_user_file /etc/nginx/.love_web_htpasswd;
+EOF
+  fi
+  cat >> "$conf" <<'EOF'
+    location / {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        try_files $uri $uri/ =404;
+    }
+}
+EOF
+  ln -sf "$conf" /etc/nginx/sites-enabled/love-admin
+  nginx -t || { cat "$conf"; return 1; }
+  systemctl restart nginx || return 1
+  echo; log "Love Web Panel 已生成。"; echo "访问地址：${base}/?v=128"; [[ "$auth" =~ ^[Yy]$ ]] && { echo "用户名：${user}"; echo "密码：${pass}"; }
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1328 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1328/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.28.0-disk-guard-stable-final}"
+  case "${1:-}" in
+    sub|subscription) love_sub_safe_v1328 ;;
+    txt|node-txt|clean-txt|nodes-clean) love_txt_safe_v1328 ;;
+    clean-cache|disk-clean|clean) love_clean_generated_cache_v1328 ;;
+    disk-check|check-disk) love_disk_check_v1328 ;;
+    *) love_original_main_v1328 "$@" ;;
   esac
 }
 
