@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.32.0-final-unified-stable"
+VERSION="Love v13.33.0-start-menu-safe-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.32.0-final-unified-stable"
+LOVE_SCRIPT_VERSION="Love v13.33.0-start-menu-safe-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -13506,5 +13506,99 @@ main() {
   esac
 }
 
+
+
+# ==============================================================================
+# Love v13.33 Start Menu Safe Final
+# Fix:
+#   Fresh VPS: bash <(wget ...) installed successfully but stopped after title.
+#   Love / love returned no visible menu on some systems.
+# Reason:
+#   Old main menu status panel had external checks and set -e sensitive calls.
+#   On minimal VPS this could exit before drawing menu.
+# ==============================================================================
+LOVE_SCRIPT_VERSION="Love v13.33.0-start-menu-safe-final"
+
+love_service_state_v1333() {
+  local svc="$1"
+  if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet "$svc" 2>/dev/null; then
+    echo "active"
+  else
+    echo "not active"
+  fi
+}
+
+love_main_status_panel_v13() {
+  local sb ng wp final os virt arch sub_count cfg_ok
+  sb="$(love_service_state_v1333 sing-box)"
+  ng="$(love_service_state_v1333 nginx)"
+  wp="$(love_service_state_v1333 love-wireproxy.service)"
+  os="$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}" || echo unknown)"
+  arch="$(uname -m 2>/dev/null || echo unknown)"
+  virt="$(systemd-detect-virt 2>/dev/null || echo unknown)"
+
+  if [[ -s /etc/sing-box/config.json ]] && command -v jq >/dev/null 2>&1; then
+    final="$(jq -r '.route.final // "unknown"' /etc/sing-box/config.json 2>/dev/null || echo unknown)"
+    cfg_ok="yes"
+  else
+    final="unknown"
+    cfg_ok="no"
+  fi
+
+  sub_count="$(grep -cE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0)"
+
+  printf "%b系统状态%b\n" "$(lc green)" "$(lc reset)"
+  printf "  %-22s %s\n" "OS:" "$os"
+  printf "  %-22s %s / %s\n" "Arch/Virt:" "$arch" "$virt"
+  printf "  %-22s %s\n" "config.json:" "$cfg_ok"
+  printf "  %-22s %s\n" "订阅节点:" "$sub_count"
+  love_ui_status_line "sing-box:" "$sb"
+  love_ui_status_line "nginx web:" "$ng"
+  love_ui_status_line "WireProxy:" "$wp"
+  printf "  %-22s %b%s%b\n" "route.final:" "$(lc cyan)" "$final" "$(lc reset)"
+  printf "  %b说明：此面板不再做外网 curl 探测，避免新 VPS 首次启动卡住或提前退出。%b\n" "$(lc gray)" "$(lc reset)"
+  echo
+}
+
+love_bootstrap_check_v1333() {
+  local f="/opt/Love/Love.sh"
+  if [[ ! -s "$f" ]]; then
+    echo "[ERROR] $f 不存在或是 0 字节。请重新下载 Love.sh。"
+    return 1
+  fi
+  bash -n "$f" || return 1
+  return 0
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1333 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1333/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.33.0-start-menu-safe-final}"
+
+  case "${1:-}" in
+    ""|menu)
+      need_root
+      prepare_dirs
+      fix_hostname
+      check_os_soft
+      install_shortcut
+      main_menu
+      ;;
+    singbox|sing-box|sb)
+      install_singbox_native
+      ;;
+    xray|reality|hy2|xray-hy2)
+      install_xray_stable
+      ;;
+    boot-check|start-check)
+      love_bootstrap_check_v1333
+      ;;
+    *)
+      love_original_main_v1333 "$@"
+      ;;
+  esac
+}
 
 main "$@"
