@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.33.0-start-menu-safe-final"
+VERSION="Love v13.37.0-domain-selfsigned-aware-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.33.0-start-menu-safe-final"
+LOVE_SCRIPT_VERSION="Love v13.37.0-domain-selfsigned-aware-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -13597,6 +13597,1052 @@ main() {
       ;;
     *)
       love_original_main_v1333 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.34 Dual Stack Final
+# Goal:
+#   Keep Xray Reality+HY2 on 443 and sing-box full protocols on 38xxx together.
+#   Generate correct links at source; no post-delete / no generated-file recursion.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.34.0-dual-stack-final"
+
+love_uri_has_param_v1334() {
+  local line="$1" key="$2"
+  [[ "$line" == *"?${key}="* || "$line" == *"&${key}="* ]]
+}
+
+love_uri_add_param_v1334() {
+  local line="$1" key="$2" val="${3:-true}" pre frag sep
+  love_uri_has_param_v1334 "$line" "$key" && { echo "$line"; return; }
+  if [[ "$line" == *"#"* ]]; then
+    pre="${line%%#*}"
+    frag="#${line#*#}"
+  else
+    pre="$line"
+    frag=""
+  fi
+  [[ "$pre" == *"?"* ]] && sep="&" || sep="?"
+  echo "${pre}${sep}${key}=${val}${frag}"
+}
+
+love_uri_fix_v1334() {
+  local line="$1"
+  line="${line//$'\r'/}"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+  line="${line//allow_insecure=1/allow_insecure=true}"
+  line="${line//allowInsecure=1/allowInsecure=true}"
+  line="${line//insecure=1/insecure=true}"
+
+  # TUIC: both old 50002 and new 38002 use QUIC h3 and self-signed compatibility flags.
+  if [[ "$line" == tuic://*":50002"* || "$line" == tuic://*":38002"* ]]; then
+    line="$(love_uri_add_param_v1334 "$line" "alpn" "h3")"
+    line="$(love_uri_add_param_v1334 "$line" "allow_insecure" "true")"
+    line="$(love_uri_add_param_v1334 "$line" "allowInsecure" "true")"
+    line="$(love_uri_add_param_v1334 "$line" "insecure" "true")"
+  fi
+
+  # VLESS WS TLS self-signed ports.
+  if [[ "$line" == vless://*":50006"* || "$line" == vless://*":38006"* ]]; then
+    if [[ "$line" == *"security=tls"* && "$line" == *"type=ws"* ]]; then
+      line="$(love_uri_add_param_v1334 "$line" "allowInsecure" "true")"
+      line="$(love_uri_add_param_v1334 "$line" "insecure" "true")"
+    fi
+  fi
+
+  # Trojan self.local certificate compatibility.
+  if [[ "$line" == trojan://* && "$line" == *"sni=self.local"* ]]; then
+    line="$(love_uri_add_param_v1334 "$line" "allowInsecure" "true")"
+  fi
+
+  echo "$line"
+}
+
+love_collect_dual_uris_v1334() {
+  # Source/caches only; never read generated TXT in subscribe/clients.
+  grep -hE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' \
+    /opt/Love/client-info/xray-client-info.txt \
+    /opt/Love/client-info/sing-box-client-info.txt \
+    /opt/Love/node_info.txt \
+    /opt/Love/subscribe/all.txt \
+    2>/dev/null | sed 's/\r$//' || true
+}
+
+love_sub_dual_final_v1334() {
+  love_menu_title "Love 订阅双栈最终导出" "Xray 443 + sing-box Full"
+
+  love_disk_guard_v1328 200 || return 1
+
+  # Sync sing-box from real config first if function exists.
+  if declare -F love_sync_v1332 >/dev/null 2>&1; then
+    love_sync_v1332 >/dev/null 2>&1 || true
+  fi
+
+  mkdir -p /opt/Love/subscribe /opt/Love/subscribe/clients
+
+  local raw="/opt/Love/subscribe/all.txt"
+  local b64="/opt/Love/subscribe/all_base64.txt"
+  local html="/opt/Love/subscribe/index.html"
+  local yaml="/opt/Love/subscribe/clash_like.yaml"
+  local tmp="/tmp/love_dual_sub.$$"
+
+  echo "[1/4] 收集 Xray 443 + sing-box 全协议节点..."
+  : > "$tmp"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    love_uri_fix_v1334 "$line" >> "$tmp"
+  done < <(love_collect_dual_uris_v1334)
+
+  awk '!seen[$0]++' "$tmp" > "$raw"
+  rm -f "$tmp"
+
+  cp -f "$raw" /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/nekobox-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/sing-box-uri.txt 2>/dev/null || true
+
+  echo "[2/4] 生成 Base64..."
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0 "$raw" > "$b64" 2>/dev/null || true
+  else
+    base64 "$raw" | tr -d '\n' > "$b64" 2>/dev/null || true
+  fi
+
+  echo "[3/4] 生成 HTML / YAML..."
+  {
+    echo "<!doctype html><html><head><meta charset='utf-8'><title>Love Subscription</title></head><body><pre>"
+    sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g' "$raw"
+    echo "</pre></body></html>"
+  } > "$html"
+
+  {
+    echo "# Love URI subscription list"
+    echo "# Dual stack: Xray 443 + sing-box full protocols"
+    echo "links:"
+    awk '{gsub(/"/,"\\\""); print "  - \"" $0 "\""}' "$raw"
+  } > "$yaml"
+
+  echo "[4/4] 生成 TXT..."
+  if declare -F love_txt_final_v1332 >/dev/null 2>&1; then
+    love_txt_final_v1332 >/dev/null 2>&1 || true
+  elif declare -F love_txt_source_correct_v1331 >/dev/null 2>&1; then
+    love_txt_source_correct_v1331 >/dev/null 2>&1 || true
+  fi
+
+  echo
+  log "双栈订阅导出完成："
+  echo "订阅节点行数：$(grep -cE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' "$raw" 2>/dev/null || echo 0)"
+  echo "Raw:    $raw"
+  echo "Base64: $b64"
+  echo
+  echo "关键节点检查："
+  grep -nE '443|38000|38001|38002|38003|38004|38005|38006|REALITY|HY2|TUIC|TROJAN|VLESS-WS-TLS' "$raw" 2>/dev/null || true
+}
+
+love_ports_v1334() {
+  love_menu_title "Love 自动放行端口" "config.json + xray 443 + web"
+
+  echo "将按当前服务自动放行："
+  echo "1) sing-box config.json 入站端口"
+  echo "2) xray 监听端口，例如 443/tcp + 443/udp"
+  echo "3) Web 8099/tcp"
+  echo
+
+  if ! command -v ufw >/dev/null 2>&1; then
+    echo "[INFO] ufw 未安装，系统防火墙可能默认开放。"
+    echo "注意：服务商后台安全组仍需手动放行。"
+    return 0
+  fi
+
+  # Open sing-box ports.
+  if [[ -s /etc/sing-box/config.json ]] && command -v jq >/dev/null 2>&1; then
+    jq -r '.inbounds[]? | [.tag,.type,.listen_port] | @tsv' /etc/sing-box/config.json
+    while IFS=$'\t' read -r tag typ port; do
+      [[ -n "$port" ]] || continue
+      case "$typ" in
+        hysteria2|tuic) ufw allow "${port}/udp" >/dev/null 2>&1 || true; echo "[OK] $tag $typ ${port}/udp" ;;
+        shadowsocks|naive) ufw allow "${port}/tcp" >/dev/null 2>&1 || true; ufw allow "${port}/udp" >/dev/null 2>&1 || true; echo "[OK] $tag $typ ${port}/tcp+udp" ;;
+        *) ufw allow "${port}/tcp" >/dev/null 2>&1 || true; echo "[OK] $tag $typ ${port}/tcp" ;;
+      esac
+    done < <(jq -r '.inbounds[]? | [.tag,.type,.listen_port] | @tsv' /etc/sing-box/config.json)
+  fi
+
+  # Open xray listening ports from ss output.
+  local xp
+  for xp in $(ss -lntup 2>/dev/null | awk '/xray/ {print $5}' | sed -E 's/.*:([0-9]+)$/\1/' | sort -nu); do
+    ufw allow "${xp}/tcp" >/dev/null 2>&1 || true
+    ufw allow "${xp}/udp" >/dev/null 2>&1 || true
+    echo "[OK] xray ${xp}/tcp+udp"
+  done
+
+  ufw allow 8099/tcp >/dev/null 2>&1 || true
+  echo "[OK] web 8099/tcp"
+  ufw reload >/dev/null 2>&1 || true
+  ufw status
+}
+
+love_count_v1334() {
+  love_menu_title "Love 节点数量说明" "Subscription vs QR"
+  local raw="/opt/Love/subscribe/all.txt"
+  local sub node total helper
+  sub="$(grep -cE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' "$raw" 2>/dev/null || echo 0)"
+  node="$(find /opt/Love/subscribe/qr -maxdepth 1 -type f -name 'node-*.png' 2>/dev/null | wc -l | tr -d ' ')"
+  total="$(find /opt/Love/subscribe/qr -maxdepth 1 -type f -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+  helper=$((total-node)); [[ "$helper" -lt 0 ]] && helper=0
+  echo "订阅节点行数：$sub"
+  echo "单节点二维码：$node"
+  echo "合集/客户端二维码：$helper"
+  echo "二维码 PNG 总数：$total"
+  echo
+  echo "说明：hysteria2:// 和 hy2:// 可能是同一个 HY2 节点的兼容写法，会占两行。"
+  echo "说明：v2rayn/nekobox/shadowrocket/all/all_base64 是合集二维码，不算独立节点。"
+}
+
+# Override current helpers too.
+love_linkfix_files_v1331() { love_sub_dual_final_v1334; }
+love_linkfix_files_v1330() { love_sub_dual_final_v1334; }
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1334 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1334/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.34.0-dual-stack-final}"
+  case "${1:-}" in
+    sub|subscription) love_sub_dual_final_v1334 ;;
+    link-fix|client-fix|fix-links) love_sub_dual_final_v1334 ;;
+    ports|open-ports|firewall) love_ports_v1334 ;;
+    count|node-count|qr-count) love_count_v1334 ;;
+    *)
+      love_original_main_v1334 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.35 Hard Menu + Dual Stack Final
+# Fix:
+#   - Love / love no output on fresh VPS.
+#   - Force a hard safe menu that does not depend on old status panel.
+#   - Keep Xray 443 Reality+HY2 and sing-box full 38xxx together.
+#   - Generate correct insecure/allowInsecure/allow_insecure at source.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.35.0-hard-menu-dual-stack-final"
+
+love_call_if_exists_v1335() {
+  local fn="$1"; shift || true
+  if declare -F "$fn" >/dev/null 2>&1; then
+    "$fn" "$@"
+  else
+    echo "[WARN] 函数不存在：$fn"
+  fi
+}
+
+love_safe_status_v1335() {
+  local os arch virt sb xr ng sub_count
+  os="$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}" || echo unknown)"
+  arch="$(uname -m 2>/dev/null || echo unknown)"
+  virt="$(systemd-detect-virt 2>/dev/null || echo unknown)"
+  systemctl is-active --quiet sing-box 2>/dev/null && sb="active" || sb="not active"
+  systemctl is-active --quiet xray 2>/dev/null && xr="active" || xr="not active"
+  systemctl is-active --quiet nginx 2>/dev/null && ng="active" || ng="not active"
+  sub_count="$(grep -cE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0)"
+
+  echo "系统状态"
+  printf "  %-22s %s\n" "OS:" "$os"
+  printf "  %-22s %s / %s\n" "Arch/Virt:" "$arch" "$virt"
+  printf "  %-22s %s\n" "订阅节点:" "$sub_count"
+  printf "  %-22s %s\n" "sing-box:" "$sb"
+  printf "  %-22s %s\n" "xray:" "$xr"
+  printf "  %-22s %s\n" "nginx web:" "$ng"
+  echo
+}
+
+love_hard_menu_v1335() {
+  while true; do
+    clear 2>/dev/null || true
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo "Love Node Server Manager ${LOVE_SCRIPT_VERSION:-Love v13.35.0-hard-menu-dual-stack-final}"
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    love_safe_status_v1335
+
+    echo "主菜单"
+    printf "  │ %-36s │ %-36s │\n" "1) 节点目录" "14) v6 Project Tools"
+    printf "  │ %-36s │ %-36s │\n" "2) Xray Reality + HY2" "15) v7 Stable Tools"
+    printf "  │ %-36s │ %-36s │\n" "3) sing-box 全协议" "16) v8 Project Panel"
+    printf "  │ %-36s │ %-36s │\n" "4) Argo 隧道" "17) Nginx Reverse Proxy"
+    printf "  │ %-36s │ %-36s │\n" "5) UDP 端口跳跃" "18) HY2/sing-box 修复"
+    printf "  │ %-36s │ %-36s │\n" "6) WARP 说明" "19) IPv6-only 出站"
+    printf "  │ %-36s │ %-36s │\n" "7) 节点信息 Love -n" "20) WARP Manager / FS"
+    printf "  │ %-36s │ %-36s │\n" "8) 导出订阅 Love sub" "21) 查看运行状态"
+    printf "  │ %-36s │ %-36s │\n" "9) 生成二维码 Love qr" "22) 备份配置"
+    printf "  │ %-36s │ %-36s │\n" "10) Super Tools" "23) 卸载菜单"
+    printf "  │ %-36s │ %-36s │\n" "11) Web 管理页 Love web" "24) GitHub 发布说明"
+    printf "  │ %-36s │ %-36s │\n" "12) 在线更新 / 下载链接" "25) 安装 warp 命令"
+    printf "  │ %-36s │ %-36s │\n" "13) 客户端导出" "0) 退出"
+    echo
+    echo "双栈推荐：2 可保留 Xray 443；3 生成 sing-box 全协议；sub 会合并两边。"
+    echo "常用：Love ports | Love sync | Love sub | Love qr | Love txt | Love web | Love count"
+    echo
+    read -rp "请选择: " choice
+
+    case "${choice}" in
+      1) love_call_if_exists_v1335 show_all_node_catalog ;;
+      2) love_call_if_exists_v1335 install_xray_stable ;;
+      3) love_call_if_exists_v1335 install_singbox_native ;;
+      4) love_call_if_exists_v1335 argo_helper ;;
+      5) love_call_if_exists_v1335 port_hopping_helper ;;
+      6) love_call_if_exists_v1335 warp_helper ;;
+      7) love_call_if_exists_v1335 show_node_info ;;
+      8) love_sub_dual_final_v1334 ;;
+      9) love_call_if_exists_v1335 generate_qrcodes ;;
+      10) love_call_if_exists_v1335 super_menu ;;
+      11) love_call_if_exists_v1335 web_admin_page ;;
+      12) love_call_if_exists_v1335 self_update_love ;;
+      13) love_call_if_exists_v1335 love_full_client_pack ;;
+      14) love_call_if_exists_v1335 v6_super_menu ;;
+      15) love_call_if_exists_v1335 v7_stable_menu ;;
+      16) love_call_if_exists_v1335 v8_menu ;;
+      17) love_call_if_exists_v1335 nginx_rp_menu ;;
+      18) love_call_if_exists_v1335 love_fix_hy2_now ;;
+      19) love_call_if_exists_v1335 love_ipv6_outbound_menu ;;
+      20) love_call_if_exists_v1335 love_warp_manager_menu ;;
+      21) love_call_if_exists_v1335 show_status ;;
+      22) love_call_if_exists_v1335 backup_configs ;;
+      23) love_call_if_exists_v1335 uninstall_menu_v7 ;;
+      24) love_call_if_exists_v1335 github_publish_note ;;
+      25) love_call_if_exists_v1335 love_install_fs_warp_command ;;
+      0) exit 0 ;;
+      *) echo "[WARN] 无效选择。" ;;
+    esac
+
+    echo
+    read -rp "按 Enter 返回主菜单..." _
+  done
+}
+
+love_boot_check_v1335() {
+  echo "==== Love 文件 ===="
+  ls -lh /opt/Love/Love.sh 2>/dev/null || true
+  grep '^VERSION=' /opt/Love/Love.sh 2>/dev/null || true
+  bash -n /opt/Love/Love.sh && echo "[OK] bash -n"
+  echo
+  echo "==== 命令指向 ===="
+  type -a Love 2>/dev/null || true
+  type -a love 2>/dev/null || true
+  readlink -f /usr/local/bin/Love 2>/dev/null || true
+  echo
+  echo "==== 服务 ===="
+  systemctl is-active sing-box 2>/dev/null || true
+  systemctl is-active xray 2>/dev/null || true
+  systemctl is-active nginx 2>/dev/null || true
+  echo
+  echo "==== 监听 ===="
+  ss -lntup | grep -E '443|38000|38001|38002|38003|38004|38005|38006|38007|38008|38009|38010|38011|8099|sing-box|xray' || true
+}
+
+# Hard override old menu/status entry.
+main_menu() {
+  love_hard_menu_v1335
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1335 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1335/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.35.0-hard-menu-dual-stack-final}"
+  case "${1:-}" in
+    ""|menu)
+      need_root 2>/dev/null || true
+      prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_hard_menu_v1335
+      ;;
+    boot-check|start-check|doctor)
+      love_boot_check_v1335
+      ;;
+    singbox|sing-box|sb|all)
+      love_call_if_exists_v1335 install_singbox_native
+      ;;
+    xray|reality|hy2|xray-hy2)
+      love_call_if_exists_v1335 install_xray_stable
+      ;;
+    sub|subscription)
+      love_sub_dual_final_v1334
+      ;;
+    link-fix|client-fix|fix-links)
+      love_sub_dual_final_v1334
+      ;;
+    ports|open-ports|firewall)
+      love_ports_v1334
+      ;;
+    count|node-count|qr-count)
+      love_count_v1334
+      ;;
+    *)
+      love_original_main_v1335 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.36 Domain-Aware Dual Stack Final
+# Full version:
+#   - Hard menu retained.
+#   - Xray 443 + sing-box 38xxx dual stack retained.
+#   - No-domain mode: self.local + insecure flags.
+#   - Domain mode: real domain + real certificate, do NOT add insecure flags.
+#   - Generates correct links at source, not by post-delete/patch.
+#   - Adds domain-check / cert-fix / sync / ports / count.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.36.0-domain-aware-dual-stack-final"
+
+love_uri_get_param_v1336() {
+  local line="$1" key="$2" q
+  q="${line#*\?}"
+  q="${q%%#*}"
+  tr '&' '\n' <<< "$q" | awk -F= -v k="$key" '$1==k{print $2; exit}'
+}
+
+love_is_self_domain_v1336() {
+  local s="${1:-}"
+  [[ -z "$s" || "$s" == "self.local" || "$s" == "localhost" || "$s" == *.local ]]
+}
+
+love_uri_remove_param_v1336() {
+  local line="$1" key="$2"
+  local pre frag base query out item first
+  if [[ "$line" == *"#"* ]]; then
+    frag="#${line#*#}"
+    pre="${line%%#*}"
+  else
+    frag=""
+    pre="$line"
+  fi
+  if [[ "$pre" != *"?"* ]]; then
+    echo "$line"
+    return
+  fi
+  base="${pre%%\?*}"
+  query="${pre#*\?}"
+  out=""
+  first=1
+  while IFS= read -r item; do
+    [[ -z "$item" ]] && continue
+    [[ "${item%%=*}" == "$key" ]] && continue
+    if [[ "$first" -eq 1 ]]; then
+      out="$item"; first=0
+    else
+      out="${out}&${item}"
+    fi
+  done < <(tr '&' '\n' <<< "$query")
+  if [[ -n "$out" ]]; then
+    echo "${base}?${out}${frag}"
+  else
+    echo "${base}${frag}"
+  fi
+}
+
+love_uri_has_param_v1336() {
+  local line="$1" key="$2"
+  [[ "$line" == *"?${key}="* || "$line" == *"&${key}="* ]]
+}
+
+love_uri_add_param_v1336() {
+  local line="$1" key="$2" val="${3:-true}" pre frag sep
+  love_uri_has_param_v1336 "$line" "$key" && { echo "$line"; return; }
+  if [[ "$line" == *"#"* ]]; then
+    pre="${line%%#*}"
+    frag="#${line#*#}"
+  else
+    pre="$line"; frag=""
+  fi
+  [[ "$pre" == *"?"* ]] && sep="&" || sep="?"
+  echo "${pre}${sep}${key}=${val}${frag}"
+}
+
+love_uri_label_v1336() {
+  local line="$1" label="$2"
+  line="${line//$'\r'/}"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+  [[ "$line" == *"#"* ]] && echo "${line%%#*}#${label}" || echo "${line}#${label}"
+}
+
+love_singbox_sni_by_port_v1336() {
+  local port="$1"
+  jq -r '.inbounds[]? | select(.listen_port=='"$port"' and .tls?) | .tls.server_name // empty' /etc/sing-box/config.json 2>/dev/null | head -1
+}
+
+love_uri_fix_domain_v1336() {
+  local line="$1" sni port
+  line="${line//$'\r'/}"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+
+  # normalize old booleans
+  line="${line//allow_insecure=1/allow_insecure=true}"
+  line="${line//allowInsecure=1/allowInsecure=true}"
+  line="${line//insecure=1/insecure=true}"
+
+  # Determine SNI from URI first, config second.
+  sni="$(love_uri_get_param_v1336 "$line" "sni")"
+  [[ -z "$sni" ]] && sni="$(love_uri_get_param_v1336 "$line" "serverName")"
+
+  # TUIC
+  if [[ "$line" == tuic://* ]]; then
+    if [[ "$line" == *":38002"* ]]; then port=38002; elif [[ "$line" == *":50002"* ]]; then port=50002; else port=""; fi
+    [[ -z "$sni" && -n "$port" ]] && sni="$(love_singbox_sni_by_port_v1336 "$port")"
+    line="$(love_uri_add_param_v1336 "$line" "alpn" "h3")"
+    if love_is_self_domain_v1336 "$sni"; then
+      line="$(love_uri_add_param_v1336 "$line" "allow_insecure" "true")"
+      line="$(love_uri_add_param_v1336 "$line" "allowInsecure" "true")"
+      line="$(love_uri_add_param_v1336 "$line" "insecure" "true")"
+    else
+      line="$(love_uri_remove_param_v1336 "$line" "allow_insecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "allowInsecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "insecure")"
+    fi
+  fi
+
+  # VLESS WS TLS
+  if [[ "$line" == vless://* && "$line" == *"security=tls"* && "$line" == *"type=ws"* ]]; then
+    if [[ "$line" == *":38006"* ]]; then port=38006; elif [[ "$line" == *":50006"* ]]; then port=50006; else port=""; fi
+    [[ -z "$sni" && -n "$port" ]] && sni="$(love_singbox_sni_by_port_v1336 "$port")"
+    if love_is_self_domain_v1336 "$sni"; then
+      line="$(love_uri_add_param_v1336 "$line" "allowInsecure" "true")"
+      line="$(love_uri_add_param_v1336 "$line" "insecure" "true")"
+    else
+      line="$(love_uri_remove_param_v1336 "$line" "allowInsecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "insecure")"
+    fi
+  fi
+
+  # Trojan
+  if [[ "$line" == trojan://* ]]; then
+    if [[ "$line" == *":38004"* ]]; then port=38004; elif [[ "$line" == *":50004"* ]]; then port=50004; else port=""; fi
+    [[ -z "$sni" && -n "$port" ]] && sni="$(love_singbox_sni_by_port_v1336 "$port")"
+    if love_is_self_domain_v1336 "$sni"; then
+      line="$(love_uri_add_param_v1336 "$line" "allowInsecure" "true")"
+    else
+      line="$(love_uri_remove_param_v1336 "$line" "allowInsecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "insecure")"
+    fi
+  fi
+
+  # HY2 / Hysteria2
+  if [[ "$line" == hy2://* || "$line" == hysteria2://* ]]; then
+    sni="$(love_uri_get_param_v1336 "$line" "sni")"
+    if love_is_self_domain_v1336 "$sni"; then
+      line="$(love_uri_add_param_v1336 "$line" "insecure" "1")"
+    else
+      line="$(love_uri_remove_param_v1336 "$line" "insecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "allowInsecure")"
+    fi
+  fi
+
+  echo "$line"
+}
+
+# Override previous URI fixer.
+love_uri_fix_v1334() { love_uri_fix_domain_v1336 "$1"; }
+love_fix_line_source_v1331() { love_uri_fix_domain_v1336 "$1"; }
+
+love_domain_check_v1336() {
+  love_menu_title "Love 域名 / 证书模式检查" "Domain-aware"
+
+  echo "1) sing-box TLS 入站："
+  if [[ -s /etc/sing-box/config.json ]] && command -v jq >/dev/null 2>&1; then
+    jq -r '.inbounds[]? | select(.tls?) | [.tag,.type,.listen_port,.tls.server_name,.tls.certificate_path,.tls.key_path,(.tls.alpn|tostring)] | @tsv' /etc/sing-box/config.json 2>/dev/null || true
+  else
+    echo "  未找到 /etc/sing-box/config.json 或 jq"
+  fi
+  echo
+
+  echo "2) 证书文件检查："
+  local cert="/etc/sing-box/cert/cert.pem" key="/etc/sing-box/cert/key.pem"
+  if [[ -f "$cert" && -f "$key" ]]; then
+    openssl x509 -noout -subject -issuer -dates -in "$cert" 2>/dev/null || true
+    local a b
+    a="$(openssl x509 -noout -modulus -in "$cert" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+    b="$(openssl rsa -noout -modulus -in "$key" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+    echo "cert-md5: ${a:-unknown}"
+    echo "key-md5:  ${b:-unknown}"
+    [[ -n "$a" && "$a" == "$b" ]] && echo "[OK] 证书和私钥匹配" || echo "[WARN] 证书和私钥不匹配"
+  else
+    echo "[WARN] 未找到 $cert 或 $key"
+  fi
+  echo
+
+  echo "3) 当前订阅关键链接："
+  grep -nE '443|38001|38002|38004|38006|50001|50002|50004|50006|HY2|TUIC|TROJAN|VLESS-WS-TLS' /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+
+  echo "说明："
+  echo "  self.local / *.local = 无域名自签模式，应带 insecure / allowInsecure。"
+  echo "  正式域名 + 正式证书 = 有域名模式，不应带 insecure / allowInsecure。"
+  echo "  TUIC 无论有无域名都应带 alpn=h3；服务端 tls.alpn 也应为 [\"h3\"]。"
+}
+
+love_cert_fix_selflocal_v1336() {
+  love_menu_title "Love 自签证书修复" "self.local cert/key"
+  mkdir -p /etc/sing-box/cert
+  cp -f /etc/sing-box/cert/cert.pem /etc/sing-box/cert/cert.pem.bak.$(date +%F-%H%M%S) 2>/dev/null || true
+  cp -f /etc/sing-box/cert/key.pem /etc/sing-box/cert/key.pem.bak.$(date +%F-%H%M%S) 2>/dev/null || true
+
+  openssl req -x509 -newkey rsa:2048 -nodes \
+    -keyout /etc/sing-box/cert/key.pem \
+    -out /etc/sing-box/cert/cert.pem \
+    -days 3650 \
+    -subj "/CN=self.local" \
+    -addext "subjectAltName=DNS:self.local"
+
+  chmod 600 /etc/sing-box/cert/key.pem
+  chmod 644 /etc/sing-box/cert/cert.pem
+
+  if [[ -s /etc/sing-box/config.json ]] && command -v jq >/dev/null 2>&1; then
+    cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.certfix.$(date +%F-%H%M%S)
+    jq '
+      (.inbounds[]? | select(.tls?).tls.server_name) = "self.local" |
+      (.inbounds[]? | select(.tls?).tls.certificate_path) = "/etc/sing-box/cert/cert.pem" |
+      (.inbounds[]? | select(.tls?).tls.key_path) = "/etc/sing-box/cert/key.pem" |
+      (.inbounds[]? | select(.type=="tuic").tls.alpn) = ["h3"]
+    ' /etc/sing-box/config.json > /root/config.json.tmp && mv /root/config.json.tmp /etc/sing-box/config.json
+    sing-box check -c /etc/sing-box/config.json && systemctl restart sing-box
+  fi
+
+  echo "[OK] self.local 自签证书已重建并同步。"
+  echo "下一步：Love sub && Love qr && Love web"
+}
+
+love_domain_set_singbox_v1336() {
+  love_menu_title "Love 设置 sing-box 域名模式" "Real domain / cert paths"
+
+  local domain cert key
+  read -rp "请输入节点域名，例如 node.example.com: " domain
+  [[ -n "$domain" ]] || { echo "[ERROR] 域名不能为空"; return 1; }
+  read -rp "证书路径 [/etc/sing-box/cert/cert.pem]: " cert
+  cert="${cert:-/etc/sing-box/cert/cert.pem}"
+  read -rp "私钥路径 [/etc/sing-box/cert/key.pem]: " key
+  key="${key:-/etc/sing-box/cert/key.pem}"
+
+  [[ -f "$cert" ]] || { echo "[ERROR] 证书不存在：$cert"; return 1; }
+  [[ -f "$key" ]] || { echo "[ERROR] 私钥不存在：$key"; return 1; }
+
+  local a b
+  a="$(openssl x509 -noout -modulus -in "$cert" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+  b="$(openssl rsa -noout -modulus -in "$key" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+  [[ -n "$a" && "$a" == "$b" ]] || { echo "[ERROR] 证书和私钥不匹配"; return 1; }
+
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.domain.$(date +%F-%H%M%S)
+  jq '
+    (.inbounds[]? | select(.tls?).tls.server_name) = "'"$domain"'" |
+    (.inbounds[]? | select(.tls?).tls.certificate_path) = "'"$cert"'" |
+    (.inbounds[]? | select(.tls?).tls.key_path) = "'"$key"'" |
+    (.inbounds[]? | select(.type=="tuic").tls.alpn) = ["h3"]
+  ' /etc/sing-box/config.json > /root/config.json.tmp && mv /root/config.json.tmp /etc/sing-box/config.json
+
+  sing-box check -c /etc/sing-box/config.json || return 1
+  systemctl restart sing-box
+  echo "[OK] sing-box 已设置为域名模式：$domain"
+  echo "下一步：Love sub && Love qr && Love web"
+}
+
+love_sub_domain_final_v1336() {
+  love_menu_title "Love 域名感知双栈订阅导出" "Domain-aware / Dual-stack"
+
+  love_disk_guard_v1328 200 || return 1
+
+  # Sync sing-box from config if available, but keep xray cache too.
+  if declare -F love_sync_v1332 >/dev/null 2>&1; then
+    love_sync_v1332 >/dev/null 2>&1 || true
+  fi
+
+  mkdir -p /opt/Love/subscribe /opt/Love/subscribe/clients
+  local raw="/opt/Love/subscribe/all.txt"
+  local b64="/opt/Love/subscribe/all_base64.txt"
+  local html="/opt/Love/subscribe/index.html"
+  local yaml="/opt/Love/subscribe/clash_like.yaml"
+  local tmp="/tmp/love_domain_sub.$$"
+
+  echo "[1/4] 收集 Xray 443 + sing-box 全协议节点..."
+  : > "$tmp"
+  grep -hE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' \
+    /opt/Love/client-info/xray-client-info.txt \
+    /opt/Love/client-info/sing-box-client-info.txt \
+    /opt/Love/node_info.txt \
+    /opt/Love/subscribe/all.txt \
+    2>/dev/null | sed 's/\r$//' | while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      love_uri_fix_domain_v1336 "$line"
+    done | awk '!seen[$0]++' > "$raw"
+
+  cp -f "$raw" /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/nekobox-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/sing-box-uri.txt 2>/dev/null || true
+
+  echo "[2/4] 生成 Base64..."
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0 "$raw" > "$b64" 2>/dev/null || true
+  else
+    base64 "$raw" | tr -d '\n' > "$b64" 2>/dev/null || true
+  fi
+
+  echo "[3/4] 生成 HTML / YAML..."
+  {
+    echo "<!doctype html><html><head><meta charset='utf-8'><title>Love Subscription</title></head><body><pre>"
+    sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g' "$raw"
+    echo "</pre></body></html>"
+  } > "$html"
+
+  {
+    echo "# Love URI subscription list"
+    echo "# Domain-aware dual stack: Xray 443 + sing-box full protocols"
+    echo "links:"
+    awk '{gsub(/"/,"\\\""); print "  - \"" $0 "\""}' "$raw"
+  } > "$yaml"
+
+  echo "[4/4] 生成 TXT..."
+  if declare -F love_txt_final_v1332 >/dev/null 2>&1; then
+    love_txt_final_v1332 >/dev/null 2>&1 || true
+  elif declare -F love_txt_source_correct_v1331 >/dev/null 2>&1; then
+    love_txt_source_correct_v1331 >/dev/null 2>&1 || true
+  fi
+
+  echo
+  log "域名感知双栈订阅导出完成："
+  echo "订阅节点行数：$(grep -cE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' "$raw" 2>/dev/null || echo 0)"
+  echo "Raw:    $raw"
+  echo "Base64: $b64"
+  echo
+  echo "关键节点检查："
+  grep -nE '443|38000|38001|38002|38004|38006|50001|50002|50004|50006|HY2|TUIC|TROJAN|VLESS-WS-TLS' "$raw" 2>/dev/null || true
+}
+
+# Override previous sub/link-fix entrypoints.
+love_sub_dual_final_v1334() { love_sub_domain_final_v1336; }
+love_linkfix_files_v1331() { love_sub_domain_final_v1336; }
+love_linkfix_files_v1330() { love_sub_domain_final_v1336; }
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1336 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1336/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.36.0-domain-aware-dual-stack-final}"
+  case "${1:-}" in
+    sub|subscription|link-fix|client-fix|fix-links)
+      love_sub_domain_final_v1336
+      ;;
+    domain-check|cert-check-domain)
+      love_domain_check_v1336
+      ;;
+    cert-fix|self-cert-fix|fix-cert)
+      love_cert_fix_selflocal_v1336
+      ;;
+    domain-set|set-domain|domain-mode)
+      love_domain_set_singbox_v1336
+      ;;
+    *)
+      love_original_main_v1336 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.37 Domain + Self-signed Aware Final
+# Adds the third TLS mode:
+#   1) no domain: self.local + self-signed -> insecure required
+#   2) real domain + public CA certificate -> insecure removed
+#   3) real domain + self-signed/custom certificate -> domain SNI kept, insecure required
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.37.0-domain-selfsigned-aware-final"
+LOVE_CERT_MODE_FILE="/opt/Love/domain-cert-mode"
+
+love_cert_mode_v1337() {
+  [[ -f "$LOVE_CERT_MODE_FILE" ]] && cat "$LOVE_CERT_MODE_FILE" 2>/dev/null || echo "auto"
+}
+
+love_cert_is_selfsigned_v1337() {
+  local cert="${1:-/etc/sing-box/cert/cert.pem}"
+  [[ -f "$cert" ]] || return 1
+
+  local subject issuer
+  subject="$(openssl x509 -noout -subject -in "$cert" 2>/dev/null | sed 's/^subject=//')"
+  issuer="$(openssl x509 -noout -issuer -in "$cert" 2>/dev/null | sed 's/^issuer=//')"
+
+  [[ -n "$subject" && "$subject" == "$issuer" ]]
+}
+
+love_tls_requires_insecure_v1337() {
+  local sni="${1:-}" port="${2:-}" cert mode
+  mode="$(love_cert_mode_v1337)"
+
+  case "$mode" in
+    selfsigned|custom|insecure)
+      return 0
+      ;;
+    public|official|trusted)
+      return 1
+      ;;
+  esac
+
+  # Auto mode:
+  # self.local / *.local always requires insecure.
+  if love_is_self_domain_v1336 "$sni"; then
+    return 0
+  fi
+
+  # Real domain but self-signed cert also requires insecure.
+  cert="$(jq -r '.inbounds[]? | select(.listen_port=='"${port:-0}"' and .tls?) | .tls.certificate_path // empty' /etc/sing-box/config.json 2>/dev/null | head -1)"
+  [[ -z "$cert" ]] && cert="/etc/sing-box/cert/cert.pem"
+
+  if love_cert_is_selfsigned_v1337 "$cert"; then
+    return 0
+  fi
+
+  return 1
+}
+
+love_uri_fix_domain_v1337() {
+  local line="$1" sni port
+  line="${line//$'\r'/}"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+  line="${line//allow_insecure=1/allow_insecure=true}"
+  line="${line//allowInsecure=1/allowInsecure=true}"
+  line="${line//insecure=1/insecure=true}"
+
+  sni="$(love_uri_get_param_v1336 "$line" "sni")"
+  [[ -z "$sni" ]] && sni="$(love_uri_get_param_v1336 "$line" "serverName")"
+
+  if [[ "$line" == tuic://* ]]; then
+    if [[ "$line" == *":38002"* ]]; then port=38002; elif [[ "$line" == *":50002"* ]]; then port=50002; else port=""; fi
+    [[ -z "$sni" && -n "$port" ]] && sni="$(love_singbox_sni_by_port_v1336 "$port")"
+    line="$(love_uri_add_param_v1336 "$line" "alpn" "h3")"
+
+    if love_tls_requires_insecure_v1337 "$sni" "$port"; then
+      line="$(love_uri_add_param_v1336 "$line" "allow_insecure" "true")"
+      line="$(love_uri_add_param_v1336 "$line" "allowInsecure" "true")"
+      line="$(love_uri_add_param_v1336 "$line" "insecure" "true")"
+    else
+      line="$(love_uri_remove_param_v1336 "$line" "allow_insecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "allowInsecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "insecure")"
+    fi
+  fi
+
+  if [[ "$line" == vless://* && "$line" == *"security=tls"* && "$line" == *"type=ws"* ]]; then
+    if [[ "$line" == *":38006"* ]]; then port=38006; elif [[ "$line" == *":50006"* ]]; then port=50006; else port=""; fi
+    [[ -z "$sni" && -n "$port" ]] && sni="$(love_singbox_sni_by_port_v1336 "$port")"
+
+    if love_tls_requires_insecure_v1337 "$sni" "$port"; then
+      line="$(love_uri_add_param_v1336 "$line" "allowInsecure" "true")"
+      line="$(love_uri_add_param_v1336 "$line" "insecure" "true")"
+    else
+      line="$(love_uri_remove_param_v1336 "$line" "allowInsecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "insecure")"
+    fi
+  fi
+
+  if [[ "$line" == trojan://* ]]; then
+    if [[ "$line" == *":38004"* ]]; then port=38004; elif [[ "$line" == *":50004"* ]]; then port=50004; else port=""; fi
+    [[ -z "$sni" && -n "$port" ]] && sni="$(love_singbox_sni_by_port_v1336 "$port")"
+
+    if love_tls_requires_insecure_v1337 "$sni" "$port"; then
+      line="$(love_uri_add_param_v1336 "$line" "allowInsecure" "true")"
+    else
+      line="$(love_uri_remove_param_v1336 "$line" "allowInsecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "insecure")"
+    fi
+  fi
+
+  if [[ "$line" == hy2://* || "$line" == hysteria2://* ]]; then
+    sni="$(love_uri_get_param_v1336 "$line" "sni")"
+    # HY2 URI cannot know port reliably in every format, use cert mode and SNI as primary.
+    if love_tls_requires_insecure_v1337 "$sni" ""; then
+      line="$(love_uri_add_param_v1336 "$line" "insecure" "1")"
+    else
+      line="$(love_uri_remove_param_v1336 "$line" "insecure")"
+      line="$(love_uri_remove_param_v1336 "$line" "allowInsecure")"
+    fi
+  fi
+
+  echo "$line"
+}
+
+# Override v13.36 fixer.
+love_uri_fix_domain_v1336() { love_uri_fix_domain_v1337 "$1"; }
+love_uri_fix_v1334() { love_uri_fix_domain_v1337 "$1"; }
+love_fix_line_source_v1331() { love_uri_fix_domain_v1337 "$1"; }
+
+love_domain_self_set_v1337() {
+  love_menu_title "Love 设置：有域名 + 自签/自管证书" "Domain + self-signed"
+
+  local domain cert key
+  read -rp "请输入节点域名，例如 node.example.com: " domain
+  [[ -n "$domain" ]] || { echo "[ERROR] 域名不能为空"; return 1; }
+
+  read -rp "证书路径 [/etc/sing-box/cert/cert.pem]: " cert
+  cert="${cert:-/etc/sing-box/cert/cert.pem}"
+  read -rp "私钥路径 [/etc/sing-box/cert/key.pem]: " key
+  key="${key:-/etc/sing-box/cert/key.pem}"
+
+  [[ -f "$cert" ]] || { echo "[ERROR] 证书不存在：$cert"; return 1; }
+  [[ -f "$key" ]] || { echo "[ERROR] 私钥不存在：$key"; return 1; }
+
+  local a b
+  a="$(openssl x509 -noout -modulus -in "$cert" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+  b="$(openssl rsa -noout -modulus -in "$key" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+  [[ -n "$a" && "$a" == "$b" ]] || { echo "[ERROR] 证书和私钥不匹配"; return 1; }
+
+  mkdir -p /opt/Love
+  echo "selfsigned" > "$LOVE_CERT_MODE_FILE"
+
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.domain-self.$(date +%F-%H%M%S)
+  jq '
+    (.inbounds[]? | select(.tls?).tls.server_name) = "'"$domain"'" |
+    (.inbounds[]? | select(.tls?).tls.certificate_path) = "'"$cert"'" |
+    (.inbounds[]? | select(.tls?).tls.key_path) = "'"$key"'" |
+    (.inbounds[]? | select(.type=="tuic").tls.alpn) = ["h3"]
+  ' /etc/sing-box/config.json > /root/config.json.tmp && mv /root/config.json.tmp /etc/sing-box/config.json
+
+  sing-box check -c /etc/sing-box/config.json || return 1
+  systemctl restart sing-box
+
+  echo "[OK] 已设置为：有域名 + 自签/自管证书模式"
+  echo "域名：$domain"
+  echo "证书模式：selfsigned"
+  echo "下一步：Love domain-check && Love sub && Love qr && Love web"
+}
+
+love_domain_set_singbox_v1336() {
+  love_menu_title "Love 设置 sing-box 正式域名证书模式" "Real domain / public CA cert"
+
+  local domain cert key
+  read -rp "请输入节点域名，例如 node.example.com: " domain
+  [[ -n "$domain" ]] || { echo "[ERROR] 域名不能为空"; return 1; }
+  read -rp "证书路径 [/etc/sing-box/cert/cert.pem]: " cert
+  cert="${cert:-/etc/sing-box/cert/cert.pem}"
+  read -rp "私钥路径 [/etc/sing-box/cert/key.pem]: " key
+  key="${key:-/etc/sing-box/cert/key.pem}"
+
+  [[ -f "$cert" ]] || { echo "[ERROR] 证书不存在：$cert"; return 1; }
+  [[ -f "$key" ]] || { echo "[ERROR] 私钥不存在：$key"; return 1; }
+
+  local a b
+  a="$(openssl x509 -noout -modulus -in "$cert" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+  b="$(openssl rsa -noout -modulus -in "$key" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+  [[ -n "$a" && "$a" == "$b" ]] || { echo "[ERROR] 证书和私钥不匹配"; return 1; }
+
+  mkdir -p /opt/Love
+  echo "public" > "$LOVE_CERT_MODE_FILE"
+
+  cp /etc/sing-box/config.json /etc/sing-box/config.json.bak.domain-public.$(date +%F-%H%M%S)
+  jq '
+    (.inbounds[]? | select(.tls?).tls.server_name) = "'"$domain"'" |
+    (.inbounds[]? | select(.tls?).tls.certificate_path) = "'"$cert"'" |
+    (.inbounds[]? | select(.tls?).tls.key_path) = "'"$key"'" |
+    (.inbounds[]? | select(.type=="tuic").tls.alpn) = ["h3"]
+  ' /etc/sing-box/config.json > /root/config.json.tmp && mv /root/config.json.tmp /etc/sing-box/config.json
+
+  sing-box check -c /etc/sing-box/config.json || return 1
+  systemctl restart sing-box
+
+  echo "[OK] 已设置为：有域名 + 正式 CA 证书模式"
+  echo "域名：$domain"
+  echo "证书模式：public"
+  echo "下一步：Love domain-check && Love sub && Love qr && Love web"
+}
+
+love_domain_check_v1336() {
+  love_menu_title "Love 域名 / 证书模式检查" "Domain-aware"
+
+  local mode
+  mode="$(love_cert_mode_v1337)"
+
+  echo "0) 当前证书模式：$mode"
+  echo "   auto       = 自动判断"
+  echo "   selfsigned = 有域名但证书不被客户端信任，需要 insecure"
+  echo "   public     = 有域名正式 CA 证书，不需要 insecure"
+  echo
+
+  echo "1) sing-box TLS 入站："
+  if [[ -s /etc/sing-box/config.json ]] && command -v jq >/dev/null 2>&1; then
+    jq -r '.inbounds[]? | select(.tls?) | [.tag,.type,.listen_port,.tls.server_name,.tls.certificate_path,.tls.key_path,(.tls.alpn|tostring)] | @tsv' /etc/sing-box/config.json 2>/dev/null || true
+  else
+    echo "  未找到 /etc/sing-box/config.json 或 jq"
+  fi
+  echo
+
+  echo "2) 证书文件检查："
+  local cert="/etc/sing-box/cert/cert.pem" key="/etc/sing-box/cert/key.pem"
+  if [[ -f "$cert" && -f "$key" ]]; then
+    openssl x509 -noout -subject -issuer -dates -in "$cert" 2>/dev/null || true
+    local a b
+    a="$(openssl x509 -noout -modulus -in "$cert" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+    b="$(openssl rsa -noout -modulus -in "$key" 2>/dev/null | openssl md5 2>/dev/null | awk '{print $2}')"
+    echo "cert-md5: ${a:-unknown}"
+    echo "key-md5:  ${b:-unknown}"
+    [[ -n "$a" && "$a" == "$b" ]] && echo "[OK] 证书和私钥匹配" || echo "[WARN] 证书和私钥不匹配"
+    if love_cert_is_selfsigned_v1337 "$cert"; then
+      echo "[INFO] 证书看起来是自签证书。"
+    else
+      echo "[INFO] 证书看起来不是自签证书，是否被公网信任取决于签发机构。"
+    fi
+  else
+    echo "[WARN] 未找到 $cert 或 $key"
+  fi
+  echo
+
+  echo "3) 当前订阅关键链接："
+  grep -nE '443|38001|38002|38004|38006|50001|50002|50004|50006|HY2|TUIC|TROJAN|VLESS-WS-TLS' /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+
+  echo "说明："
+  echo "  无域名 self.local：需要 insecure / allowInsecure。"
+  echo "  有域名 + 正式 CA 证书：不需要 insecure / allowInsecure。"
+  echo "  有域名 + 自签/自管证书：仍然需要 insecure / allowInsecure，但 SNI 保持你的域名。"
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1337 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1337/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.37.0-domain-selfsigned-aware-final}"
+  case "${1:-}" in
+    domain-self-set|domain-self|set-domain-self|domain-custom-cert)
+      love_domain_self_set_v1337
+      ;;
+    domain-set|set-domain|domain-mode)
+      love_domain_set_singbox_v1336
+      ;;
+    domain-check|cert-check-domain)
+      love_domain_check_v1336
+      ;;
+    sub|subscription|link-fix|client-fix|fix-links)
+      love_sub_domain_final_v1336
+      ;;
+    *)
+      love_original_main_v1337 "$@"
       ;;
   esac
 }
