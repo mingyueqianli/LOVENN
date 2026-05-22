@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.25.0-no-hidden-web-prompt-final"
+VERSION="Love v13.26.0-web-nonblocking-check-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.25.0-no-hidden-web-prompt-final"
+LOVE_SCRIPT_VERSION="Love v13.26.0-web-nonblocking-check-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -13251,6 +13251,270 @@ fi
 main() {
   VERSION="${LOVE_SCRIPT_VERSION:-Love v13.25.0-no-hidden-web-prompt-final}"
   love_original_main_v1325 "$@"
+}
+
+
+
+# ==============================================================================
+# Love v13.26 Web Nonblocking Check Final
+# Fix Love web itself hanging:
+# - No apt install inside Love web.
+# - No external IP curl.
+# - No hidden export/qr generation.
+# - No systemctl status pager.
+# - Input uses timeout defaults.
+# - Adds Love web-check.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.26.0-web-nonblocking-check-final"
+
+love_read_default_v1326() {
+  local prompt="$1"
+  local default_value="$2"
+  local var
+  # 30s timeout avoids infinite cursor blinking on broken terminal input.
+  if read -r -t 30 -p "$prompt" var; then
+    echo "${var:-$default_value}"
+  else
+    echo
+    echo "$default_value"
+  fi
+}
+
+love_web_ipv6_local_v1326() {
+  local ip6 ip4
+  ip6="$(ip -6 addr show scope global 2>/dev/null | awk '/inet6/{print $2}' | cut -d/ -f1 | head -n1)"
+  ip4="$(ip -4 addr show scope global 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1)"
+  if [[ -n "$ip6" ]]; then
+    echo "[$ip6]"
+  elif [[ -n "$ip4" ]]; then
+    echo "$ip4"
+  else
+    echo "YOUR_SERVER_IP"
+  fi
+}
+
+love_web_check_v1326() {
+  love_menu_title "Love Web 同步检查" "nginx / webroot / version"
+
+  echo "1) Love 版本："
+  grep '^VERSION=' /opt/Love/Love.sh 2>/dev/null || true
+  echo
+
+  echo "2) Love 命令指向："
+  type -a Love 2>/dev/null || true
+  readlink -f /usr/local/bin/Love 2>/dev/null || true
+  echo
+
+  echo "3) nginx 配置检查："
+  nginx -t 2>&1 || true
+  echo
+
+  echo "4) love-admin 配置："
+  ls -lah /etc/nginx/sites-available/love-admin /etc/nginx/sites-enabled/love-admin 2>/dev/null || true
+  sed -n '1,80p' /etc/nginx/sites-available/love-admin 2>/dev/null || true
+  echo
+
+  echo "5) nginx 监听："
+  ss -lntp | grep -E ':(80|443|8099)\b|nginx' || true
+  echo
+
+  echo "6) Web 目录："
+  ls -lah /var/www/love-admin 2>/dev/null | head -80 || true
+  echo
+
+  echo "7) 关键 TXT / 订阅文件："
+  ls -lah /opt/Love/subscribe/推荐节点.txt /opt/Love/subscribe/节点清晰版.txt /opt/Love/subscribe/all-clean-uri.txt /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+
+  echo "8) 可能卡住的进程："
+  ps aux | grep -E 'apt|dpkg|nginx|Love|qrencode|python|curl|wget' | grep -v grep || true
+  echo
+
+  echo "9) 最近 nginx 日志："
+  journalctl -u nginx -n 30 -l --no-pager 2>/dev/null || true
+}
+
+web_admin_page() {
+  love_menu_title "Love Web 管理页" "Nonblocking / No apt / No hidden steps"
+
+  local web_port auth user pass webroot conf base host
+  web_port="$(love_read_default_v1326 "Web 管理页端口 [8099]: " "8099")"
+  if ! [[ "$web_port" =~ ^[0-9]+$ ]]; then
+    warn "端口输入异常：${web_port}，已恢复为 8099。"
+    web_port="8099"
+  fi
+
+  auth="$(love_read_default_v1326 "是否开启 Basic Auth 密码保护？[Y/n]: " "Y")"
+
+  user="love"
+  pass=""
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    user="$(love_read_default_v1326 "Web 用户名 [love]: " "love")"
+    pass="$(love_read_default_v1326 "Web 密码，留空自动生成: " "")"
+    if [[ -z "$pass" ]]; then
+      pass="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"
+      echo "[INFO] 自动生成 Web 密码：${pass}"
+    fi
+  fi
+
+  webroot="/var/www/love-admin"
+  conf="/etc/nginx/sites-available/love-admin"
+  host="$(love_web_ipv6_local_v1326)"
+  base="http://${host}:${web_port}"
+
+  echo "[1/5] 检查 nginx 是否存在..."
+  if ! command -v nginx >/dev/null 2>&1; then
+    echo "[ERROR] nginx 未安装。为避免卡住，本功能不自动 apt 安装。"
+    echo "请手动执行：apt update && apt install -y nginx apache2-utils"
+    return 1
+  fi
+  echo "[OK] nginx 已安装。"
+
+  if [[ "$auth" =~ ^[Yy]$ ]] && ! command -v htpasswd >/dev/null 2>&1; then
+    echo "[ERROR] htpasswd 未安装，无法开启 Basic Auth。"
+    echo "请手动执行：apt install -y apache2-utils"
+    return 1
+  fi
+
+  echo "[2/5] 清理旧 Web 配置..."
+  rm -rf "$webroot"
+  rm -f /etc/nginx/sites-enabled/love-admin /etc/nginx/sites-available/love-admin 2>/dev/null || true
+  mkdir -p "$webroot/sub" "$webroot/qr" "$webroot/clients" "$webroot/downloads" /etc/nginx/sites-available /etc/nginx/sites-enabled
+
+  echo "[3/5] 复制已有文件，不在 Web 阶段重新生成..."
+  cp -a /opt/Love/subscribe/. "$webroot/sub/" 2>/dev/null || true
+  cp -a /opt/Love/subscribe/qr/. "$webroot/qr/" 2>/dev/null || true
+  cp -a /opt/Love/subscribe/clients/. "$webroot/clients/" 2>/dev/null || true
+  cp -f /opt/Love/cfip-client-test.zip "$webroot/downloads/cfip-client-test.zip" 2>/dev/null || true
+  cp -f /opt/Love/cfip-client-test.tar.gz "$webroot/downloads/cfip-client-test.tar.gz" 2>/dev/null || true
+
+  grep -hE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' \
+    /opt/Love/subscribe/all.txt /opt/Love/subscribe/clients/*.txt /opt/Love/node_info.txt 2>/dev/null \
+    | sed 's/\r$//' | awk '!seen[$0]++' > "$webroot/node-links.txt" || true
+
+  echo "[4/5] 生成 Web 首页和 nginx 配置..."
+  cat > "$webroot/index.html" <<EOF
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Love Admin Panel</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;background:#0f172a;color:#e5e7eb}
+.theme-radio{position:absolute;opacity:0}.page{min-height:100vh;padding:24px;background:var(--bg);color:var(--text);--bg:#0f172a;--text:#e5e7eb;--card:#111827;--border:#334155;--hero1:#1d4ed8;--hero2:#7c3aed;--h2:#93c5fd;--link:#67e8f9;--btn:#2563eb;--btnGreen:#16a34a;--btnGray:#475569;--btnOrange:#ea580c}
+#themeGreen:checked ~ .page{--bg:#edf7ed;--text:#12351f;--card:#fff;--border:#b9d8bd;--hero1:#1b5e20;--hero2:#81c784;--h2:#1b5e20;--link:#0f766e;--btn:#2e7d32;--btnGreen:#1b8a3b;--btnGray:#6b7f6d;--btnOrange:#b45309}
+.floating-theme{position:fixed;right:18px;top:18px;z-index:9999;background:rgba(15,23,42,.92);border:1px solid rgba(148,163,184,.45);border-radius:999px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.28);display:flex;gap:6px}.floating-theme label{border-radius:999px;padding:8px 12px;cursor:pointer;font-weight:700;background:#020617;color:#e5e7eb}
+#themeDark:checked ~ .floating-theme label[for=themeDark]{background:#2563eb;color:white}#themeGreen:checked ~ .floating-theme label{background:#f2fff2;color:#12351f}#themeGreen:checked ~ .floating-theme label[for=themeGreen]{background:#2e7d32;color:white}
+.wrap{max-width:1080px;margin:0 auto}.hero{background:linear-gradient(135deg,var(--hero1),var(--hero2));padding:24px;border-radius:20px;color:white}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:18px}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}h2{color:var(--h2)}a{color:var(--link);word-break:break-all}.btn{display:inline-block;background:var(--btn);color:white;padding:9px 12px;border-radius:10px;margin:4px 4px 4px 0;text-decoration:none}.btn.green{background:var(--btnGreen)}.btn.gray{background:var(--btnGray)}.btn.orange{background:var(--btnOrange)}pre{background:#020617;color:#d1d5db;padding:10px;border-radius:12px;white-space:pre-wrap}.ok{color:#22c55e}.muted{color:#cbd5e1}
+</style>
+</head>
+<body>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeDark" checked>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeGreen">
+<div class="floating-theme"><label for="themeDark">深色主题</label><label for="themeGreen">绿色护眼</label></div>
+<div class="page"><div class="wrap">
+<div class="hero"><h1>Love Admin Panel</h1><div>Status: <span class="ok">OK</span> · Web: <span class="ok">Nonblocking</span> · Port: <span class="ok">${web_port}</span></div><div class="muted">静态页面，只展示节点、订阅、二维码、下载入口。</div><div class="muted">Base URL: ${base}</div></div>
+<h2>清晰 TXT / 推荐导入</h2>
+<div class="grid">
+<div class="card"><h3>推荐节点</h3><p>普通用户优先用这个。</p><a class="btn green" href="/sub/推荐节点.txt">下载 推荐节点.txt</a></div>
+<div class="card"><h3>节点清晰版</h3><p>按用途分组说明。</p><a class="btn" href="/sub/节点清晰版.txt">下载 节点清晰版.txt</a></div>
+<div class="card"><h3>全部节点</h3><p>全部节点，一个不删。</p><a class="btn gray" href="/sub/all-clean-uri.txt">下载 all-clean-uri.txt</a></div>
+</div>
+<h2>节点 / 订阅 / 二维码</h2>
+<div class="grid">
+<div class="card"><h3>节点链接汇总</h3><a class="btn" href="/node-links.txt">打开 node-links.txt</a></div>
+<div class="card"><h3>Raw 订阅</h3><a class="btn" href="/sub/all.txt">打开 all.txt</a><a class="btn gray" href="/sub/all_base64.txt">Base64</a></div>
+<div class="card"><h3>二维码</h3><a class="btn green" href="/qr/">打开 QR 目录</a></div>
+</div>
+<h2>客户端配置文件</h2>
+<div class="grid">
+<div class="card"><h3>Mihomo / Clash</h3><a class="btn" href="/sub/mihomo.yaml">下载 mihomo.yaml</a></div>
+<div class="card"><h3>客户端目录</h3><a class="btn" href="/clients/">打开 clients 目录</a></div>
+<div class="card"><h3>CFIP 测速包</h3><a class="btn orange" href="/downloads/cfip-client-test.zip">下载 ZIP</a></div>
+</div>
+<h2>常用命令</h2><pre>Love sub
+Love qr
+Love txt
+Love web
+Love web-check
+Love link-fix
+Love sing-fix
+Love warp-auto-fix</pre>
+</div></div>
+</body></html>
+EOF
+
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    htpasswd -bc /etc/nginx/.love_web_htpasswd "$user" "$pass" >/dev/null || return 1
+  else
+    rm -f /etc/nginx/.love_web_htpasswd
+  fi
+
+  cat > "$conf" <<EOF
+server {
+    listen ${web_port};
+    listen [::]:${web_port};
+    server_name _;
+    root ${webroot};
+    index index.html;
+    autoindex on;
+    charset utf-8;
+EOF
+
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    cat >> "$conf" <<EOF
+    auth_basic "Love Admin";
+    auth_basic_user_file /etc/nginx/.love_web_htpasswd;
+EOF
+  fi
+
+  cat >> "$conf" <<'EOF'
+    location / {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        try_files $uri $uri/ =404;
+    }
+}
+EOF
+
+  ln -sf "$conf" /etc/nginx/sites-enabled/love-admin
+
+  echo "[5/5] 检查并重启 nginx..."
+  nginx -t || { echo "[ERROR] nginx 配置失败："; cat "$conf"; return 1; }
+  systemctl restart nginx || { echo "[ERROR] nginx 重启失败"; systemctl status nginx --no-pager -l || true; return 1; }
+
+  echo
+  log "Love Web Panel 已生成。"
+  echo "访问地址：${base}/?v=126"
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    echo "用户名：${user}"
+    echo "密码：${pass}"
+  fi
+  echo
+  echo "常用下载："
+  echo "  推荐节点：${base}/sub/推荐节点.txt"
+  echo "  节点清晰版：${base}/sub/节点清晰版.txt"
+  echo "  全部节点：${base}/sub/all-clean-uri.txt"
+  echo "  节点汇总：${base}/node-links.txt"
+  echo "  二维码目录：${base}/qr/"
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1326 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1326/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.26.0-web-nonblocking-check-final}"
+  case "${1:-}" in
+    web-check|check-web)
+      love_web_check_v1326
+      ;;
+    *)
+      love_original_main_v1326 "$@"
+      ;;
+  esac
 }
 
 
