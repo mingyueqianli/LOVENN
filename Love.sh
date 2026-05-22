@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.29.0-web-qr-theme-gallery-final"
+VERSION="Love v13.31.0-source-correct-links-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.29.0-web-qr-theme-gallery-final"
+LOVE_SCRIPT_VERSION="Love v13.31.0-source-correct-links-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -12870,6 +12870,428 @@ fi
 main() {
   VERSION="${LOVE_SCRIPT_VERSION:-Love v13.29.0-web-qr-theme-gallery-final}"
   love_original_main_v1329 "$@"
+}
+
+
+
+# ==============================================================================
+# Love v13.30 TUIC / VLESS WS TLS LinkFix Final
+# Fix:
+#   TUIC 50002 only had allow_insecure=1.
+#   VLESS WS TLS 50006 had no allowInsecure/insecure.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.30.0-tuic-wstls-linkfix-final"
+
+love_linkfix_line_v1330() {
+  local line="$1"
+  line="${line//$'\r'/}"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+
+  if [[ "$line" == vless://*50006* ]]; then
+    [[ "$line" != *"allowInsecure=1"* ]] && line="${line//#/&allowInsecure=1#}"
+    [[ "$line" != *"insecure=1"* ]] && line="${line//#/&insecure=1#}"
+  fi
+
+  if [[ "$line" == tuic://*50002* ]]; then
+    [[ "$line" != *"allow_insecure=1"* ]] && line="${line//#/&allow_insecure=1#}"
+    [[ "$line" != *"allowInsecure=1"* ]] && line="${line//#/&allowInsecure=1#}"
+    [[ "$line" != *"insecure=1"* ]] && line="${line//#/&insecure=1#}"
+  fi
+
+  echo "$line"
+}
+
+love_fix_line_v1328() {
+  love_linkfix_line_v1330 "$1"
+}
+
+love_linkfix_files_v1330() {
+  love_menu_title "Love TUIC / VLESS WS TLS 链接修复" "50002 / 50006"
+
+  local files=(
+    "/opt/Love/subscribe/all.txt"
+    "/opt/Love/subscribe/clients/v2rayn-uri.txt"
+    "/opt/Love/subscribe/clients/nekobox-uri.txt"
+    "/opt/Love/subscribe/clients/sing-box-uri.txt"
+    "/var/www/love-admin/sub/all.txt"
+    "/var/www/love-admin/node-links.txt"
+  )
+
+  local f tmp
+  for f in "${files[@]}"; do
+    [[ -f "$f" ]] || continue
+    tmp="${f}.tmp.$$"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" =~ ^(vless|tuic):// ]]; then
+        love_linkfix_line_v1330 "$line"
+      else
+        echo "$line"
+      fi
+    done < "$f" > "$tmp"
+    mv "$tmp" "$f"
+  done
+
+  if [[ -f /opt/Love/subscribe/all.txt ]]; then
+    if base64 --help 2>/dev/null | grep -q -- '-w'; then
+      base64 -w0 /opt/Love/subscribe/all.txt > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    else
+      base64 /opt/Love/subscribe/all.txt | tr -d '\n' > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    fi
+  fi
+
+  mkdir -p /var/www/love-admin/sub 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all_base64.txt /var/www/love-admin/sub/all_base64.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/sub/all.txt 2>/dev/null || true
+
+  echo "[OK] 已修复当前导出链接："
+  grep -nE '50002|50006|TUIC|VLESS-WS-TLS' /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+  echo "下一步建议执行："
+  echo "  Love qr"
+  echo "  Love txt"
+  echo "  Love web"
+}
+
+if declare -F love_sub_safe_v1328 >/dev/null 2>&1 && ! declare -F love_original_sub_safe_v1330 >/dev/null 2>&1; then
+  eval "$(declare -f love_sub_safe_v1328 | sed '1s/^love_sub_safe_v1328/love_original_sub_safe_v1330/')"
+  love_sub_safe_v1328() {
+    love_original_sub_safe_v1330 "$@"
+    love_linkfix_files_v1330 >/dev/null 2>&1 || true
+  }
+fi
+
+if declare -F love_txt_safe_v1328 >/dev/null 2>&1 && ! declare -F love_original_txt_safe_v1330 >/dev/null 2>&1; then
+  eval "$(declare -f love_txt_safe_v1328 | sed '1s/^love_txt_safe_v1328/love_original_txt_safe_v1330/')"
+  love_txt_safe_v1328() {
+    love_original_txt_safe_v1330 "$@"
+    love_linkfix_files_v1330 >/dev/null 2>&1 || true
+  }
+fi
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1330 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1330/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.30.0-tuic-wstls-linkfix-final}"
+  case "${1:-}" in
+    link-fix|client-fix|fix-links)
+      love_linkfix_files_v1330
+      ;;
+    *)
+      love_original_main_v1330 "$@"
+      ;;
+  esac
+}
+
+
+
+# ==============================================================================
+# Love v13.31 Source Correct Links Final
+# Goal:
+#   Generate correct TUIC 50002 / VLESS WS TLS 50006 links from source.
+#   Love link-fix is kept only for repairing old exported files, not required
+#   for normal generation.
+# Key fix:
+#   Do NOT check "insecure=1" by substring, because allow_insecure=1 contains it.
+#   Use exact query parameter detection: ?key= or &key=.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.31.0-source-correct-links-final"
+
+love_has_param_v1331() {
+  local line="$1" key="$2"
+  [[ "$line" == *"?${key}="* || "$line" == *"&${key}="* ]]
+}
+
+love_add_param_v1331() {
+  local line="$1" key="$2" val="${3:-1}"
+  love_has_param_v1331 "$line" "$key" && { echo "$line"; return 0; }
+
+  local pre frag sep
+  if [[ "$line" == *"#"* ]]; then
+    pre="${line%%#*}"
+    frag="#${line#*#}"
+  else
+    pre="$line"
+    frag=""
+  fi
+
+  [[ "$pre" == *"?"* ]] && sep="&" || sep="?"
+  echo "${pre}${sep}${key}=${val}${frag}"
+}
+
+love_normalize_name_v1331() {
+  local line="$1"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+  echo "$line"
+}
+
+love_fix_line_source_v1331() {
+  local line="$1"
+  line="${line//$'\r'/}"
+  line="$(love_normalize_name_v1331 "$line")"
+
+  # VLESS WS TLS 50006: self-signed TLS must allow insecure cert.
+  if [[ "$line" == vless://*50006* ]]; then
+    line="$(love_add_param_v1331 "$line" "allowInsecure" "1")"
+    line="$(love_add_param_v1331 "$line" "insecure" "1")"
+  fi
+
+  # TUIC 50002: different clients use different parameter names.
+  if [[ "$line" == tuic://*50002* ]]; then
+    line="$(love_add_param_v1331 "$line" "allow_insecure" "1")"
+    line="$(love_add_param_v1331 "$line" "allowInsecure" "1")"
+    line="$(love_add_param_v1331 "$line" "insecure" "1")"
+  fi
+
+  echo "$line"
+}
+
+love_label_v1331() {
+  local line="$1"
+  case "$line" in
+    vless://*:50000*) echo "01-LOVE-REALITY-50000【推荐｜TCP｜无域名首选】" ;;
+    hysteria2://*:50001*|hy2://*:50001*) echo "02-LOVE-HY2-50001【推荐｜UDP｜速度优先】" ;;
+    hysteria2://*:30001*|hy2://*:30001*) echo "03-LOVE-HY2-30001【旧节点｜UDP｜保留兼容】" ;;
+    tuic://*:50002*) echo "04-LOVE-TUIC-50002【备用｜UDP｜建议 sing-box/NekoBox】" ;;
+    ss://*:50003*) echo "05-LOVE-SS-50003【兼容｜TCP/UDP】" ;;
+    trojan://*:50004*) echo "06-LOVE-TROJAN-50004【兼容｜TCP｜TLS】" ;;
+    vmess://*) echo "07-LOVE-VMESS-WS-50005【兼容｜TCP｜WS】" ;;
+    vless://*:50006*) echo "08-LOVE-VLESS-WS-TLS-50006【备用｜TCP｜自签需允许不安全】" ;;
+    vless://*:50007*) echo "09-LOVE-H2-REALITY-50007【高级｜TCP】" ;;
+    vless://*:50008*) echo "10-LOVE-GRPC-REALITY-50008【高级｜TCP】" ;;
+    anytls://*:50009*) echo "11-LOVE-ANYTLS-50009【高级｜TCP】" ;;
+    https://*:50010*|naive+https://*:50010*) echo "12-LOVE-NAIVE-50010【高级｜TCP】" ;;
+    shadowtls://*:50011*) echo "13-LOVE-SHADOWTLS-50011【高级｜TCP】" ;;
+    *) echo "${line##*#}" ;;
+  esac
+}
+
+love_set_label_v1331() {
+  local line="$1" label
+  label="$(love_label_v1331 "$line")"
+  if [[ "$line" == *"#"* ]]; then
+    echo "${line%%#*}#${label}"
+  else
+    echo "${line}#${label}"
+  fi
+}
+
+love_collect_source_links_v1331() {
+  # Source-only input. Never read /opt/Love/subscribe/clients or generated TXT.
+  grep -hE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' \
+    /opt/Love/client-info/xray-client-info.txt \
+    /opt/Love/client-info/sing-box-client-info.txt \
+    /opt/Love/node_info.txt \
+    2>/dev/null | sed 's/\r$//' | awk '!seen[$0]++' || true
+}
+
+love_sub_source_correct_v1331() {
+  love_menu_title "Love 订阅源头正确导出" "No Patch Needed / Disk Guard"
+
+  love_disk_guard_v1328 200 || return 1
+
+  mkdir -p /opt/Love/subscribe /opt/Love/subscribe/clients
+
+  local raw="/opt/Love/subscribe/all.txt"
+  local b64="/opt/Love/subscribe/all_base64.txt"
+  local html="/opt/Love/subscribe/index.html"
+  local yaml="/opt/Love/subscribe/clash_like.yaml"
+  local tmp="/tmp/love_sub_source_correct.$$"
+
+  echo "[1/4] 从 client-info 源文件生成正确链接，不读取输出目录..."
+  : > "$tmp"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    love_set_label_v1331 "$(love_fix_line_source_v1331 "$line")" >> "$tmp"
+  done < <(love_collect_source_links_v1331)
+
+  awk '!seen[$0]++' "$tmp" > "$raw"
+  rm -f "$tmp"
+
+  cp -f "$raw" /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/nekobox-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/sing-box-uri.txt 2>/dev/null || true
+
+  echo "[2/4] 生成 Base64..."
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0 "$raw" > "$b64" 2>/dev/null || true
+  else
+    base64 "$raw" | tr -d '\n' > "$b64" 2>/dev/null || true
+  fi
+
+  echo "[3/4] 生成简易 HTML / YAML..."
+  {
+    echo "<!doctype html><html><head><meta charset='utf-8'><title>Love Subscription</title></head><body><pre>"
+    sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g' "$raw"
+    echo "</pre></body></html>"
+  } > "$html"
+
+  {
+    echo "# Love URI subscription list"
+    echo "# Generated source-correct, no link-fix required"
+    echo "links:"
+    awk '{gsub(/"/,"\\\""); print "  - \"" $0 "\""}' "$raw"
+  } > "$yaml"
+
+  echo "[4/4] 生成小型 TXT 速查..."
+  love_txt_source_correct_v1331 >/dev/null 2>&1 || true
+
+  echo
+  log "订阅源头正确导出完成："
+  echo "Raw:    $raw"
+  echo "Base64: $b64"
+  echo "HTML:   $html"
+  echo "TXT:    /opt/Love/subscribe/推荐节点.txt"
+
+  echo
+  echo "关键链接检查："
+  grep -nE '50002|50006|TUIC|VLESS-WS-TLS' "$raw" 2>/dev/null || true
+}
+
+love_txt_source_correct_v1331() {
+  love_disk_guard_v1328 100 || return 1
+  mkdir -p /opt/Love/subscribe
+
+  local raw="/opt/Love/subscribe/all.txt"
+  local clean="/opt/Love/subscribe/节点清晰版.txt"
+  local rec="/opt/Love/subscribe/推荐节点.txt"
+  local all="/opt/Love/subscribe/all-clean-uri.txt"
+  local simple="/opt/Love/subscribe/nodes-clean.txt"
+
+  [[ -s "$raw" ]] || love_sub_source_correct_v1331 >/dev/null 2>&1 || true
+
+  : > "$clean"; : > "$rec"; : > "$all"; : > "$simple"
+
+  {
+    echo "Love 节点清晰版 / Clean Node List"
+    echo "生成时间: $(date)"
+    echo "说明：全部节点都保留；推荐节点只是精选入口，不代表删除其他节点。"
+    echo "说明：50002 / 50006 参数已在生成源头修正，不需要额外补丁。"
+    echo
+    echo "================ 推荐节点 ================"
+  } >> "$clean"
+
+  echo "# Love 推荐节点 / Recommended" >> "$rec"
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    fixed="$(love_set_label_v1331 "$(love_fix_line_source_v1331 "$line")")"
+    echo "$fixed" >> "$all"
+
+    case "$fixed" in
+      *"REALITY-50000"*|*"HY2-50001"*|*"HY2-30001"*|*"TROJAN-50004"*|*"VLESS-WS-TLS-50006"*)
+        echo "$fixed" >> "$rec"
+        { echo; echo "【${fixed##*#}】"; echo "$fixed"; } >> "$clean"
+        ;;
+    esac
+  done < "$raw"
+
+  {
+    echo
+    echo "================ 全部节点 ================"
+    cat "$all"
+  } >> "$clean"
+
+  {
+    echo "推荐节点："
+    cat "$rec"
+    echo
+    echo "全部节点："
+    cat "$all"
+  } > "$simple"
+
+  mkdir -p /opt/Love/subscribe/clients
+  cat > /opt/Love/subscribe/clients/READ_ME_TXT位置.txt <<EOF
+TXT 文件在：
+/opt/Love/subscribe/推荐节点.txt
+/opt/Love/subscribe/节点清晰版.txt
+/opt/Love/subscribe/all-clean-uri.txt
+EOF
+
+  log "TXT 源头正确生成完成："
+  echo "  $rec"
+  echo "  $clean"
+  echo "  $all"
+}
+
+love_linkfix_files_v1331() {
+  love_menu_title "Love 旧导出链接修复" "Optional Repair Only"
+
+  echo "说明：正常执行 Love sub 已经会源头生成正确链接。"
+  echo "这个命令只用于修复旧的 all.txt / Web 缓存。"
+  echo
+
+  local files=(
+    "/opt/Love/subscribe/all.txt"
+    "/opt/Love/subscribe/clients/v2rayn-uri.txt"
+    "/opt/Love/subscribe/clients/nekobox-uri.txt"
+    "/opt/Love/subscribe/clients/sing-box-uri.txt"
+    "/var/www/love-admin/sub/all.txt"
+    "/var/www/love-admin/node-links.txt"
+  )
+
+  local f tmp
+  for f in "${files[@]}"; do
+    [[ -f "$f" ]] || continue
+    tmp="${f}.tmp.$$"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" =~ ^(vless|tuic):// ]]; then
+        love_set_label_v1331 "$(love_fix_line_source_v1331 "$line")"
+      else
+        echo "$line"
+      fi
+    done < "$f" > "$tmp"
+    mv "$tmp" "$f"
+  done
+
+  if [[ -f /opt/Love/subscribe/all.txt ]]; then
+    if base64 --help 2>/dev/null | grep -q -- '-w'; then
+      base64 -w0 /opt/Love/subscribe/all.txt > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    else
+      base64 /opt/Love/subscribe/all.txt | tr -d '\n' > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    fi
+  fi
+
+  mkdir -p /var/www/love-admin/sub 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/sub/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all_base64.txt /var/www/love-admin/sub/all_base64.txt 2>/dev/null || true
+
+  echo "[OK] 旧导出链接修复完成："
+  grep -nE '50002|50006|TUIC|VLESS-WS-TLS' /opt/Love/subscribe/all.txt 2>/dev/null || true
+}
+
+# Override v13.28/v13.30 helper names too, so any internal call also uses source-correct logic.
+love_fix_line_v1328() { love_fix_line_source_v1331 "$1"; }
+love_linkfix_line_v1330() { love_fix_line_source_v1331 "$1"; }
+love_linkfix_files_v1330() { love_linkfix_files_v1331 "$@"; }
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1331 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1331/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.31.0-source-correct-links-final}"
+  case "${1:-}" in
+    sub|subscription)
+      love_sub_source_correct_v1331
+      ;;
+    txt|node-txt|clean-txt|nodes-clean)
+      love_txt_source_correct_v1331
+      ;;
+    link-fix|client-fix|fix-links)
+      love_linkfix_files_v1331
+      ;;
+    *)
+      love_original_main_v1331 "$@"
+      ;;
+  esac
 }
 
 
