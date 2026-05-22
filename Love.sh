@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.26.0-web-nonblocking-check-final"
+VERSION="Love v13.27.0-sub-fast-no-hook-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.26.0-web-nonblocking-check-final"
+LOVE_SCRIPT_VERSION="Love v13.27.0-sub-fast-no-hook-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -13513,6 +13513,244 @@ main() {
       ;;
     *)
       love_original_main_v1326 "$@"
+      ;;
+  esac
+}
+
+
+
+# ==============================================================================
+# Love v13.27 Sub Fast No-Hook Final
+# Fix CPU 95% / Love sub "looks stuck" after export:
+# - Love sub no longer runs old chained post hooks.
+# - Love sub only exports raw/base64/html quickly from existing node files.
+# - Love txt uses fast generator from all.txt only.
+# - Love web remains nonblocking and only copies existing files.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.27.0-sub-fast-no-hook-final"
+
+love_sub_dir_v1327() {
+  mkdir -p /opt/Love/subscribe /opt/Love/subscribe/clients
+}
+
+love_collect_links_fast_v1327() {
+  love_sub_dir_v1327
+  local tmp="/tmp/love_links_fast.$$"
+  : > "$tmp"
+
+  # Only scan small known text files; do not scan /var/www or the whole /opt/Love tree.
+  grep -hE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' \
+    /opt/Love/node_info.txt \
+    /opt/Love/*_info.txt \
+    /opt/Love/*info*.txt \
+    /opt/Love/singbox*.txt \
+    /opt/Love/xray*.txt \
+    /opt/Love/subscribe/clients/*.txt \
+    2>/dev/null \
+    | sed 's/\r$//' > "$tmp" || true
+
+  # Fallback to existing all.txt if no links found.
+  if [[ ! -s "$tmp" && -f /opt/Love/subscribe/all.txt ]]; then
+    grep -hE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' /opt/Love/subscribe/all.txt 2>/dev/null > "$tmp" || true
+  fi
+
+  # Clean names and client compatibility.
+  sed -i \
+    -e 's/LOVE-LOVE-/LOVE-/g' \
+    -e 's/LOVE-SB-/LOVE-/g' \
+    -e 's/#SB-/#LOVE-/g' \
+    "$tmp" 2>/dev/null || true
+
+  awk '!seen[$0]++' "$tmp"
+  rm -f "$tmp"
+}
+
+love_link_fix_line_v1327() {
+  local line="$1"
+  line="${line//$'\r'/}"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+
+  if [[ "$line" == vless://*":50006"* ]]; then
+    [[ "$line" != *"allowInsecure=1"* ]] && line="${line//#/&allowInsecure=1#}"
+    [[ "$line" != *"insecure=1"* ]] && line="${line//#/&insecure=1#}"
+  fi
+
+  if [[ "$line" == tuic://*":50002"* ]]; then
+    [[ "$line" != *"allow_insecure=1"* ]] && line="${line//#/&allow_insecure=1#}"
+    [[ "$line" != *"allowInsecure=1"* ]] && line="${line//#/&allowInsecure=1#}"
+    [[ "$line" != *"insecure=1"* ]] && line="${line//#/&insecure=1#}"
+  fi
+
+  echo "$line"
+}
+
+love_sub_fast_v1327() {
+  love_menu_title "Love 订阅快速导出" "Fast / No Hooks / Low CPU"
+
+  love_sub_dir_v1327
+
+  local raw="/opt/Love/subscribe/all.txt"
+  local b64="/opt/Love/subscribe/all_base64.txt"
+  local html="/opt/Love/subscribe/index.html"
+  local yaml="/opt/Love/subscribe/clash_like.yaml"
+  local tmp="/tmp/love_all_fast.$$"
+
+  echo "[1/4] 收集节点链接，不扫描大目录..."
+  : > "$tmp"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    love_link_fix_line_v1327 "$line" >> "$tmp"
+  done < <(love_collect_links_fast_v1327)
+
+  awk '!seen[$0]++' "$tmp" > "$raw"
+  cp -f "$raw" /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/nekobox-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/sing-box-uri.txt 2>/dev/null || true
+
+  echo "[2/4] 生成 Base64..."
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0 "$raw" > "$b64" 2>/dev/null || true
+  else
+    base64 "$raw" | tr -d '\n' > "$b64" 2>/dev/null || true
+  fi
+
+  echo "[3/4] 生成简易 HTML / YAML 占位..."
+  {
+    echo "<!doctype html><html><head><meta charset='utf-8'><title>Love Subscribe</title></head><body><pre>"
+    sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g' "$raw"
+    echo "</pre></body></html>"
+  } > "$html"
+
+  {
+    echo "# Love clash_like placeholder"
+    echo "# 建议优先使用 all.txt / all_base64.txt / 推荐节点.txt"
+    echo "proxies: []"
+  } > "$yaml"
+
+  echo "[4/4] 生成清晰 TXT..."
+  love_txt_fast_v1327 >/dev/null 2>&1 || true
+
+  rm -f "$tmp"
+
+  echo
+  log "订阅快速导出完成："
+  echo "Raw:    $raw"
+  echo "Base64: $b64"
+  echo "HTML:   $html"
+  echo "TXT:    /opt/Love/subscribe/推荐节点.txt"
+}
+
+love_node_label_fast_v1327() {
+  local line="$1"
+  case "$line" in
+    vless://*:50000*) echo "01-LOVE-REALITY-50000【推荐｜TCP｜无域名首选】" ;;
+    hysteria2://*:50001*|hy2://*:50001*) echo "02-LOVE-HY2-50001【推荐｜UDP｜速度优先】" ;;
+    hysteria2://*:30001*|hy2://*:30001*) echo "03-LOVE-HY2-30001【旧节点｜UDP｜保留兼容】" ;;
+    tuic://*:50002*) echo "04-LOVE-TUIC-50002【备用｜UDP｜建议 sing-box/NekoBox】" ;;
+    ss://*:50003*) echo "05-LOVE-SS-50003【兼容｜TCP/UDP】" ;;
+    trojan://*:50004*) echo "06-LOVE-TROJAN-50004【兼容｜TCP｜TLS】" ;;
+    vmess://*) echo "07-LOVE-VMESS-WS-50005【兼容｜TCP｜WS】" ;;
+    vless://*:50006*) echo "08-LOVE-VLESS-WS-TLS-50006【备用｜TCP｜自签需允许不安全】" ;;
+    vless://*:50007*) echo "09-LOVE-H2-REALITY-50007【高级｜TCP】" ;;
+    vless://*:50008*) echo "10-LOVE-GRPC-REALITY-50008【高级｜TCP】" ;;
+    anytls://*:50009*) echo "11-LOVE-ANYTLS-50009【高级｜TCP】" ;;
+    https://*:50010*|naive+https://*:50010*) echo "12-LOVE-NAIVE-50010【高级｜TCP】" ;;
+    shadowtls://*:50011*) echo "13-LOVE-SHADOWTLS-50011【高级｜TCP】" ;;
+    *) echo "${line##*#}" ;;
+  esac
+}
+
+love_set_label_fast_v1327() {
+  local line="$1" label
+  label="$(love_node_label_fast_v1327 "$line")"
+  if [[ "$line" == *"#"* ]]; then
+    echo "${line%%#*}#${label}"
+  else
+    echo "${line}#${label}"
+  fi
+}
+
+love_txt_fast_v1327() {
+  love_sub_dir_v1327
+
+  local raw="/opt/Love/subscribe/all.txt"
+  local clean="/opt/Love/subscribe/节点清晰版.txt"
+  local rec="/opt/Love/subscribe/推荐节点.txt"
+  local all="/opt/Love/subscribe/all-clean-uri.txt"
+  local simple="/opt/Love/subscribe/nodes-clean.txt"
+
+  [[ -s "$raw" ]] || love_sub_fast_v1327 >/dev/null 2>&1 || true
+
+  : > "$clean"; : > "$rec"; : > "$all"; : > "$simple"
+
+  {
+    echo "Love 节点清晰版 / Clean Node List"
+    echo "生成时间: $(date)"
+    echo
+    echo "说明：全部节点都保留；推荐节点只是精选入口，不代表删除其他节点。"
+    echo
+    echo "================ 推荐节点 ================"
+  } >> "$clean"
+
+  echo "# Love 推荐节点 / Recommended" >> "$rec"
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    fixed="$(love_set_label_fast_v1327 "$(love_link_fix_line_v1327 "$line")")"
+    echo "$fixed" >> "$all"
+
+    case "$fixed" in
+      *"REALITY-50000"*|*"HY2-50001"*|*"HY2-30001"*|*"TROJAN-50004"*|*"VLESS-WS-TLS-50006"*)
+        echo "$fixed" >> "$rec"
+        { echo; echo "【${fixed##*#}】"; echo "$fixed"; } >> "$clean"
+        ;;
+    esac
+  done < "$raw"
+
+  {
+    echo
+    echo "================ 全部节点 ================"
+    cat "$all"
+  } >> "$clean"
+
+  {
+    echo "推荐节点："
+    cat "$rec"
+    echo
+    echo "全部节点："
+    cat "$all"
+  } > "$simple"
+
+  cp -f "$clean" /opt/Love/subscribe/clients/节点清晰版.txt 2>/dev/null || true
+  cp -f "$rec" /opt/Love/subscribe/clients/推荐节点.txt 2>/dev/null || true
+  cp -f "$all" /opt/Love/subscribe/clients/all-clean-uri.txt 2>/dev/null || true
+  cp -f "$simple" /opt/Love/subscribe/clients/nodes-clean.txt 2>/dev/null || true
+
+  echo
+  log "TXT 快速生成完成："
+  echo "  $rec"
+  echo "  $clean"
+  echo "  $all"
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1327 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1327/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.27.0-sub-fast-no-hook-final}"
+  case "${1:-}" in
+    sub|subscription)
+      love_sub_fast_v1327
+      ;;
+    txt|node-txt|clean-txt|nodes-clean)
+      love_txt_fast_v1327
+      ;;
+    *)
+      love_original_main_v1327 "$@"
       ;;
   esac
 }
