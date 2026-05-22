@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.31.0-source-correct-links-final"
+VERSION="Love v13.32.0-final-unified-stable"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.31.0-source-correct-links-final"
+LOVE_SCRIPT_VERSION="Love v13.32.0-final-unified-stable"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -13291,6 +13291,218 @@ main() {
     *)
       love_original_main_v1331 "$@"
       ;;
+  esac
+}
+
+
+
+# ==============================================================================
+# Love v13.32 Final Unified Stable
+# config.json is source; client-info is cache; subscribe is output only.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.32.0-final-unified-stable"
+
+love_host_uri_v1332() {
+  local old ip6 ip4
+  old="$(grep -hEo '@\[[0-9a-fA-F:]+\]:' /opt/Love/client-info/*.txt /opt/Love/subscribe/all.txt 2>/dev/null | head -1 | sed -E 's/^@\[|\]:$//g' || true)"
+  [[ -n "$old" ]] && { echo "[$old]"; return; }
+  ip6="$(ip -6 addr show scope global 2>/dev/null | awk '/inet6/{print $2}' | cut -d/ -f1 | head -1)"
+  [[ -n "$ip6" ]] && { echo "[$ip6]"; return; }
+  ip4="$(ip -4 addr show scope global 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)"
+  [[ -n "$ip4" ]] && { echo "$ip4"; return; }
+  echo "YOUR_SERVER_IP"
+}
+
+love_b64_v1332() {
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then base64 -w0; else base64 | tr -d '\n'; fi
+}
+
+love_existing_uri_port_v1332() {
+  local port="$1"
+  grep -hE "://.*(\]|:)${port}([/?#]|$)" \
+    /opt/Love/client-info/*.txt \
+    /opt/Love/subscribe/all.txt \
+    /root/love-safe-backup/client-info.bak/*.txt \
+    2>/dev/null | head -1 || true
+}
+
+love_label_uri_v1332() {
+  local line="$1" label="$2"
+  line="${line//$'\r'/}"
+  line="${line//LOVE-LOVE-/LOVE-}"
+  line="${line//LOVE-SB-/LOVE-}"
+  line="${line//#SB-/#LOVE-}"
+  [[ "$line" == *"#"* ]] && echo "${line%%#*}#${label}" || echo "${line}#${label}"
+}
+
+love_sync_v1332() {
+  love_menu_title "Love 节点源同步" "config.json -> client-info"
+
+  local cfg="/etc/sing-box/config.json"
+  local out="/opt/Love/client-info/sing-box-client-info.txt"
+  local host tmp
+  [[ -s "$cfg" ]] || { echo "[ERROR] 缺少 $cfg"; return 1; }
+  command -v jq >/dev/null 2>&1 || { echo "[ERROR] 缺少 jq"; return 1; }
+
+  mkdir -p /opt/Love/client-info
+  host="$(love_host_uri_v1332)"
+  tmp="/tmp/love_sync_v1332.$$"
+  : > "$tmp"
+
+  # Reality needs public key; preserve existing correct URI if available.
+  local old
+  old="$(love_existing_uri_port_v1332 50000)"
+  [[ -n "$old" ]] && love_label_uri_v1332 "$old" "01-LOVE-REALITY-50000【推荐｜TCP｜无域名首选】" >> "$tmp"
+
+  while IFS=$'\t' read -r tag typ port; do
+    [[ -n "$tag" && -n "$typ" && -n "$port" ]] || continue
+    case "$typ:$port:$tag" in
+      hysteria2:50001:*|hysteria2:30001:*)
+        local pass sni name
+        pass="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").users[0].password // empty' "$cfg")"
+        sni="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").tls.server_name // "self.local"' "$cfg")"
+        [[ -n "$pass" ]] || continue
+        [[ "$port" == "30001" ]] && name="03-LOVE-HY2-30001【旧节点｜UDP｜保留兼容】" || name="02-LOVE-HY2-50001【推荐｜UDP｜速度优先】"
+        echo "hy2://${pass}@${host}:${port}/?sni=${sni}&insecure=1#${name}" >> "$tmp"
+        ;;
+      tuic:*)
+        local uuid password sni cc
+        uuid="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").users[0].uuid // empty' "$cfg")"
+        password="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").users[0].password // empty' "$cfg")"
+        sni="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").tls.server_name // "self.local"' "$cfg")"
+        cc="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").congestion_control // "bbr"' "$cfg")"
+        [[ -n "$uuid" && -n "$password" ]] || continue
+        echo "tuic://${uuid}:${password}@${host}:${port}?sni=${sni}&congestion_control=${cc}&udp_relay_mode=native&alpn=h3&allow_insecure=true&allowInsecure=true&insecure=true#04-LOVE-TUIC-${port}【备用｜UDP｜建议 sing-box/NekoBox】" >> "$tmp"
+        ;;
+      shadowsocks:*)
+        local method password enc
+        method="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").method // "aes-128-gcm"' "$cfg")"
+        password="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").password // empty' "$cfg")"
+        [[ -n "$password" ]] || continue
+        enc="$(printf "%s:%s" "$method" "$password" | love_b64_v1332)"
+        echo "ss://${enc}@${host}:${port}#05-LOVE-SS-${port}【兼容｜TCP/UDP】" >> "$tmp"
+        ;;
+      trojan:*)
+        local password sni extra
+        password="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").users[0].password // empty' "$cfg")"
+        sni="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").tls.server_name // "self.local"' "$cfg")"
+        [[ -n "$password" ]] || continue
+        extra=""; [[ "$sni" == "self.local" || "$sni" == *.local ]] && extra="&allowInsecure=true"
+        echo "trojan://${password}@${host}:${port}?security=tls&sni=${sni}${extra}#06-LOVE-TROJAN-${port}【兼容｜TCP｜TLS】" >> "$tmp"
+        ;;
+      vmess:*)
+        local uuid path raw enc hostraw
+        uuid="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").users[0].uuid // empty' "$cfg")"
+        path="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").transport.path // "/vmess"' "$cfg")"
+        hostraw="${host#[}"; hostraw="${hostraw%]}"
+        [[ -n "$uuid" ]] || continue
+        raw="$(printf '{"v":"2","ps":"07-LOVE-VMESS-WS-%s【兼容｜TCP｜WS】","add":"%s","port":"%s","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"","path":"%s","tls":""}' "$port" "$hostraw" "$port" "$uuid" "$path")"
+        enc="$(printf "%s" "$raw" | love_b64_v1332)"
+        echo "vmess://${enc}" >> "$tmp"
+        ;;
+      vless:50006:*)
+        local uuid sni path extra
+        uuid="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").users[0].uuid // empty' "$cfg")"
+        sni="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").tls.server_name // "self.local"' "$cfg")"
+        path="$(jq -r '.inbounds[]? | select(.tag=="'"$tag"'").transport.path // "/vless"' "$cfg")"
+        path="${path//\//%2F}"
+        [[ -n "$uuid" ]] || continue
+        extra=""; [[ "$sni" == "self.local" || "$sni" == *.local ]] && extra="&allowInsecure=true&insecure=true"
+        echo "vless://${uuid}@${host}:${port}?encryption=none&security=tls&sni=${sni}&type=ws&path=${path}${extra}#08-LOVE-VLESS-WS-TLS-50006【备用｜TCP｜自签需允许不安全】" >> "$tmp"
+        ;;
+      *)
+        old="$(love_existing_uri_port_v1332 "$port")"
+        [[ -n "$old" ]] && love_label_uri_v1332 "$old" "LOVE-${tag}-${port}" >> "$tmp"
+        ;;
+    esac
+  done < <(jq -r '.inbounds[]? | [.tag,.type,.listen_port] | @tsv' "$cfg")
+
+  awk '!seen[$0]++' "$tmp" > "$out"
+  rm -f "$tmp"
+
+  echo "[OK] 已同步：$out"
+  echo "源节点数：$(grep -cE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' "$out" 2>/dev/null || echo 0)"
+}
+
+love_sub_final_v1332() {
+  love_menu_title "Love 订阅最终稳定导出" "Sync First / No Recursion"
+  love_disk_guard_v1328 200 || return 1
+  love_sync_v1332 >/dev/null 2>&1 || true
+  love_sub_source_correct_v1331
+}
+
+love_qr_count_v1332() {
+  local d="${1:-/opt/Love/subscribe/qr}" node total helper
+  node="$(find "$d" -maxdepth 1 -type f -name 'node-*.png' 2>/dev/null | wc -l | tr -d ' ')"
+  total="$(find "$d" -maxdepth 1 -type f -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+  helper=$((total-node)); [[ "$helper" -lt 0 ]] && helper=0
+  echo "单节点二维码：$node"
+  echo "合集/客户端二维码：$helper"
+  echo "二维码 PNG 总数：$total"
+}
+
+love_write_qr_gallery_v1332() {
+  local qrdir="$1"
+  [[ -d "$qrdir" ]] || return 0
+  local node total helper
+  node="$(find "$qrdir" -maxdepth 1 -type f -name 'node-*.png' 2>/dev/null | wc -l | tr -d ' ')"
+  total="$(find "$qrdir" -maxdepth 1 -type f -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+  helper=$((total-node)); [[ "$helper" -lt 0 ]] && helper=0
+
+  cat > "$qrdir/index.html" <<EOF
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love QR Gallery</title>
+$(love_web_theme_css_v1329)
+</head><body>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeDark" checked>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeGreen">
+<div class="floating-theme"><label for="themeDark">深色主题</label><label for="themeGreen">绿色护眼</label></div>
+<div class="page"><div class="wrap"><div class="hero"><h1>Love QR Gallery</h1>
+<div>单节点二维码：<span class="ok">${node}</span> · 合集二维码：<span class="ok">${helper}</span> · PNG 总数：<span class="ok">${total}</span></div>
+<div class="muted">真实节点数看订阅 all.txt；all/v2rayn/nekobox/shadowrocket 是合集入口。</div><p><a class="btn" href="/">返回首页</a></p></div>
+<h2>一、单节点二维码</h2><div class="qr-grid">
+EOF
+  local f name
+  while IFS= read -r f; do
+    name="$(basename "$f")"
+    echo "<div class=\"qr-card\"><h3>${name}</h3><a href=\"./${name}\" target=\"_blank\"><img src=\"./${name}\" alt=\"${name}\"></a><a class=\"btn\" href=\"./${name}\" target=\"_blank\">打开 PNG</a></div>" >> "$qrdir/index.html"
+  done < <(find "$qrdir" -maxdepth 1 -type f -name 'node-*.png' | sort)
+
+  echo '</div><h2>二、订阅 / 客户端合集二维码</h2><div class="qr-grid">' >> "$qrdir/index.html"
+  while IFS= read -r f; do
+    name="$(basename "$f")"
+    echo "<div class=\"qr-card\"><h3>${name}</h3><a href=\"./${name}\" target=\"_blank\"><img src=\"./${name}\" alt=\"${name}\"></a><a class=\"btn gray\" href=\"./${name}\" target=\"_blank\">打开 PNG</a></div>" >> "$qrdir/index.html"
+  done < <(find "$qrdir" -maxdepth 1 -type f -name '*.png' ! -name 'node-*.png' | sort)
+  echo '</div></div></div></body></html>' >> "$qrdir/index.html"
+}
+
+# Patch the v13.29 web function by generating grouped QR gallery before nginx restarts.
+if declare -F web_admin_page >/dev/null 2>&1 && ! declare -F love_original_web_admin_v1332 >/dev/null 2>&1; then
+  eval "$(declare -f web_admin_page | sed '1s/^web_admin_page/love_original_web_admin_v1332/')"
+  web_admin_page() {
+    love_original_web_admin_v1332 "$@"
+    love_write_qr_gallery_v1332 /var/www/love-admin/qr 2>/dev/null || true
+    local sub_count node total helper
+    sub_count="$(grep -cE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0)"
+    node="$(find /var/www/love-admin/qr -maxdepth 1 -type f -name 'node-*.png' 2>/dev/null | wc -l | tr -d ' ')"
+    total="$(find /var/www/love-admin/qr -maxdepth 1 -type f -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+    helper=$((total-node)); [[ "$helper" -lt 0 ]] && helper=0
+    echo
+    echo "[INFO] Web 数量说明：订阅节点=${sub_count}，单节点二维码=${node}，合集二维码=${helper}，PNG总数=${total}"
+  }
+fi
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1332 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1332/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.32.0-final-unified-stable}"
+  case "${1:-}" in
+    sync|rebuild-client-info) love_sync_v1332 ;;
+    sub|subscription) love_sub_final_v1332 ;;
+    qr-count|count-qr) love_qr_count_v1332 ;;
+    *) love_original_main_v1332 "$@" ;;
   esac
 }
 
