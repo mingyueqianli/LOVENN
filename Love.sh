@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.28.0-disk-guard-stable-final"
+VERSION="Love v13.29.0-web-qr-theme-gallery-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.28.0-disk-guard-stable-final"
+LOVE_SCRIPT_VERSION="Love v13.29.0-web-qr-theme-gallery-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -12590,6 +12590,286 @@ main() {
     disk-check|check-disk) love_disk_check_v1328 ;;
     *) love_original_main_v1328 "$@" ;;
   esac
+}
+
+
+
+# ==============================================================================
+# Love v13.29 Web QR Theme Gallery Final
+# Based on v13.28 stable disk guard.
+# Fix:
+#   - Restore dark theme and green eye-protection theme switch.
+#   - Web QR page uses responsive grid, not crowded images.
+#   - QR terminal still prints first ANSI only, but Web shows all PNG/SVG entries.
+#   - No auto sub/qr/txt generation from Love web, no recursion.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.29.0-web-qr-theme-gallery-final"
+
+love_web_theme_css_v1329() {
+cat <<'EOF'
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;background:#0f172a;color:#e5e7eb}
+.theme-radio{position:absolute;opacity:0;pointer-events:none}
+.page{
+  min-height:100vh;padding:24px;background:var(--bg);color:var(--text);
+  --bg:#0f172a;--text:#e5e7eb;--card:#111827;--border:#334155;
+  --hero1:#1d4ed8;--hero2:#7c3aed;--h2:#93c5fd;--link:#67e8f9;
+  --muted:#94a3b8;--yellow:#facc15;--btn:#2563eb;--btnGreen:#16a34a;--btnGray:#475569;--code:#020617;--codeText:#d1d5db;
+}
+#themeGreen:checked ~ .page{
+  --bg:#edf7ed;--text:#12351f;--card:#ffffff;--border:#b9d8bd;
+  --hero1:#1b5e20;--hero2:#81c784;--h2:#1b5e20;--link:#0f766e;
+  --muted:#4b6b50;--yellow:#8a5a00;--btn:#2e7d32;--btnGreen:#1b8a3b;--btnGray:#6b7f6d;--code:#f2fff2;--codeText:#12351f;
+}
+.floating-theme{
+  position:fixed;right:18px;top:18px;z-index:9999;background:rgba(15,23,42,.92);
+  border:1px solid rgba(148,163,184,.45);border-radius:999px;padding:8px;
+  box-shadow:0 10px 30px rgba(0,0,0,.28);display:flex;gap:6px;align-items:center;
+}
+#themeGreen:checked ~ .floating-theme{background:rgba(237,247,237,.96);border-color:#9fcbab}
+.floating-theme label{border-radius:999px;padding:8px 12px;cursor:pointer;font-weight:700;background:#020617;color:#e5e7eb;display:inline-block;user-select:none}
+#themeDark:checked ~ .floating-theme label[for="themeDark"]{background:#2563eb;color:white}
+#themeGreen:checked ~ .floating-theme label{background:#f2fff2;color:#12351f}
+#themeGreen:checked ~ .floating-theme label[for="themeGreen"]{background:#2e7d32;color:white}
+.wrap{max-width:1100px;margin:0 auto}
+.hero{background:linear-gradient(135deg,var(--hero1),var(--hero2));padding:24px;border-radius:20px;box-shadow:0 12px 30px rgba(0,0,0,.18);color:white}
+h1{margin:0 0 8px;font-size:28px} h2{margin:22px 0 12px;font-size:20px;color:var(--h2)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:18px}
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px;margin-top:18px;align-items:start}
+.card,.qr-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;overflow:hidden}
+.card h3,.qr-card h3{margin:0 0 10px;font-size:17px;color:var(--yellow);word-break:break-all}
+.qr-card img{display:block;width:100%;max-width:260px;height:auto;margin:8px auto;background:white;border-radius:12px;padding:10px}
+a{color:var(--link);text-decoration:none;word-break:break-all}a:hover{text-decoration:underline}
+.btn{display:inline-block;background:var(--btn);color:white!important;padding:9px 12px;border-radius:10px;margin:4px 4px 4px 0;text-decoration:none}
+.btn.green{background:var(--btnGreen)}.btn.gray{background:var(--btnGray)}
+pre,code{background:var(--code);border:1px solid var(--border);border-radius:12px;color:var(--codeText);padding:10px;display:block;white-space:pre-wrap;word-break:break-all}
+.muted{color:var(--muted)}.ok{color:#22c55e}
+@media(max-width:760px){
+  .page{padding:14px}
+  .floating-theme{position:sticky;top:8px;margin:0 auto 14px;justify-content:center;border-radius:16px}
+}
+</style>
+EOF
+}
+
+love_write_qr_gallery_v1329() {
+  local qrdir="$1"
+  local base_title="${2:-Love QR Gallery}"
+  [[ -d "$qrdir" ]] || return 0
+
+  local count
+  count="$(find "$qrdir" -maxdepth 1 -type f -name '*.png' | wc -l | tr -d ' ')"
+
+  cat > "$qrdir/index.html" <<EOF
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${base_title}</title>
+$(love_web_theme_css_v1329)
+</head>
+<body>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeDark" checked>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeGreen">
+<div class="floating-theme"><label for="themeDark">深色主题</label><label for="themeGreen">绿色护眼</label></div>
+<div class="page"><div class="wrap">
+  <div class="hero">
+    <h1>Love QR Gallery</h1>
+    <div>QR Count: <span class="ok">${count}</span> · Layout: <span class="ok">Grid</span></div>
+    <div class="muted">每个二维码独立卡片显示，不再挤在一起。点击 PNG/SVG 可单独打开。</div>
+    <p><a class="btn" href="/">返回 Web 首页</a></p>
+  </div>
+  <h2>二维码列表</h2>
+  <div class="qr-grid">
+EOF
+
+  local f name svg
+  while IFS= read -r f; do
+    name="$(basename "$f")"
+    svg="${name%.png}.svg"
+    cat >> "$qrdir/index.html" <<EOF
+    <div class="qr-card">
+      <h3>${name}</h3>
+      <a href="./${name}" target="_blank"><img src="./${name}" alt="${name}"></a>
+      <a class="btn" href="./${name}" target="_blank">打开 PNG</a>
+EOF
+    if [[ -f "$qrdir/$svg" ]]; then
+      cat >> "$qrdir/index.html" <<EOF
+      <a class="btn gray" href="./${svg}" target="_blank">打开 SVG</a>
+EOF
+    fi
+    cat >> "$qrdir/index.html" <<'EOF'
+    </div>
+EOF
+  done < <(find "$qrdir" -maxdepth 1 -type f -name '*.png' | sort)
+
+  cat >> "$qrdir/index.html" <<'EOF'
+  </div>
+</div></div>
+</body>
+</html>
+EOF
+}
+
+web_admin_page() {
+  love_menu_title "Love Web 管理页" "Dark Theme / Green Theme / QR Gallery"
+
+  love_disk_guard_v1328 100 || return 1
+
+  local web_port auth user pass webroot conf host base
+  read -rp "Web 管理页端口 [8099]: " web_port
+  web_port="${web_port:-8099}"
+  [[ "$web_port" =~ ^[0-9]+$ ]] || web_port="8099"
+
+  read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " auth
+  auth="${auth:-Y}"
+
+  user="love"
+  pass=""
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    read -rp "Web 用户名 [love]: " user
+    user="${user:-love}"
+    read -rp "Web 密码，留空自动生成: " pass
+    [[ -z "$pass" ]] && pass="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"
+  fi
+
+  webroot="/var/www/love-admin"
+  conf="/etc/nginx/sites-available/love-admin"
+
+  command -v nginx >/dev/null 2>&1 || { echo "[ERROR] nginx 未安装。请执行：apt update && apt install -y nginx apache2-utils"; return 1; }
+  [[ "$auth" =~ ^[Yy]$ ]] && ! command -v htpasswd >/dev/null 2>&1 && { echo "[ERROR] htpasswd 未安装。请执行：apt install -y apache2-utils"; return 1; }
+
+  echo "[1/4] 清理旧 Web 并复制已有文件，不自动触发 sub/qr/txt..."
+  rm -rf "$webroot"
+  rm -f /etc/nginx/sites-enabled/love-admin /etc/nginx/sites-available/love-admin 2>/dev/null || true
+  mkdir -p "$webroot/sub" "$webroot/qr" "$webroot/clients" "$webroot/downloads" /etc/nginx/sites-available /etc/nginx/sites-enabled
+
+  cp -a /opt/Love/subscribe/. "$webroot/sub/" 2>/dev/null || true
+  cp -a /opt/Love/subscribe/qr/. "$webroot/qr/" 2>/dev/null || true
+  cp -a /opt/Love/subscribe/clients/. "$webroot/clients/" 2>/dev/null || true
+  cp -f /opt/Love/cfip-client-test.zip "$webroot/downloads/cfip-client-test.zip" 2>/dev/null || true
+  cp -f /opt/Love/cfip-client-test.tar.gz "$webroot/downloads/cfip-client-test.tar.gz" 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt "$webroot/node-links.txt" 2>/dev/null || true
+
+  echo "[2/4] 生成二维码网格页面..."
+  love_write_qr_gallery_v1329 "$webroot/qr" "Love QR Gallery"
+
+  host="$(ip -6 addr show scope global 2>/dev/null | awk '/inet6/{print $2}' | cut -d/ -f1 | head -n1)"
+  [[ -n "$host" ]] && base="http://[${host}]:${web_port}" || base="http://YOUR_SERVER_IP:${web_port}"
+
+  local qr_count
+  qr_count="$(find "$webroot/qr" -maxdepth 1 -type f -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+
+  echo "[3/4] 生成 Web 首页..."
+  cat > "$webroot/index.html" <<EOF
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Love Admin Panel</title>
+$(love_web_theme_css_v1329)
+</head>
+<body>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeDark" checked>
+<input class="theme-radio" type="radio" name="loveTheme" id="themeGreen">
+<div class="floating-theme"><label for="themeDark">深色主题</label><label for="themeGreen">绿色护眼</label></div>
+<div class="page"><div class="wrap">
+  <div class="hero">
+    <h1>Love Admin Panel</h1>
+    <div>Status: <span class="ok">OK</span> · Theme: <span class="ok">Dark / Green</span> · QR: <span class="ok">${qr_count}</span></div>
+    <div class="muted">静态页面，只展示节点、订阅、二维码、下载入口；不会在 Web 阶段自动重新生成节点。</div>
+    <div class="muted">Base URL: ${base}</div>
+  </div>
+
+  <h2>清晰 TXT / 推荐导入</h2>
+  <div class="grid">
+    <div class="card"><h3>推荐节点</h3><p>普通用户优先用这个。</p><a class="btn green" href="/sub/推荐节点.txt">下载 推荐节点.txt</a></div>
+    <div class="card"><h3>节点清晰版</h3><p>按用途分组说明。</p><a class="btn" href="/sub/节点清晰版.txt">下载 节点清晰版.txt</a></div>
+    <div class="card"><h3>全部节点</h3><p>全部节点，一个不删。</p><a class="btn gray" href="/sub/all-clean-uri.txt">下载 all-clean-uri.txt</a></div>
+  </div>
+
+  <h2>二维码 / QR Codes</h2>
+  <div class="grid">
+    <div class="card"><h3>二维码网格目录</h3><p>共 ${qr_count} 个 PNG 二维码，单独卡片展示。</p><a class="btn green" href="/qr/">打开 QR 网格</a></div>
+    <div class="card"><h3>V2RayN 二维码</h3><a class="btn" href="/qr/v2rayn.png" target="_blank">打开 v2rayn.png</a></div>
+    <div class="card"><h3>NekoBox 二维码</h3><a class="btn" href="/qr/nekobox.png" target="_blank">打开 nekobox.png</a></div>
+  </div>
+
+  <h2>节点 / 订阅</h2>
+  <div class="grid">
+    <div class="card"><h3>Raw 订阅</h3><a class="btn" href="/sub/all.txt">打开 all.txt</a><a class="btn gray" href="/sub/all_base64.txt">Base64</a></div>
+    <div class="card"><h3>节点链接汇总</h3><a class="btn" href="/node-links.txt">打开 node-links.txt</a></div>
+    <div class="card"><h3>客户端目录</h3><a class="btn" href="/clients/">打开 clients 目录</a></div>
+  </div>
+
+  <h2>常用命令</h2>
+  <pre>Love clean-cache
+Love disk-check
+Love sub
+Love qr
+Love txt
+Love web</pre>
+</div></div>
+</body>
+</html>
+EOF
+
+  echo "[4/4] 写入 nginx 配置并重启..."
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    htpasswd -bc /etc/nginx/.love_web_htpasswd "$user" "$pass" >/dev/null || return 1
+  else
+    rm -f /etc/nginx/.love_web_htpasswd
+  fi
+
+  cat > "$conf" <<EOF
+server {
+    listen ${web_port};
+    listen [::]:${web_port};
+    server_name _;
+    root ${webroot};
+    index index.html;
+    autoindex on;
+    charset utf-8;
+EOF
+
+  if [[ "$auth" =~ ^[Yy]$ ]]; then
+    cat >> "$conf" <<EOF
+    auth_basic "Love Admin";
+    auth_basic_user_file /etc/nginx/.love_web_htpasswd;
+EOF
+  fi
+
+  cat >> "$conf" <<'EOF'
+    location / {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        try_files $uri $uri/ =404;
+    }
+}
+EOF
+
+  ln -sf "$conf" /etc/nginx/sites-enabled/love-admin
+  nginx -t || { cat "$conf"; return 1; }
+  systemctl restart nginx || return 1
+
+  echo
+  log "Love Web Panel 已生成。"
+  echo "访问地址：${base}/?v=129"
+  echo "二维码目录：${base}/qr/?v=129"
+  [[ "$auth" =~ ^[Yy]$ ]] && { echo "用户名：${user}"; echo "密码：${pass}"; }
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1329 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1329/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.29.0-web-qr-theme-gallery-final}"
+  love_original_main_v1329 "$@"
 }
 
 
