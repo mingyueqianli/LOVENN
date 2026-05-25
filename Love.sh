@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.39.0-all-mode-server-hardfix-final"
+VERSION="Love v13.41.0-safe-main-xray-sub-flag-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.39.0-all-mode-server-hardfix-final"
+LOVE_SCRIPT_VERSION="Love v13.41.0-safe-main-xray-sub-flag-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -15063,6 +15063,386 @@ main() {
       ;;
     *)
       love_original_main_v1339 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.41 Safe Main + Xray HY2 Subscription Restore + Auto Flag Final
+# Conservative version:
+#   - Keep sing-box logic untouched from v13.39.
+#   - Do NOT rewrite Xray server config automatically.
+#   - Only restore Xray HY2 subscription URI to old stable format: sni + insecure.
+#   - Add hard no-arg Love/love menu entry.
+#   - Add safe-update guard to prevent 0-byte script overwrite.
+#   - Add auto country flag labels; failure falls back to US.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.41.0-safe-main-xray-sub-flag-final"
+
+# ------------------------------
+# Safe update guard: never overwrite with empty/broken script.
+# ------------------------------
+love_safe_install_script_v1341() {
+  local src="$1" dst="${2:-/opt/Love/Love.sh}" size
+  [[ -f "$src" ]] || { echo "[ERROR] 文件不存在：$src"; return 1; }
+
+  size="$(stat -c '%s' "$src" 2>/dev/null || echo 0)"
+  if [[ "$size" -lt 100000 ]]; then
+    echo "[ERROR] 新脚本太小：${size} bytes，禁止覆盖，避免 Love.sh 变 0 字节。"
+    return 1
+  fi
+
+  grep -q '^VERSION=' "$src" || { echo "[ERROR] 新脚本找不到 VERSION，禁止覆盖。"; return 1; }
+  bash -n "$src" || { echo "[ERROR] 新脚本语法检查失败，禁止覆盖。"; return 1; }
+
+  mkdir -p "$(dirname "$dst")"
+  if [[ -s "$dst" ]]; then
+    cp -f "$dst" "$dst.bak.safe.$(date +%F-%H%M%S)" 2>/dev/null || true
+  fi
+  install -m 755 "$src" "$dst"
+  ln -sf "$dst" /usr/local/bin/Love
+  ln -sf "$dst" /usr/local/bin/love
+  hash -r 2>/dev/null || true
+  echo "[OK] Love 脚本已安全安装：$dst"
+  grep '^VERSION=' "$dst" || true
+}
+
+love_update_safe_v1341() {
+  love_menu_title "Love 安全更新" "Zero-byte overwrite protected"
+  local url tmp size
+  url="${LOVE_UPDATE_URL:-https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh?force=$(date +%s)}"
+  tmp="/root/Love.new"
+
+  rm -f "$tmp" /tmp/Love.new 2>/dev/null || true
+
+  echo "下载：$url"
+  curl -L --fail --retry 5 \
+    -H 'Cache-Control: no-cache, no-store, must-revalidate' \
+    -H 'Pragma: no-cache' \
+    -H 'Expires: 0' \
+    -o "$tmp" "$url" || { echo "[ERROR] 下载失败。"; return 1; }
+
+  ls -lh "$tmp"
+  love_safe_install_script_v1341 "$tmp" /opt/Love/Love.sh
+}
+
+# Override old self_update_love if it exists.
+self_update_love() { love_update_safe_v1341; }
+
+# ------------------------------
+# Country flag: automatic, manual fallback.
+# ------------------------------
+love_cc_to_flag_v1341() {
+  local cc="${1^^}"
+  case "$cc" in
+    US) echo "🇺🇸" ;; JP) echo "🇯🇵" ;; SG) echo "🇸🇬" ;; HK) echo "🇭🇰" ;;
+    TW) echo "🇹🇼" ;; KR) echo "🇰🇷" ;; DE) echo "🇩🇪" ;; GB|UK) echo "🇬🇧" ;;
+    FR) echo "🇫🇷" ;; NL) echo "🇳🇱" ;; CA) echo "🇨🇦" ;; AU) echo "🇦🇺" ;;
+    IN) echo "🇮🇳" ;; TH) echo "🇹🇭" ;; VN) echo "🇻🇳" ;; ID) echo "🇮🇩" ;;
+    MY) echo "🇲🇾" ;; PH) echo "🇵🇭" ;; BR) echo "🇧🇷" ;; TR) echo "🇹🇷" ;;
+    AE) echo "🇦🇪" ;; ES) echo "🇪🇸" ;; IT) echo "🇮🇹" ;; PL) echo "🇵🇱" ;;
+    SE) echo "🇸🇪" ;; FI) echo "🇫🇮" ;; NO) echo "🇳🇴" ;; CH) echo "🇨🇭" ;;
+    *) echo "🇺🇸" ;;
+  esac
+}
+
+love_flag_detect_v1341() {
+  mkdir -p /opt/Love 2>/dev/null || true
+  if [[ -s /opt/Love/node-country && -s /opt/Love/node-flag ]]; then
+    return 0
+  fi
+
+  local cc=""
+  if command -v curl >/dev/null 2>&1; then
+    cc="$(curl -fsS --max-time 3 https://ipapi.co/country/ 2>/dev/null | tr -dc 'A-Za-z' | head -c 2 || true)"
+    [[ -z "$cc" ]] && cc="$(curl -fsS --max-time 3 https://ifconfig.co/country-iso 2>/dev/null | tr -dc 'A-Za-z' | head -c 2 || true)"
+    [[ -z "$cc" ]] && cc="$(curl -fsS --max-time 3 https://ipinfo.io/country 2>/dev/null | tr -dc 'A-Za-z' | head -c 2 || true)"
+  fi
+  cc="${cc^^}"
+  [[ -z "$cc" ]] && cc="US"
+  echo "$cc" > /opt/Love/node-country
+  love_cc_to_flag_v1341 "$cc" > /opt/Love/node-flag
+}
+
+love_flag_get_v1341() {
+  love_flag_detect_v1341 >/dev/null 2>&1 || true
+  cat /opt/Love/node-flag 2>/dev/null || echo "🇺🇸"
+}
+
+love_cc_get_v1341() {
+  love_flag_detect_v1341 >/dev/null 2>&1 || true
+  cat /opt/Love/node-country 2>/dev/null || echo "US"
+}
+
+love_flag_set_v1341() {
+  love_menu_title "Love 节点国旗设置" "Auto flag / Manual fallback"
+  local cc flag
+  echo "当前：$(love_flag_get_v1341) $(love_cc_get_v1341)"
+  echo
+  read -rp "输入国家代码 US/JP/SG/HK，或直接输入 emoji 国旗: " cc
+  [[ -n "$cc" ]] || { echo "[WARN] 未输入，保持不变。"; return 0; }
+  if [[ "$cc" =~ ^[A-Za-z]{2}$ ]]; then
+    cc="${cc^^}"
+    flag="$(love_cc_to_flag_v1341 "$cc")"
+  else
+    flag="$cc"
+    cc="CUSTOM"
+  fi
+  mkdir -p /opt/Love
+  echo "$cc" > /opt/Love/node-country
+  echo "$flag" > /opt/Love/node-flag
+  echo "[OK] 已设置：$flag $cc"
+}
+
+love_strip_known_flag_v1341() {
+  local label="$1"
+  label="${label#🇺🇸 }"; label="${label#🇯🇵 }"; label="${label#🇸🇬 }"; label="${label#🇭🇰 }"
+  label="${label#🇹🇼 }"; label="${label#🇰🇷 }"; label="${label#🇩🇪 }"; label="${label#🇬🇧 }"
+  label="${label#🇫🇷 }"; label="${label#🇳🇱 }"; label="${label#🇨🇦 }"; label="${label#🇦🇺 }"
+  label="${label#🇮🇳 }"; label="${label#🇹🇭 }"; label="${label#🇻🇳 }"; label="${label#🇮🇩 }"
+  label="${label#🇲🇾 }"; label="${label#🇵🇭 }"; label="${label#🇧🇷 }"; label="${label#🇹🇷 }"
+  echo "$label"
+}
+
+love_label_flag_v1341() {
+  local label="$1" flag
+  flag="$(love_flag_get_v1341)"
+  label="$(love_strip_known_flag_v1341 "$label")"
+  echo "$flag $label"
+}
+
+love_apply_flag_uri_v1341() {
+  local line="$1" pre label
+  [[ "$line" == *"#"* ]] || { echo "$line"; return; }
+  pre="${line%%#*}"
+  label="${line#*#}"
+  echo "${pre}#$(love_label_flag_v1341 "$label")"
+}
+
+# ------------------------------
+# Xray HY2 subscription restore only.
+# Does not touch sing-box and does not rewrite Xray config.
+# ------------------------------
+love_uri_get_param_v1341() {
+  local line="$1" key="$2" q
+  q="${line#*\?}"
+  q="${q%%#*}"
+  tr '&' '\n' <<< "$q" | awk -F= -v k="$key" '$1==k{print $2; exit}'
+}
+
+love_uri_host_from_reality_v1341() {
+  local sub="/opt/Love/subscribe/all.txt" line host ip6 ip4
+  line="$(grep -h -m1 '^vless://.*LOVE-XRAY-REALITY' /opt/Love/client-info/xray-client-info.txt "$sub" /opt/Love/node_info.txt 2>/dev/null || true)"
+  host="$(echo "$line" | sed -E 's#^[^@]+@(.+):443\?.*#\1#' 2>/dev/null || true)"
+  if [[ -n "$host" && "$host" != "$line" ]]; then
+    echo "$host"; return
+  fi
+  ip6="$(ip -6 addr show scope global 2>/dev/null | awk '/inet6/{print $2}' | cut -d/ -f1 | head -n1)"
+  [[ -n "$ip6" ]] && { echo "[$ip6]"; return; }
+  ip4="$(ip -4 addr show scope global 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1)"
+  [[ -n "$ip4" ]] && { echo "$ip4"; return; }
+  echo "SERVER"
+}
+
+love_xray_hy2_insecure_v1341() {
+  local sni="${1:-self.local}" mode
+  mode="$(cat /opt/Love/domain-cert-mode 2>/dev/null || echo auto)"
+  if [[ "$sni" == "self.local" || "$sni" == "localhost" || "$sni" == *.local ]]; then echo "1"; return; fi
+  if [[ "$mode" == "selfsigned" || "$mode" == "custom" || "$mode" == "insecure" ]]; then echo "1"; return; fi
+  echo "0"
+}
+
+love_rebuild_xray_client_info_v1341() {
+  local cfg="/usr/local/etc/xray/config.json" info="/opt/Love/client-info/xray-client-info.txt"
+  [[ -s "$cfg" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  local auth sni insecure server reality hy2a hy2b
+  auth="$(jq -r '.inbounds[]? | select(.tag=="hy2-in") | .settings.users[0].auth // empty' "$cfg" 2>/dev/null | head -n1)"
+  sni="$(jq -r '.inbounds[]? | select(.tag=="hy2-in") | .streamSettings.tlsSettings.serverName // "self.local"' "$cfg" 2>/dev/null | head -n1)"
+  [[ -z "$auth" ]] && return 0
+  [[ -z "$sni" ]] && sni="self.local"
+
+  insecure="$(love_xray_hy2_insecure_v1341 "$sni")"
+  server="$(love_uri_host_from_reality_v1341)"
+  reality="$(grep -h -m1 '^vless://.*LOVE-XRAY-REALITY' /opt/Love/client-info/xray-client-info.txt /opt/Love/subscribe/all.txt /opt/Love/node_info.txt 2>/dev/null || true)"
+  [[ -n "$reality" ]] && reality="$(love_apply_flag_uri_v1341 "$reality")"
+
+  hy2a="hysteria2://${auth}@${server}:443/?sni=${sni}&insecure=${insecure}#$(love_label_flag_v1341 "LOVE-XRAY-HY2")"
+  hy2b="hy2://${auth}@${server}:443/?sni=${sni}&insecure=${insecure}#$(love_label_flag_v1341 "LOVE-XRAY-HY2")"
+
+  mkdir -p /opt/Love/client-info
+  {
+    echo "Love Xray Client Info"
+    echo
+    echo "Reality:"
+    [[ -n "$reality" ]] && echo "$reality"
+    echo
+    echo "HY2:"
+    echo "$hy2a"
+    echo "$hy2b"
+    echo
+    echo "Manual HY2:"
+    echo "Address: $server"
+    echo "Port: 443"
+    echo "Auth: $auth"
+    echo "SNI: $sni"
+    echo "Insecure: $insecure"
+    echo
+    echo "Note: Xray HY2 keeps old stable URI: only sni + insecure."
+  } > "$info"
+  chmod 600 "$info" 2>/dev/null || true
+}
+
+love_fix_sub_xray_only_v1341() {
+  local raw="/opt/Love/subscribe/all.txt" tmp="/tmp/love-sub-v1341.$$" line label
+  [[ -s "$raw" ]] || return 0
+
+  : > "$tmp"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # Xray HY2: old stable format only.
+    if [[ "$line" == *"LOVE-XRAY-HY2"* && ( "$line" == hysteria2://* || "$line" == hy2://* ) ]]; then
+      local pre sni insecure
+      pre="${line%%#*}"
+      pre="${pre%%\?*}"
+      pre="${pre%/}/"
+      sni="$(love_uri_get_param_v1341 "$line" "sni")"
+      [[ -z "$sni" ]] && sni="self.local"
+      insecure="$(love_xray_hy2_insecure_v1341 "$sni")"
+      echo "${pre}?sni=${sni}&insecure=${insecure}#$(love_label_flag_v1341 "LOVE-XRAY-HY2")" >> "$tmp"
+      continue
+    fi
+
+    # Other nodes: only add flag; do not modify params.
+    if [[ "$line" =~ ^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls):// ]]; then
+      love_apply_flag_uri_v1341 "$line" >> "$tmp"
+    else
+      echo "$line" >> "$tmp"
+    fi
+  done < "$raw"
+
+  awk '!seen[$0]++' "$tmp" > "$raw"
+  rm -f "$tmp"
+
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0 "$raw" > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+  else
+    base64 "$raw" | tr -d '\n' > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+  fi
+
+  mkdir -p /opt/Love/subscribe/clients
+  cp -f "$raw" /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  cp -f "$raw" /opt/Love/subscribe/clients/nekobox-uri.txt 2>/dev/null || true
+}
+
+# Save previous sub if available.
+if declare -F love_sub_hard_v1338 >/dev/null 2>&1 && ! declare -F love_original_sub_v1341 >/dev/null 2>&1; then
+  eval "$(declare -f love_sub_hard_v1338 | sed '1s/^love_sub_hard_v1338/love_original_sub_v1341/')"
+fi
+
+love_sub_safe_v1341() {
+  love_rebuild_xray_client_info_v1341
+
+  # keep sing-box behavior from v13.39 exactly: call original sub wrapper if it exists
+  if declare -F love_original_sub_v1341 >/dev/null 2>&1; then
+    love_original_sub_v1341 "$@"
+  elif declare -F love_sub_domain_final_v1336 >/dev/null 2>&1; then
+    love_sub_domain_final_v1336 "$@"
+  else
+    echo "[ERROR] 找不到订阅导出函数"
+    return 1
+  fi
+
+  love_rebuild_xray_client_info_v1341
+  love_fix_sub_xray_only_v1341
+
+  echo
+  echo "[OK] 订阅已导出：sing-box 保持原逻辑；Xray HY2 恢复旧版稳定链接；节点名已加国旗。"
+  grep -nE 'LOVE-XRAY|38002|38006|TUIC|VLESS-WS-TLS|HY2' /opt/Love/subscribe/all.txt 2>/dev/null || true
+}
+
+# ------------------------------
+# Diagnostics and hard menu wrapper.
+# ------------------------------
+love_menu_check_v1341() {
+  love_menu_title "Love 菜单入口检查" "Safe v13.41"
+  local f
+  for f in love_hard_menu_v1335 install_xray_stable install_singbox_native love_sub_safe_v1341 generate_qrcodes web_admin_page uninstall_menu_v7 love_ports_v1334 love_count_v1334 love_update_safe_v1341 love_flag_set_v1341; do
+    if declare -F "$f" >/dev/null 2>&1; then
+      printf "[OK]   %s\n" "$f"
+    else
+      printf "[MISS] %s\n" "$f"
+    fi
+  done
+}
+
+love_boot_check_v1341() {
+  echo "==== Love 文件 ===="
+  ls -lh /opt/Love/Love.sh 2>/dev/null || true
+  stat -c 'size=%s' /opt/Love/Love.sh 2>/dev/null || true
+  grep '^VERSION=' /opt/Love/Love.sh 2>/dev/null || true
+  bash -n /opt/Love/Love.sh && echo "[OK] bash -n"
+  echo
+  echo "==== 命令指向 ===="
+  type -a Love 2>/dev/null || true
+  type -a love 2>/dev/null || true
+  readlink -f /usr/local/bin/Love 2>/dev/null || true
+  readlink -f /usr/local/bin/love 2>/dev/null || true
+  echo
+  echo "==== Xray ===="
+  /usr/local/bin/xray version 2>/dev/null | head -5 || true
+  jq '.inbounds[]? | select(.tag=="hy2-in") | {tag,port,protocol,auth:.settings.users[0].auth,sni:.streamSettings.tlsSettings.serverName,alpn:.streamSettings.tlsSettings.alpn,network:.streamSettings.network}' /usr/local/etc/xray/config.json 2>/dev/null || true
+  echo
+  echo "==== 监听 ===="
+  ss -lntup | grep -E '443|38000|38001|38002|38006|xray|sing-box' || true
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1341 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1341/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.41.0-safe-main-xray-sub-flag-final}"
+  case "${1:-}" in
+    ""|menu)
+      need_root 2>/dev/null || true
+      prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      if declare -F love_hard_menu_v1335 >/dev/null 2>&1; then
+        love_hard_menu_v1335
+      elif declare -F main_menu >/dev/null 2>&1; then
+        main_menu
+      else
+        echo "Love v13.41"
+        echo "可用命令：Love xray | Love singbox | Love sub | Love qr | Love web | Love boot-check"
+      fi
+      ;;
+    sub|subscription|link-fix|client-fix|fix-links)
+      love_sub_safe_v1341
+      ;;
+    update|self-update)
+      love_update_safe_v1341
+      ;;
+    flag-set|set-flag)
+      love_flag_set_v1341
+      ;;
+    flag-auto|detect-flag)
+      rm -f /opt/Love/node-country /opt/Love/node-flag 2>/dev/null || true
+      love_flag_detect_v1341
+      echo "[OK] 自动识别：$(love_flag_get_v1341) $(love_cc_get_v1341)"
+      ;;
+    menu-check)
+      love_menu_check_v1341
+      ;;
+    boot-check|doctor)
+      love_boot_check_v1341
+      ;;
+    *)
+      love_original_main_v1341 "$@"
       ;;
   esac
 }
