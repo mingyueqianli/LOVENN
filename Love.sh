@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.52.0-source-template-body-final"
+VERSION="Love v13.53.0-no-legacy-source-web-h2-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1129,13 +1129,13 @@ EOF
 
   if [[ "$INSTALL_H2_REALITY" == "yes" ]]; then
     cat >> "$inbound_file" <<EOF
-{"type":"vless","tag":"h2-reality-in","listen":"::","listen_port":${SB_H2_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]}},"transport":{"type":"http","host":["${reality_sni}"],"path":"/h2"}}
+{"type":"vless","tag":"h2-reality-in","listen":"::","listen_port":${SB_H2_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]},"alpn":["h2"]},"transport":{"type":"http","host":["${reality_sni}"],"path":"/h2"}}
 EOF
   fi
 
   if [[ "$INSTALL_GRPC_REALITY" == "yes" ]]; then
     cat >> "$inbound_file" <<EOF
-{"type":"vless","tag":"grpc-reality-in","listen":"::","listen_port":${SB_GRPC_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]}},"transport":{"type":"grpc","service_name":"lovegrpc"}}
+{"type":"vless","tag":"grpc-reality-in","listen":"::","listen_port":${SB_GRPC_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]},"alpn":["h2"]},"transport":{"type":"grpc","service_name":"lovegrpc"}}
 EOF
   fi
 
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.52.0-source-template-body-final"
+LOVE_SCRIPT_VERSION="Love v13.53.0-no-legacy-source-web-h2-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -18192,13 +18192,13 @@ EOF
 
   if [[ "$INSTALL_H2_REALITY" == "yes" ]]; then
     cat >> "$inbound_file" <<EOF
-{"type":"vless","tag":"h2-reality-in","listen":"::","listen_port":${SB_H2_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]}},"transport":{"type":"http","host":["${reality_sni}"],"path":"/h2"}}
+{"type":"vless","tag":"h2-reality-in","listen":"::","listen_port":${SB_H2_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]},"alpn":["h2"]},"transport":{"type":"http","host":["${reality_sni}"],"path":"/h2"}}
 EOF
   fi
 
   if [[ "$INSTALL_GRPC_REALITY" == "yes" ]]; then
     cat >> "$inbound_file" <<EOF
-{"type":"vless","tag":"grpc-reality-in","listen":"::","listen_port":${SB_GRPC_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]}},"transport":{"type":"grpc","service_name":"lovegrpc"}}
+{"type":"vless","tag":"grpc-reality-in","listen":"::","listen_port":${SB_GRPC_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]},"alpn":["h2"]},"transport":{"type":"grpc","service_name":"lovegrpc"}}
 EOF
   fi
 
@@ -18352,13 +18352,13 @@ save_singbox_info() {
 
   if [[ "$INSTALL_H2_REALITY" == "yes" ]]; then
     echo "H2 Reality:" >> "${SINGBOX_INFO}"
-    echo "vless://${SB_UUID}@${h}:${SB_H2_REALITY_PORT}?encryption=none&security=reality&sni=${reality_sni}&fp=chrome&pbk=${SB_PUBLIC}&sid=${SB_REALITY_SHORT}&type=http&path=%2Fh2&host=${reality_sni}#$(love_v1352_label LOVE-H2-REALITY)" >> "${SINGBOX_INFO}"
+    echo "vless://${SB_UUID}@${h}:${SB_H2_REALITY_PORT}?encryption=none&security=reality&sni=${reality_sni}&fp=chrome&pbk=${SB_PUBLIC}&sid=${SB_REALITY_SHORT}&type=http&path=%2Fh2&host=${reality_sni}&alpn=h2#$(love_v1352_label LOVE-H2-REALITY)" >> "${SINGBOX_INFO}"
     echo >> "${SINGBOX_INFO}"
   fi
 
   if [[ "$INSTALL_GRPC_REALITY" == "yes" ]]; then
     echo "gRPC Reality:" >> "${SINGBOX_INFO}"
-    echo "vless://${SB_UUID}@${h}:${SB_GRPC_REALITY_PORT}?encryption=none&security=reality&sni=${reality_sni}&fp=chrome&pbk=${SB_PUBLIC}&sid=${SB_REALITY_SHORT}&type=grpc&serviceName=lovegrpc&authority=${reality_sni}#$(love_v1352_label LOVE-GRPC-REALITY)" >> "${SINGBOX_INFO}"
+    echo "vless://${SB_UUID}@${h}:${SB_GRPC_REALITY_PORT}?encryption=none&security=reality&sni=${reality_sni}&fp=chrome&pbk=${SB_PUBLIC}&sid=${SB_REALITY_SHORT}&type=grpc&serviceName=lovegrpc&authority=${reality_sni}&mode=gun&alpn=h2#$(love_v1352_label LOVE-GRPC-REALITY)" >> "${SINGBOX_INFO}"
     echo >> "${SINGBOX_INFO}"
   fi
 
@@ -18413,6 +18413,194 @@ main() {
     *)
       love_original_main_v1352 "$@"
       ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.53 No Legacy Source/Web/H2 Final
+# Stops old v13.46/v13.47/v13.48 repair chains from overwriting source-template output.
+# Restores direct Green Mode Web. Adds H2/gRPC Reality ALPN h2 source compatibility.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.53.0-no-legacy-source-web-h2-final"
+
+love_v1353_norm_file() {
+  local f="$1"
+  [[ -s "$f" ]] || return 0
+  python3 - "$f" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1])
+out=[]
+for line in p.read_text(encoding="utf-8",errors="ignore").splitlines():
+    low=line.lower()
+    if line.startswith(("vless://","tuic://","trojan://","hy2://","hysteria2://","anytls://")):
+        main,_,frag=line.partition("#")
+        if not frag.startswith("🇺🇸 "):
+            frag = "🇺🇸 " + (frag[3:] if frag.startswith("US ") else (frag or "LOVE"))
+        base,qsep,query=main.partition("?")
+        params=[]
+        for x in query.split("&"):
+            if not x: continue
+            k=x.split("=",1)[0].lower()
+            if k in ("allowinsecure","insecure","allow_insecure","alpn","mode"):
+                continue
+            params.append(x)
+        if line.startswith("vless://") and "security=tls" in low and "type=ws" in low:
+            params += ["allowInsecure=true","insecure=true","allow_insecure=true"]
+        elif line.startswith("tuic://"):
+            params += ["allow_insecure=true","allowInsecure=true","insecure=true","alpn=h3"]
+        elif line.startswith("trojan://"):
+            params += ["allowInsecure=true","insecure=true","allow_insecure=true"]
+        elif line.startswith(("hy2://","hysteria2://")):
+            params += ["insecure=1"]
+        elif line.startswith("anytls://"):
+            params += ["insecure=true"]
+        elif line.startswith("vless://") and "security=reality" in low and "type=http" in low:
+            params += ["alpn=h2"]
+        elif line.startswith("vless://") and "security=reality" in low and "type=grpc" in low:
+            params += ["mode=gun","alpn=h2"]
+        if qsep:
+            line=base+"?"+"&".join(params)+"#"+frag
+        else:
+            line=main+"#"+frag
+    out.append(line)
+p.write_text("\n".join(out)+"\n",encoding="utf-8")
+PY
+}
+
+love_v1353_export_direct() {
+  local sub="/opt/Love/subscribe"
+  mkdir -p "$sub/clients" "$sub/qr"
+  : > "$sub/all.txt"
+  for f in /opt/Love/client-info/*.txt; do
+    [[ -s "$f" ]] || continue
+    grep -E '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$f" >> "$sub/all.txt" || true
+  done
+  awk 'NF && !seen[$0]++' "$sub/all.txt" > "$sub/all.tmp" && mv "$sub/all.tmp" "$sub/all.txt"
+  love_v1353_norm_file "$sub/all.txt"
+  cp -f "$sub/all.txt" "$sub/全部节点.txt"
+  cp -f "$sub/all.txt" "$sub/推荐节点.txt"
+  cp -f "$sub/all.txt" "$sub/节点清晰版.txt"
+  cp -f "$sub/all.txt" "$sub/clients/v2rayn-uri.txt"
+  cp -f "$sub/all.txt" "$sub/clients/nekobox-uri.txt"
+  cp -f "$sub/all.txt" "$sub/clients/nodes-clean.txt"
+  base64 -w0 "$sub/all.txt" > "$sub/all_base64.txt" 2>/dev/null || base64 "$sub/all.txt" | tr -d '\n' > "$sub/all_base64.txt"
+}
+
+love_v1353_qr_direct() {
+  local sub="/opt/Love/subscribe" qr="$sub/qr"
+  mkdir -p "$qr"; rm -f "$qr"/* 2>/dev/null || true
+  command -v qrencode >/dev/null 2>&1 || apt install -y qrencode >/dev/null 2>&1 || true
+  local i=0 line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    ((i++)) || true
+    printf '%s' "$line" | qrencode -t PNG -s 5 -m 2 -o "$qr/node-${i}.png" 2>/dev/null || true
+  done < "$sub/all.txt"
+  cat > "$qr/index.html" <<'EOF'
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love QR Green</title>
+<style>body{margin:0;background:#07140d;color:#e8fff0;font-family:Arial,"Microsoft YaHei",sans-serif}.wrap{max-width:1180px;margin:auto;padding:24px}.hero{background:linear-gradient(135deg,#047857,#16a34a);border-radius:22px;padding:22px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:20px}.card{background:#0b2014;border:1px solid #14532d;border-radius:18px;padding:16px;text-align:center}img{width:170px;max-width:90%;background:white;padding:8px;border-radius:12px}.btn{display:inline-block;padding:8px 12px;border-radius:999px;background:#16a34a;color:white;text-decoration:none}</style></head><body><div class="wrap"><div class="hero"><h1>Love QR Gallery · Green Mode</h1><a class="btn" href="/">返回首页</a></div><div class="grid">
+EOF
+  for p in "$qr"/node-*.png; do [[ -f "$p" ]] && b="$(basename "$p")" && echo "<div class='card'><h3>${b}</h3><a href='./${b}'><img src='./${b}'></a></div>" >> "$qr/index.html"; done
+  echo "</div></div></body></html>" >> "$qr/index.html"
+}
+
+love_v1353_web_direct() {
+  local port="${1:-8099}" auth="${2:-Y}" user="${3:-love}" pass="${4:-}" web="/var/www/love-admin" sub="/opt/Love/subscribe"
+  mkdir -p "$web/sub" "$web/clients" "$web/qr"
+  cp -f "$sub/all.txt" "$web/all.txt" 2>/dev/null || true
+  cp -f "$sub/all.txt" "$web/node-links.txt" 2>/dev/null || true
+  cp -f "$sub/全部节点.txt" "$web/全部节点.txt" 2>/dev/null || true
+  cp -f "$sub/推荐节点.txt" "$web/推荐节点.txt" 2>/dev/null || true
+  cp -f "$sub/节点清晰版.txt" "$web/节点清晰版.txt" 2>/dev/null || true
+  cp -f "$sub/all.txt" "$web/sub/all.txt" 2>/dev/null || true
+  cp -f "$sub/all_base64.txt" "$web/sub/all_base64.txt" 2>/dev/null || true
+  cp -a "$sub/clients/." "$web/clients/" 2>/dev/null || true
+  cp -a "$sub/qr/." "$web/qr/" 2>/dev/null || true
+  cat > "$web/index.html" <<'EOF'
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love Green</title>
+<style>body{margin:0;background:#07140d;color:#e8fff0;font-family:Arial,"Microsoft YaHei",sans-serif}.wrap{max-width:1120px;margin:auto;padding:24px}.hero{background:linear-gradient(135deg,#047857,#16a34a);border-radius:22px;padding:24px}.card{background:#0b2014;border:1px solid #14532d;border-radius:18px;padding:18px;margin:16px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.btn{display:inline-block;background:#16a34a;color:white;text-decoration:none;border-radius:999px;padding:9px 14px;margin:5px;font-weight:700}</style></head><body><div class="wrap"><div class="hero"><h1>Love Web Panel · Green Mode</h1><p>Source template / no legacy repair chain</p></div><div class="card"><div class="grid"><a class="btn" href="/all.txt">全部节点</a><a class="btn" href="/推荐节点.txt">推荐节点</a><a class="btn" href="/节点清晰版.txt">节点清晰版</a><a class="btn" href="/clients/v2rayn-uri.txt">V2RayN</a><a class="btn" href="/clients/nekobox-uri.txt">NekoBox</a><a class="btn" href="/qr/index.html">二维码</a></div></div></div></body></html>
+EOF
+  cat > /etc/nginx/sites-available/love-admin <<EOF
+server {
+  listen ${port};
+  listen [::]:${port};
+  server_name _;
+  root ${web};
+  index index.html;
+  autoindex on;
+  charset utf-8;
+EOF
+  if [[ "${auth,,}" != "n" ]]; then
+    [[ -n "$pass" ]] || pass="$(openssl rand -hex 8)"
+    htpasswd -bc /etc/nginx/.love_web_htpasswd "$user" "$pass" >/dev/null 2>&1 || true
+    echo '  auth_basic "Love";' >> /etc/nginx/sites-available/love-admin
+    echo '  auth_basic_user_file /etc/nginx/.love_web_htpasswd;' >> /etc/nginx/sites-available/love-admin
+  fi
+  echo "}" >> /etc/nginx/sites-available/love-admin
+  ln -sf /etc/nginx/sites-available/love-admin /etc/nginx/sites-enabled/love-admin
+  nginx -t && systemctl restart nginx
+  echo "[OK] Love Web Green Panel 已生成。"
+  [[ "${auth,,}" != "n" ]] && echo "用户名：$user  密码：$pass"
+}
+
+# Replace old noisy functions with final direct functions.
+love_fix_vless_ws_tls_all_v1347() { love_v1353_norm_file /opt/Love/subscribe/all.txt 2>/dev/null || true; }
+love_web_fix_v1346() { love_v1353_export_direct; love_v1353_qr_direct; love_v1353_web_direct 8099 n love ""; }
+love_v1348_source_correct_outputs() { love_v1353_export_direct; love_v1353_qr_direct; }
+
+web_admin_page() {
+  echo "════════════════════════════════════════════════════════════════════════════════"
+  echo "Love Web 管理页 Green Mode / Source Template"
+  echo "════════════════════════════════════════════════════════════════════════════════"
+  local port auth user pass
+  read -rp "Web 管理页端口 [8099]: " port; port="${port:-8099}"
+  read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " auth; auth="${auth:-Y}"
+  read -rp "Web 用户名 [love]: " user; user="${user:-love}"
+  if [[ "${auth,,}" != "n" ]]; then read -rp "Web 密码，留空自动生成: " pass; fi
+  love_v1353_export_direct
+  love_v1353_qr_direct
+  love_v1353_web_direct "$port" "$auth" "$user" "$pass"
+}
+
+love_after_node_generated_exports() {
+  echo
+  echo "================ Love Source Template Export v13.53 ================"
+  love_v1353_export_direct
+  love_v1353_qr_direct
+  echo "[OK] 订阅/TXT/二维码已按模板本体直接生成。"
+  web_admin_page
+}
+
+love_v1353_h2_fix_existing() {
+  [[ -s /etc/sing-box/config.json ]] || return 0
+  cp -f /etc/sing-box/config.json /etc/sing-box/config.json.bak.h2-grpc-alpn-v1353.$(date +%F-%H%M%S) 2>/dev/null || true
+  jq '(.inbounds[]? | select(.tag=="h2-reality-in").tls.alpn)=["h2"] | (.inbounds[]? | select(.tag=="grpc-reality-in").tls.alpn)=["h2"] | (.inbounds[]? | select(.tag=="tuic-in" or .type=="tuic").tls.alpn)=["h3"]' /etc/sing-box/config.json > /tmp/love-v1353-sb.json && mv /tmp/love-v1353-sb.json /etc/sing-box/config.json
+  sing-box check -c /etc/sing-box/config.json && systemctl restart sing-box
+}
+
+love_v1353_check() {
+  echo "================ Love v13.53 检查 ================"
+  grep '^VERSION=' /opt/Love/Love.sh 2>/dev/null || true
+  echo
+  declare -f write_singbox_config | grep -n '"alpn":\["h3"\]\|"alpn":\["h2"\]' || true
+  echo
+  grep -nEi 'LOVE-H2-REALITY|LOVE-GRPC-REALITY|LOVE-TROJAN|LOVE-TUIC|LOVE-VLESS-WS-TLS' /opt/Love/subscribe/all.txt 2>/dev/null || true
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1353 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1353/')"
+fi
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.53.0-no-legacy-source-web-h2-final}"
+  case "${1:-}" in
+    h2-fix|grpc-fix|reality-h2-fix) love_v1353_h2_fix_existing; love_v1353_export_direct; love_v1353_qr_direct ;;
+    web|web-fix|fix-web) web_admin_page ;;
+    source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix) love_v1353_export_direct; love_v1353_qr_direct ;;
+    v1353-check|template-check|source-template-check|body-check) love_v1353_check ;;
+    *) love_original_main_v1353 "$@" ;;
   esac
 }
 
