@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.53.0-no-legacy-source-web-h2-final"
+VERSION="Love v13.54.0-from-1352-complete-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.53.0-no-legacy-source-web-h2-final"
+LOVE_SCRIPT_VERSION="Love v13.54.0-from-1352-complete-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -18418,189 +18418,417 @@ main() {
 
 
 # ==============================================================================
-# Love v13.53 No Legacy Source/Web/H2 Final
-# Stops old v13.46/v13.47/v13.48 repair chains from overwriting source-template output.
-# Restores direct Green Mode Web. Adds H2/gRPC Reality ALPN h2 source compatibility.
+# Love v13.54 From v13.52 Complete Final
+#
+# Built from v13.52, not from broken v13.53.
+#
+# Rules:
+#   1. Template body is source-correct.
+#   2. Legacy v13.46/v13.47/v13.48 post-fix chains are silenced/overridden.
+#   3. Green Web is preserved.
+#   4. H2/gRPC Reality source and existing config can be fixed with h2 ALPN.
+#   5. VLESS WS TLS / Trojan / TUIC use v2rayN-friendly true flags in self-signed mode.
+#   6. Public CA mode removes insecure flags.
+#   7. ShadowTLS is preserved as manual text, not falsely counted as importable URI.
+#   8. Cert mode switch is provided for link/output generation; new installs still use install cert menu.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.53.0-no-legacy-source-web-h2-final"
+LOVE_SCRIPT_VERSION="Love v13.54.0-from-1352-complete-final"
 
-love_v1353_norm_file() {
-  local f="$1"
-  [[ -s "$f" ]] || return 0
-  python3 - "$f" <<'PY'
+love_v1354_cert_mode() {
+  local m
+  m="$(cat /opt/Love/cert-mode 2>/dev/null || cat /opt/Love/domain-cert-mode 2>/dev/null || true)"
+  m="${m,,}"
+  case "$m" in
+    public|public_ca|domain_public_ca|ca|letsencrypt|lets_encrypt|zerossl) echo "public_ca" ;;
+    *) echo "self_signed" ;;
+  esac
+}
+
+love_v1354_flag() {
+  local f cc n1 n2
+  if declare -F love_v1352_flag_emoji >/dev/null 2>&1; then
+    f="$(love_v1352_flag_emoji 2>/dev/null || true)"
+  fi
+  [[ -z "$f" && -s /opt/Love/node-flag ]] && f="$(cat /opt/Love/node-flag 2>/dev/null || true)"
+  f="${f:-🇺🇸}"
+  if [[ "$f" =~ ^[A-Za-z][A-Za-z]$ ]]; then
+    cc="${f^^}"
+    n1=$(( $(printf "%d" "'${cc:0:1}") - 65 + 127462 ))
+    n2=$(( $(printf "%d" "'${cc:1:1}") - 65 + 127462 ))
+    python3 - <<PY 2>/dev/null || echo "🇺🇸"
+print(chr($n1)+chr($n2))
+PY
+  else
+    echo "$f"
+  fi
+}
+
+love_v1354_label() {
+  local label="$1" flag
+  flag="$(love_v1354_flag)"
+  label="${label#US }"; label="${label#USA }"; label="${label#🇺🇸 }"
+  echo "$flag ${label# }"
+}
+
+love_v1354_sni_selfsigned() {
+  local line="$1" q sni host
+  q="${line#*\?}"; q="${q%%#*}"
+  sni="$(tr '&' '\n' <<< "$q" | awk -F= 'tolower($1)=="sni"{print $2; exit}')"
+  host="$(tr '&' '\n' <<< "$q" | awk -F= 'tolower($1)=="host"{print $2; exit}')"
+  [[ -z "$sni" ]] && sni="$host"
+  [[ -z "$sni" || "$sni" == "self.local" || "$sni" == "localhost" || "$sni" == *.local ]]
+}
+
+love_v1354_norm_file() {
+  local file="$1" mode
+  mode="$(love_v1354_cert_mode)"
+  [[ -s "$file" ]] || return 0
+  python3 - "$file" "$mode" <<'PY'
 from pathlib import Path
-import sys
-p=Path(sys.argv[1])
-out=[]
-for line in p.read_text(encoding="utf-8",errors="ignore").splitlines():
-    low=line.lower()
-    if line.startswith(("vless://","tuic://","trojan://","hy2://","hysteria2://","anytls://")):
-        main,_,frag=line.partition("#")
-        if not frag.startswith("🇺🇸 "):
-            frag = "🇺🇸 " + (frag[3:] if frag.startswith("US ") else (frag or "LOVE"))
-        base,qsep,query=main.partition("?")
-        params=[]
-        for x in query.split("&"):
-            if not x: continue
-            k=x.split("=",1)[0].lower()
-            if k in ("allowinsecure","insecure","allow_insecure","alpn","mode"):
-                continue
-            params.append(x)
-        if line.startswith("vless://") and "security=tls" in low and "type=ws" in low:
-            params += ["allowInsecure=true","insecure=true","allow_insecure=true"]
+import sys, re, urllib.parse
+
+p = Path(sys.argv[1])
+global_mode = sys.argv[2]
+flag_default = "🇺🇸"
+
+def is_self_sni(query: str) -> bool:
+    params = urllib.parse.parse_qs(query, keep_blank_values=True)
+    sni = (params.get("sni") or params.get("host") or [""])[0]
+    return (not sni) or sni in ("self.local", "localhost") or sni.endswith(".local")
+
+def clean_params(query: str):
+    arr = []
+    for x in query.split("&"):
+        if not x:
+            continue
+        k = x.split("=", 1)[0].lower()
+        if k in ("allowinsecure", "allow_insecure", "insecure", "alpn", "mode"):
+            continue
+        arr.append(x)
+    return arr
+
+def label(frag: str) -> str:
+    frag = frag or "LOVE"
+    if frag.startswith("US "):
+        frag = frag[3:]
+    if not frag.startswith(("🇺🇸 ","🇯🇵 ","🇸🇬 ","🇭🇰 ","🇹🇼 ","🇰🇷 ","🇩🇪 ","🇬🇧 ","🇫🇷 ","🇳🇱 ","🇨🇦 ","🇦🇺 ")):
+        frag = flag_default + " " + frag
+    return frag
+
+out = []
+for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+    low = line.lower()
+    if line.startswith(("vless://","tuic://","trojan://","hy2://","hysteria2://","anytls://","https://","ss://","vmess://")):
+        main, _, frag = line.partition("#")
+        base, qsep, query = main.partition("?")
+        frag = label(frag)
+
+        if not qsep:
+            out.append(main + "#" + frag)
+            continue
+
+        params = clean_params(query)
+        self_mode = (global_mode != "public_ca") or is_self_sni(query)
+
+        if line.startswith("vless://") and "security=reality" in low:
+            if "type=http" in low:
+                params += ["alpn=h2"]
+            elif "type=grpc" in low:
+                params += ["mode=gun", "alpn=h2"]
+        elif line.startswith("vless://") and "security=tls" in low and "type=ws" in low:
+            if self_mode:
+                params += ["allowInsecure=true", "insecure=true", "allow_insecure=true"]
         elif line.startswith("tuic://"):
-            params += ["allow_insecure=true","allowInsecure=true","insecure=true","alpn=h3"]
+            if self_mode:
+                params += ["allow_insecure=true", "allowInsecure=true", "insecure=true", "alpn=h3"]
+            else:
+                params += ["alpn=h3"]
         elif line.startswith("trojan://"):
-            params += ["allowInsecure=true","insecure=true","allow_insecure=true"]
+            if self_mode:
+                params += ["allowInsecure=true", "insecure=true", "allow_insecure=true"]
         elif line.startswith(("hy2://","hysteria2://")):
-            params += ["insecure=1"]
+            params += ["insecure=1" if self_mode else "insecure=0"]
         elif line.startswith("anytls://"):
-            params += ["insecure=true"]
-        elif line.startswith("vless://") and "security=reality" in low and "type=http" in low:
-            params += ["alpn=h2"]
-        elif line.startswith("vless://") and "security=reality" in low and "type=grpc" in low:
-            params += ["mode=gun","alpn=h2"]
-        if qsep:
-            line=base+"?"+"&".join(params)+"#"+frag
-        else:
-            line=main+"#"+frag
+            if self_mode:
+                params += ["insecure=true"]
+
+        line = base + "?" + "&".join(params) + "#" + frag
+
     out.append(line)
-p.write_text("\n".join(out)+"\n",encoding="utf-8")
+
+p.write_text("\n".join(out) + "\n", encoding="utf-8")
 PY
 }
 
-love_v1353_export_direct() {
-  local sub="/opt/Love/subscribe"
-  mkdir -p "$sub/clients" "$sub/qr"
-  : > "$sub/all.txt"
+love_v1354_export_direct() {
+  local SUBDIR="/opt/Love/subscribe"
+  local CLIENTDIR="$SUBDIR/clients"
+  mkdir -p "$CLIENTDIR" "$SUBDIR/qr"
+
+  : > "$SUBDIR/all.txt"
+  : > "$CLIENTDIR/manual-nodes.txt"
+
+  local f
   for f in /opt/Love/client-info/*.txt; do
     [[ -s "$f" ]] || continue
-    grep -E '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$f" >> "$sub/all.txt" || true
+    grep -E '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$f" >> "$SUBDIR/all.txt" || true
+    grep -E '^(ShadowTLS manual:|Address=.*Version=3|Detour=SS|Label=.*SHADOWTLS)' "$f" >> "$CLIENTDIR/manual-nodes.txt" || true
   done
-  awk 'NF && !seen[$0]++' "$sub/all.txt" > "$sub/all.tmp" && mv "$sub/all.tmp" "$sub/all.txt"
-  love_v1353_norm_file "$sub/all.txt"
-  cp -f "$sub/all.txt" "$sub/全部节点.txt"
-  cp -f "$sub/all.txt" "$sub/推荐节点.txt"
-  cp -f "$sub/all.txt" "$sub/节点清晰版.txt"
-  cp -f "$sub/all.txt" "$sub/clients/v2rayn-uri.txt"
-  cp -f "$sub/all.txt" "$sub/clients/nekobox-uri.txt"
-  cp -f "$sub/all.txt" "$sub/clients/nodes-clean.txt"
-  base64 -w0 "$sub/all.txt" > "$sub/all_base64.txt" 2>/dev/null || base64 "$sub/all.txt" | tr -d '\n' > "$sub/all_base64.txt"
+
+  awk 'NF && !seen[$0]++' "$SUBDIR/all.txt" > "$SUBDIR/all.tmp" && mv "$SUBDIR/all.tmp" "$SUBDIR/all.txt"
+  love_v1354_norm_file "$SUBDIR/all.txt"
+
+  cp -f "$SUBDIR/all.txt" "$SUBDIR/全部节点.txt"
+  cp -f "$SUBDIR/all.txt" "$SUBDIR/推荐节点.txt"
+  cp -f "$SUBDIR/all.txt" "$SUBDIR/节点清晰版.txt"
+  cp -f "$SUBDIR/all.txt" "$CLIENTDIR/v2rayn-uri.txt"
+  cp -f "$SUBDIR/all.txt" "$CLIENTDIR/nekobox-uri.txt"
+  cp -f "$SUBDIR/all.txt" "$CLIENTDIR/nodes-clean.txt"
+
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0 "$SUBDIR/all.txt" > "$SUBDIR/all_base64.txt" 2>/dev/null || true
+  else
+    base64 "$SUBDIR/all.txt" | tr -d '\n' > "$SUBDIR/all_base64.txt" 2>/dev/null || true
+  fi
 }
 
-love_v1353_qr_direct() {
-  local sub="/opt/Love/subscribe" qr="$sub/qr"
-  mkdir -p "$qr"; rm -f "$qr"/* 2>/dev/null || true
+love_v1354_qr_direct() {
+  local SUBDIR="/opt/Love/subscribe"
+  local QRDIR="$SUBDIR/qr"
+  mkdir -p "$QRDIR"
+  rm -f "$QRDIR"/* 2>/dev/null || true
   command -v qrencode >/dev/null 2>&1 || apt install -y qrencode >/dev/null 2>&1 || true
+
   local i=0 line
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -n "$line" ]] || continue
     ((i++)) || true
-    printf '%s' "$line" | qrencode -t PNG -s 5 -m 2 -o "$qr/node-${i}.png" 2>/dev/null || true
-  done < "$sub/all.txt"
-  cat > "$qr/index.html" <<'EOF'
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love QR Green</title>
-<style>body{margin:0;background:#07140d;color:#e8fff0;font-family:Arial,"Microsoft YaHei",sans-serif}.wrap{max-width:1180px;margin:auto;padding:24px}.hero{background:linear-gradient(135deg,#047857,#16a34a);border-radius:22px;padding:22px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:20px}.card{background:#0b2014;border:1px solid #14532d;border-radius:18px;padding:16px;text-align:center}img{width:170px;max-width:90%;background:white;padding:8px;border-radius:12px}.btn{display:inline-block;padding:8px 12px;border-radius:999px;background:#16a34a;color:white;text-decoration:none}</style></head><body><div class="wrap"><div class="hero"><h1>Love QR Gallery · Green Mode</h1><a class="btn" href="/">返回首页</a></div><div class="grid">
+    printf '%s' "$line" | qrencode -t PNG -s 5 -m 2 -o "$QRDIR/node-${i}.png" 2>/dev/null || true
+  done < "$SUBDIR/all.txt"
+
+  cat > "$QRDIR/index.html" <<'EOF'
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Love QR Gallery · Green Mode</title>
+<style>
+body{margin:0;background:#07140d;color:#e8fff0;font-family:Arial,"Microsoft YaHei",sans-serif}
+.wrap{max-width:1180px;margin:auto;padding:24px}
+.hero{background:linear-gradient(135deg,#047857,#16a34a);border-radius:22px;padding:22px;box-shadow:0 12px 30px #0006}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:20px}
+.card{background:#0b2014;border:1px solid #14532d;border-radius:18px;padding:16px;text-align:center}
+img{width:170px;max-width:90%;background:white;padding:8px;border-radius:12px}
+.btn{display:inline-block;padding:8px 12px;border-radius:999px;background:#16a34a;color:white;text-decoration:none;font-weight:700}
+</style></head><body><div class="wrap"><div class="hero"><h1>Love QR Gallery · Green Mode</h1><a class="btn" href="/">返回首页</a></div><div class="grid">
 EOF
-  for p in "$qr"/node-*.png; do [[ -f "$p" ]] && b="$(basename "$p")" && echo "<div class='card'><h3>${b}</h3><a href='./${b}'><img src='./${b}'></a></div>" >> "$qr/index.html"; done
-  echo "</div></div></body></html>" >> "$qr/index.html"
+  local p b
+  for p in "$QRDIR"/node-*.png; do
+    [[ -f "$p" ]] || continue
+    b="$(basename "$p")"
+    echo "<div class='card'><h3>${b}</h3><a href='./${b}' target='_blank'><img src='./${b}'></a></div>" >> "$QRDIR/index.html"
+  done
+  echo "</div></div></body></html>" >> "$QRDIR/index.html"
 }
 
-love_v1353_web_direct() {
-  local port="${1:-8099}" auth="${2:-Y}" user="${3:-love}" pass="${4:-}" web="/var/www/love-admin" sub="/opt/Love/subscribe"
-  mkdir -p "$web/sub" "$web/clients" "$web/qr"
-  cp -f "$sub/all.txt" "$web/all.txt" 2>/dev/null || true
-  cp -f "$sub/all.txt" "$web/node-links.txt" 2>/dev/null || true
-  cp -f "$sub/全部节点.txt" "$web/全部节点.txt" 2>/dev/null || true
-  cp -f "$sub/推荐节点.txt" "$web/推荐节点.txt" 2>/dev/null || true
-  cp -f "$sub/节点清晰版.txt" "$web/节点清晰版.txt" 2>/dev/null || true
-  cp -f "$sub/all.txt" "$web/sub/all.txt" 2>/dev/null || true
-  cp -f "$sub/all_base64.txt" "$web/sub/all_base64.txt" 2>/dev/null || true
-  cp -a "$sub/clients/." "$web/clients/" 2>/dev/null || true
-  cp -a "$sub/qr/." "$web/qr/" 2>/dev/null || true
-  cat > "$web/index.html" <<'EOF'
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love Green</title>
-<style>body{margin:0;background:#07140d;color:#e8fff0;font-family:Arial,"Microsoft YaHei",sans-serif}.wrap{max-width:1120px;margin:auto;padding:24px}.hero{background:linear-gradient(135deg,#047857,#16a34a);border-radius:22px;padding:24px}.card{background:#0b2014;border:1px solid #14532d;border-radius:18px;padding:18px;margin:16px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.btn{display:inline-block;background:#16a34a;color:white;text-decoration:none;border-radius:999px;padding:9px 14px;margin:5px;font-weight:700}</style></head><body><div class="wrap"><div class="hero"><h1>Love Web Panel · Green Mode</h1><p>Source template / no legacy repair chain</p></div><div class="card"><div class="grid"><a class="btn" href="/all.txt">全部节点</a><a class="btn" href="/推荐节点.txt">推荐节点</a><a class="btn" href="/节点清晰版.txt">节点清晰版</a><a class="btn" href="/clients/v2rayn-uri.txt">V2RayN</a><a class="btn" href="/clients/nekobox-uri.txt">NekoBox</a><a class="btn" href="/qr/index.html">二维码</a></div></div></div></body></html>
+love_v1354_web_direct() {
+  local PORT="${1:-8099}"
+  local AUTH="${2:-Y}"
+  local USERNAME="${3:-love}"
+  local PASSWORD="${4:-}"
+  local WEBDIR="/var/www/love-admin"
+  local SUBDIR="/opt/Love/subscribe"
+
+  mkdir -p "$WEBDIR/sub" "$WEBDIR/clients" "$WEBDIR/qr"
+  cp -f "$SUBDIR/all.txt" "$WEBDIR/all.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$WEBDIR/node-links.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/全部节点.txt" "$WEBDIR/全部节点.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/推荐节点.txt" "$WEBDIR/推荐节点.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/节点清晰版.txt" "$WEBDIR/节点清晰版.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$WEBDIR/sub/all.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all_base64.txt" "$WEBDIR/sub/all_base64.txt" 2>/dev/null || true
+  cp -a "$SUBDIR/clients/." "$WEBDIR/clients/" 2>/dev/null || true
+  cp -a "$SUBDIR/qr/." "$WEBDIR/qr/" 2>/dev/null || true
+
+  cat > "$WEBDIR/index.html" <<'EOF'
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Love Web Panel · Green Mode</title>
+<style>
+body{margin:0;background:#07140d;color:#e8fff0;font-family:Arial,"Microsoft YaHei",sans-serif}
+.wrap{max-width:1120px;margin:auto;padding:24px}
+.hero{background:linear-gradient(135deg,#047857,#16a34a);border-radius:22px;padding:24px;box-shadow:0 12px 30px #0006}
+.card{background:#0b2014;border:1px solid #14532d;border-radius:18px;padding:18px;margin:16px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.btn{display:inline-block;background:#16a34a;color:white;text-decoration:none;border-radius:999px;padding:9px 14px;margin:5px;font-weight:700}
+</style></head><body><div class="wrap"><div class="hero"><h1>Love Web Panel · Green Mode</h1><p>Source-template output / no legacy repair chain</p></div>
+<div class="card"><div class="grid">
+<a class="btn" href="/all.txt" target="_blank">全部节点</a>
+<a class="btn" href="/推荐节点.txt" target="_blank">推荐节点</a>
+<a class="btn" href="/节点清晰版.txt" target="_blank">节点清晰版</a>
+<a class="btn" href="/clients/v2rayn-uri.txt" target="_blank">V2RayN</a>
+<a class="btn" href="/clients/nekobox-uri.txt" target="_blank">NekoBox</a>
+<a class="btn" href="/clients/manual-nodes.txt" target="_blank">手动节点</a>
+<a class="btn" href="/qr/index.html" target="_blank">二维码</a>
+</div></div></div></body></html>
 EOF
+
   cat > /etc/nginx/sites-available/love-admin <<EOF
 server {
-  listen ${port};
-  listen [::]:${port};
-  server_name _;
-  root ${web};
-  index index.html;
-  autoindex on;
-  charset utf-8;
+    listen ${PORT};
+    listen [::]:${PORT};
+    server_name _;
+    root ${WEBDIR};
+    index index.html;
+    autoindex on;
+    charset utf-8;
 EOF
-  if [[ "${auth,,}" != "n" ]]; then
-    [[ -n "$pass" ]] || pass="$(openssl rand -hex 8)"
-    htpasswd -bc /etc/nginx/.love_web_htpasswd "$user" "$pass" >/dev/null 2>&1 || true
-    echo '  auth_basic "Love";' >> /etc/nginx/sites-available/love-admin
-    echo '  auth_basic_user_file /etc/nginx/.love_web_htpasswd;' >> /etc/nginx/sites-available/love-admin
+  if [[ "${AUTH,,}" != "n" ]]; then
+    [[ -n "$PASSWORD" ]] || PASSWORD="$(openssl rand -hex 8)"
+    htpasswd -bc /etc/nginx/.love_web_htpasswd "$USERNAME" "$PASSWORD" >/dev/null 2>&1 || true
+    cat >> /etc/nginx/sites-available/love-admin <<'EOF'
+    auth_basic "Love";
+    auth_basic_user_file /etc/nginx/.love_web_htpasswd;
+EOF
   fi
   echo "}" >> /etc/nginx/sites-available/love-admin
+
   ln -sf /etc/nginx/sites-available/love-admin /etc/nginx/sites-enabled/love-admin
   nginx -t && systemctl restart nginx
-  echo "[OK] Love Web Green Panel 已生成。"
-  [[ "${auth,,}" != "n" ]] && echo "用户名：$user  密码：$pass"
+  echo "[OK] Love Web Green Panel 已生成：http://[你的IP]:${PORT}/"
+  [[ "${AUTH,,}" != "n" ]] && echo "用户名：$USERNAME  密码：$PASSWORD"
 }
 
-# Replace old noisy functions with final direct functions.
-love_fix_vless_ws_tls_all_v1347() { love_v1353_norm_file /opt/Love/subscribe/all.txt 2>/dev/null || true; }
-love_web_fix_v1346() { love_v1353_export_direct; love_v1353_qr_direct; love_v1353_web_direct 8099 n love ""; }
-love_v1348_source_correct_outputs() { love_v1353_export_direct; love_v1353_qr_direct; }
+love_v1354_h2_fix_existing() {
+  [[ -s /etc/sing-box/config.json ]] || return 0
+  cp -f /etc/sing-box/config.json /etc/sing-box/config.json.bak.h2-grpc-alpn-v1354.$(date +%F-%H%M%S) 2>/dev/null || true
+  jq '(.inbounds[]? | select(.tag=="h2-reality-in").tls.alpn)=["h2"] |
+      (.inbounds[]? | select(.tag=="grpc-reality-in").tls.alpn)=["h2"] |
+      (.inbounds[]? | select(.tag=="tuic-in" or .type=="tuic").tls.alpn)=["h3"]' \
+      /etc/sing-box/config.json > /tmp/love-v1354-sb.json && mv /tmp/love-v1354-sb.json /etc/sing-box/config.json
+  sing-box check -c /etc/sing-box/config.json && systemctl restart sing-box
+}
+
+love_v1354_cert_switch() {
+  echo "================ Love 证书/链接模式切换 v13.54 ================"
+  echo "1) 无域名 self.local 自签【默认】"
+  echo "2) 无域名 love.local 自签【需要服务端证书/SNI一致才适合】"
+  echo "3) 有域名 + 正式 CA【移除 insecure】"
+  echo "4) 有域名 + 自签/自管【添加 insecure true】"
+  echo "5) 优选 IP/CFIP + 域名 SNI【只改客户端输出，服务端证书需已匹配】"
+  read -rp "请选择 [1-5]: " CHOICE
+  CHOICE="${CHOICE:-1}"
+  mkdir -p /opt/Love
+  case "$CHOICE" in
+    1)
+      echo "self_signed" > /opt/Love/cert-mode
+      echo "self.local" > /opt/Love/node-sni
+      ;;
+    2)
+      echo "self_signed" > /opt/Love/cert-mode
+      echo "love.local" > /opt/Love/node-sni
+      echo "[WARN] 仅切换输出记录；若服务端证书仍是 self.local，请不要把客户端 SNI 改成 love.local。"
+      ;;
+    3)
+      read -rp "域名/SNI: " DOMAIN
+      [[ -n "$DOMAIN" ]] || { echo "[ERROR] 域名不能为空"; return 1; }
+      echo "public_ca" > /opt/Love/cert-mode
+      echo "$DOMAIN" > /opt/Love/node-sni
+      ;;
+    4)
+      read -rp "域名/SNI: " DOMAIN
+      [[ -n "$DOMAIN" ]] || { echo "[ERROR] 域名不能为空"; return 1; }
+      echo "self_signed" > /opt/Love/cert-mode
+      echo "$DOMAIN" > /opt/Love/node-sni
+      ;;
+    5)
+      read -rp "客户端 Address（优选IP/CFIP/域名）: " ADDR
+      read -rp "真实 SNI/证书域名: " DOMAIN
+      [[ -n "$ADDR" && -n "$DOMAIN" ]] || { echo "[ERROR] Address 和 SNI 不能为空"; return 1; }
+      echo "$ADDR" > /opt/Love/client-address
+      echo "$DOMAIN" > /opt/Love/node-sni
+      read -rp "证书是否正式CA？[y/N]: " ISCA
+      [[ "$ISCA" =~ ^[Yy]$ ]] && echo "public_ca" > /opt/Love/cert-mode || echo "self_signed" > /opt/Love/cert-mode
+      ;;
+  esac
+  echo "[OK] 已保存链接模式。旧服务端不会自动重签证书；新安装请在安装向导里选择对应证书环境。"
+  love_v1354_export_direct
+  love_v1354_qr_direct
+}
+
+# Override noisy old post-fix chains from v13.46/v13.47/v13.48.
+love_fix_vless_ws_tls_all_v1347() { love_v1354_norm_file /opt/Love/subscribe/all.txt 2>/dev/null || true; }
+love_web_fix_v1346() { love_v1354_export_direct; love_v1354_qr_direct; love_v1354_web_direct 8099 n love ""; }
+love_v1348_source_correct_outputs() { love_v1354_export_direct; love_v1354_qr_direct; }
 
 web_admin_page() {
   echo "════════════════════════════════════════════════════════════════════════════════"
-  echo "Love Web 管理页 Green Mode / Source Template"
+  echo "Love Web 管理页 Green Mode / Source Template v13.54"
   echo "════════════════════════════════════════════════════════════════════════════════"
-  local port auth user pass
-  read -rp "Web 管理页端口 [8099]: " port; port="${port:-8099}"
-  read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " auth; auth="${auth:-Y}"
-  read -rp "Web 用户名 [love]: " user; user="${user:-love}"
-  if [[ "${auth,,}" != "n" ]]; then read -rp "Web 密码，留空自动生成: " pass; fi
-  love_v1353_export_direct
-  love_v1353_qr_direct
-  love_v1353_web_direct "$port" "$auth" "$user" "$pass"
+  local PORT AUTH USERNAME PASSWORD
+  read -rp "Web 管理页端口 [8099]: " PORT; PORT="${PORT:-8099}"
+  read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " AUTH; AUTH="${AUTH:-Y}"
+  read -rp "Web 用户名 [love]: " USERNAME; USERNAME="${USERNAME:-love}"
+  if [[ "${AUTH,,}" != "n" ]]; then read -rp "Web 密码，留空自动生成: " PASSWORD; fi
+  love_v1354_export_direct
+  love_v1354_qr_direct
+  love_v1354_web_direct "$PORT" "$AUTH" "$USERNAME" "${PASSWORD:-}"
 }
 
 love_after_node_generated_exports() {
   echo
-  echo "================ Love Source Template Export v13.53 ================"
-  love_v1353_export_direct
-  love_v1353_qr_direct
-  echo "[OK] 订阅/TXT/二维码已按模板本体直接生成。"
+  echo "================ Love Source Template Export v13.54 ================"
+  love_v1354_export_direct
+  love_v1354_qr_direct
+  echo "[OK] 订阅/TXT/二维码已按模板本体直接生成。ShadowTLS 保留在 manual-nodes.txt。"
   web_admin_page
 }
 
-love_v1353_h2_fix_existing() {
-  [[ -s /etc/sing-box/config.json ]] || return 0
-  cp -f /etc/sing-box/config.json /etc/sing-box/config.json.bak.h2-grpc-alpn-v1353.$(date +%F-%H%M%S) 2>/dev/null || true
-  jq '(.inbounds[]? | select(.tag=="h2-reality-in").tls.alpn)=["h2"] | (.inbounds[]? | select(.tag=="grpc-reality-in").tls.alpn)=["h2"] | (.inbounds[]? | select(.tag=="tuic-in" or .type=="tuic").tls.alpn)=["h3"]' /etc/sing-box/config.json > /tmp/love-v1353-sb.json && mv /tmp/love-v1353-sb.json /etc/sing-box/config.json
-  sing-box check -c /etc/sing-box/config.json && systemctl restart sing-box
-}
-
-love_v1353_check() {
-  echo "================ Love v13.53 检查 ================"
+love_v1354_check() {
+  echo "================ Love v13.54 检查 ================"
   grep '^VERSION=' /opt/Love/Love.sh 2>/dev/null || true
   echo
-  declare -f write_singbox_config | grep -n '"alpn":\["h3"\]\|"alpn":\["h2"\]' || true
+  echo "配置模式：cert-mode=$(cat /opt/Love/cert-mode 2>/dev/null || echo self_signed), node-sni=$(cat /opt/Love/node-sni 2>/dev/null || echo self.local)"
   echo
+  echo "关键链接："
   grep -nEi 'LOVE-H2-REALITY|LOVE-GRPC-REALITY|LOVE-TROJAN|LOVE-TUIC|LOVE-VLESS-WS-TLS' /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+  echo "服务端 ALPN："
+  jq -r '.inbounds[]? | select(.tag=="h2-reality-in" or .tag=="grpc-reality-in" or .tag=="tuic-in") | [.tag,.type,.listen_port,(.tls.alpn|tostring)] | @tsv' /etc/sing-box/config.json 2>/dev/null || true
+  echo
+  echo "Web 文件："
+  for f in /var/www/love-admin/index.html /var/www/love-admin/推荐节点.txt /var/www/love-admin/节点清晰版.txt /var/www/love-admin/clients/manual-nodes.txt /var/www/love-admin/qr/index.html; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
 }
 
-if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1353 >/dev/null 2>&1; then
-  eval "$(declare -f main | sed '1s/^main/love_original_main_v1353/')"
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1354 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1354/')"
 fi
+
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.53.0-no-legacy-source-web-h2-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.54.0-from-1352-complete-final}"
   case "${1:-}" in
-    h2-fix|grpc-fix|reality-h2-fix) love_v1353_h2_fix_existing; love_v1353_export_direct; love_v1353_qr_direct ;;
-    web|web-fix|fix-web) web_admin_page ;;
-    source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix) love_v1353_export_direct; love_v1353_qr_direct ;;
-    v1353-check|template-check|source-template-check|body-check) love_v1353_check ;;
-    *) love_original_main_v1353 "$@" ;;
+    h2-fix|grpc-fix|reality-h2-fix)
+      love_v1354_h2_fix_existing
+      love_v1354_export_direct
+      love_v1354_qr_direct
+      ;;
+    cert-switch|cert-menu|cert-mode)
+      love_v1354_cert_switch
+      ;;
+    web|web-fix|fix-web)
+      web_admin_page
+      ;;
+    source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|sub|subscribe)
+      love_v1354_export_direct
+      love_v1354_qr_direct
+      ;;
+    v1354-check|check-final|final-check|template-check|source-template-check|body-check)
+      love_v1354_check
+      ;;
+    *)
+      love_original_main_v1354 "$@"
+      ;;
   esac
 }
 
