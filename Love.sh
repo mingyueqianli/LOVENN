@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.54.0-from-1352-complete-final"
+VERSION="Love v13.55.0-safe-enhance-no-delete-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -18825,6 +18825,700 @@ main() {
       ;;
     v1354-check|check-final|final-check|template-check|source-template-check|body-check)
       love_v1354_check
+      ;;
+    *)
+      love_original_main_v1354 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.55 Safe Enhance / No Delete / Green Web Preserved
+#
+# Purpose:
+#   - Do not remove any existing feature.
+#   - Keep Green Web untouched in appearance and entry behavior.
+#   - Fix boolean TRUE output for self-signed/untrusted TLS nodes.
+#   - Keep Reality nodes free from ordinary certificate insecure flags.
+#   - Make H2/gRPC Reality repair stricter for existing sing-box configs.
+#   - Archive legacy/raw links instead of deleting them.
+# ================================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.55.0-safe-enhance-no-delete-final"
+
+love_v1355_node_sni() {
+  local sni
+  sni="$(cat /opt/Love/node-sni 2>/dev/null || true)"
+  [[ -n "$sni" ]] || sni="self.local"
+  echo "$sni"
+}
+
+love_v1355_norm_file() {
+  local file="$1" mode node_sni
+  mode="$(love_v1354_cert_mode 2>/dev/null || echo self_signed)"
+  node_sni="$(love_v1355_node_sni)"
+  [[ -s "$file" ]] || return 0
+  python3 - "$file" "$mode" "$node_sni" <<'INNERPY'
+from pathlib import Path
+import sys, urllib.parse, re
+
+p = Path(sys.argv[1])
+global_mode = (sys.argv[2] or "self_signed").lower()
+node_sni = sys.argv[3] or "self.local"
+flag_default = "🇺🇸"
+FLAG_PREFIXES = ("🇺🇸 ","🇯🇵 ","🇸🇬 ","🇭🇰 ","🇹🇼 ","🇰🇷 ","🇩🇪 ","🇬🇧 ","🇫🇷 ","🇳🇱 ","🇨🇦 ","🇦🇺 ")
+
+
+def label(frag: str) -> str:
+    frag = urllib.parse.unquote(frag or "LOVE")
+    frag = re.sub(r"^(US|USA)\s+", "", frag).strip()
+    if frag.startswith(FLAG_PREFIXES):
+        return frag
+    return f"{flag_default} {frag}" if frag else f"{flag_default} LOVE"
+
+
+def split_uri(line: str):
+    main, _, frag = line.partition("#")
+    if "?" in main:
+        base, _, query = main.partition("?")
+    else:
+        base, query = main, ""
+    return base, query, frag
+
+
+def parse_pairs(query: str):
+    return urllib.parse.parse_qsl(query, keep_blank_values=True) if query else []
+
+
+def get_first(pairs, *names):
+    names = {n.lower() for n in names}
+    for k, v in pairs:
+        if k.lower() in names:
+            return v
+    return ""
+
+
+def remove_keys(pairs, *names):
+    names = {n.lower() for n in names}
+    return [(k, v) for k, v in pairs if k.lower() not in names]
+
+
+def query_of(pairs):
+    return urllib.parse.urlencode(pairs, doseq=True, safe='')
+
+
+def looks_self_sni(sni: str) -> bool:
+    sni = (sni or "").strip().lower()
+    return (not sni) or sni in ("self.local", "localhost", "love.local") or sni.endswith(".local")
+
+
+def tls_self_mode(pairs) -> bool:
+    sni = get_first(pairs, "sni", "host", "authority") or node_sni
+    return global_mode != "public_ca" or looks_self_sni(sni)
+
+
+def normalize_vmess(line: str) -> str:
+    main, _, frag = line.partition('#')
+    return main + '#' + label(frag)
+
+out = []
+for raw in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+    line = raw.strip()
+    low = line.lower()
+    if not line.startswith(("vless://","tuic://","trojan://","hy2://","hysteria2://","anytls://","https://","ss://","vmess://")):
+        out.append(raw)
+        continue
+
+    if line.startswith("vmess://"):
+        out.append(normalize_vmess(line))
+        continue
+
+    if line.startswith("ss://"):
+        main, _, frag = line.partition('#')
+        out.append(main + '#' + label(frag))
+        continue
+
+    base, query, frag = split_uri(line)
+    frag_label = label(frag)
+    pairs = parse_pairs(query)
+
+    is_reality = line.startswith("vless://") and "security=reality" in low
+    is_h2_reality = is_reality and ("love-h2-reality" in low or get_first(pairs, "type").lower() == "http")
+    is_grpc_reality = is_reality and ("love-grpc-reality" in low or get_first(pairs, "type").lower() == "grpc")
+
+    pairs = remove_keys(pairs, "allowInsecure", "allow_insecure", "insecure", "alpn", "mode")
+
+    if is_reality:
+        sni = get_first(pairs, "sni") or node_sni or "www.cloudflare.com"
+        if is_h2_reality:
+            pairs = remove_keys(pairs, "type", "path", "host")
+            pairs += [("type", "http"), ("path", "/h2"), ("host", sni), ("alpn", "h2")]
+        elif is_grpc_reality:
+            pairs = remove_keys(pairs, "type", "serviceName", "service_name", "authority")
+            pairs += [("type", "grpc"), ("serviceName", "lovegrpc"), ("authority", sni), ("mode", "gun"), ("alpn", "h2")]
+    elif line.startswith("vless://") and "security=tls" in low and ("type=ws" in low or "love-vless-ws-tls" in low):
+        if tls_self_mode(pairs):
+            pairs += [("allowInsecure", "true"), ("insecure", "true"), ("allow_insecure", "true")]
+    elif line.startswith("tuic://"):
+        if tls_self_mode(pairs):
+            pairs += [("allow_insecure", "true"), ("allowInsecure", "true"), ("insecure", "true"), ("alpn", "h3")]
+        else:
+            pairs += [("alpn", "h3")]
+    elif line.startswith("trojan://"):
+        if tls_self_mode(pairs):
+            pairs += [("allowInsecure", "true"), ("insecure", "true"), ("allow_insecure", "true")]
+    elif line.startswith(("hy2://", "hysteria2://")):
+        if tls_self_mode(pairs):
+            pairs += [("insecure", "true")]
+    elif line.startswith("anytls://"):
+        if tls_self_mode(pairs):
+            pairs += [("insecure", "true")]
+    elif line.startswith("https://") and ("love-naive" in low or "@" in base):
+        sni = get_first(pairs, "sni") or node_sni
+        pairs = remove_keys(pairs, "sni")
+        pairs += [("sni", sni)]
+        if tls_self_mode(pairs):
+            pairs += [("insecure", "true"), ("allowInsecure", "true"), ("allow_insecure", "true")]
+
+    new_query = query_of(pairs)
+    out.append(base + (("?" + new_query) if new_query else "") + "#" + frag_label)
+
+p.write_text("\n".join(out) + "\n", encoding="utf-8")
+INNERPY
+}
+
+love_v1355_archive_legacy_links() {
+  local SUBDIR="/opt/Love/subscribe" CLIENTDIR="$SUBDIR/clients" out="$CLIENTDIR/legacy-raw-links.txt"
+  mkdir -p "$CLIENTDIR"
+  : > "$out"
+  {
+    echo "Love legacy/raw links archive"
+    echo "Generated: $(date '+%F %T')"
+    echo "说明：这里是历史/原始链接归档，不参与 v2rayN/NekoBox 一键导入。不要删除，旧 VPS 回滚排查时有用。"
+    echo
+    grep -REh '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/client-info/*.txt 2>/dev/null || true
+  } >> "$out"
+  chmod 600 "$out" 2>/dev/null || true
+}
+
+love_v1355_export_direct() {
+  love_v1354_export_direct
+  local SUBDIR="/opt/Love/subscribe" CLIENTDIR="$SUBDIR/clients"
+  for f in "$SUBDIR/all.txt" "$SUBDIR/全部节点.txt" "$SUBDIR/推荐节点.txt" "$SUBDIR/节点清晰版.txt" "$CLIENTDIR/v2rayn-uri.txt" "$CLIENTDIR/nekobox-uri.txt" "$CLIENTDIR/nodes-clean.txt"; do
+    love_v1355_norm_file "$f" 2>/dev/null || true
+  done
+  cp -f "$SUBDIR/all.txt" "$SUBDIR/全部节点.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$SUBDIR/推荐节点.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$SUBDIR/节点清晰版.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$CLIENTDIR/v2rayn-uri.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$CLIENTDIR/nekobox-uri.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$CLIENTDIR/nodes-clean.txt" 2>/dev/null || true
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0 "$SUBDIR/all.txt" > "$SUBDIR/all_base64.txt" 2>/dev/null || true
+  else
+    base64 "$SUBDIR/all.txt" | tr -d '\n' > "$SUBDIR/all_base64.txt" 2>/dev/null || true
+  fi
+  love_v1355_archive_legacy_links
+}
+
+love_v1355_h2_fix_existing() {
+  [[ -s /etc/sing-box/config.json ]] || { echo "[WARN] /etc/sing-box/config.json 不存在，跳过服务端 H2/gRPC 修复。"; return 0; }
+  command -v jq >/dev/null 2>&1 || { echo "[ERROR] jq 不存在，无法修复 sing-box JSON。"; return 1; }
+  local bak
+  bak="/etc/sing-box/config.json.bak.h2-grpc-tuic-v1355.$(date +%F-%H%M%S)"
+  cp -f /etc/sing-box/config.json "$bak" 2>/dev/null || true
+  jq '
+    def sni: (.tls.server_name // .tls.reality.handshake.server // "www.cloudflare.com");
+    (.inbounds[]? | select(.tag=="h2-reality-in" or ((.tag//"")|test("h2.*reality"; "i")))) |=
+      (.tls.alpn=["h2"] |
+       .transport=((.transport // {}) + {"type":"http","path":"/h2"}) |
+       .transport.host=(.transport.host // [sni])) |
+    (.inbounds[]? | select(.tag=="grpc-reality-in" or ((.tag//"")|test("grpc.*reality"; "i")))) |=
+      (.tls.alpn=["h2"] |
+       .transport=((.transport // {}) + {"type":"grpc"}) |
+       .transport.service_name=(.transport.service_name // "lovegrpc")) |
+    (.inbounds[]? | select(.tag=="tuic-in" or .type=="tuic")) |=
+      (.tls.alpn=["h3"] | .congestion_control=(.congestion_control // "bbr"))
+  ' /etc/sing-box/config.json > /tmp/love-v1355-sb.json && mv /tmp/love-v1355-sb.json /etc/sing-box/config.json
+
+  if ! sing-box check -c /etc/sing-box/config.json; then
+    echo "[ERROR] sing-box 检查失败，恢复备份：$bak"
+    cp -f "$bak" /etc/sing-box/config.json
+    return 1
+  fi
+  systemctl restart sing-box 2>/dev/null || true
+  echo "[OK] H2 Reality / gRPC Reality / TUIC ALPN 已按 v13.55 修复。"
+  jq -r '.inbounds[]? | select(.tag=="h2-reality-in" or .tag=="grpc-reality-in" or .tag=="tuic-in" or .type=="tuic") | [.tag,.type,.listen_port,(.tls.alpn|tostring),(.transport|tostring)] | @tsv' /etc/sing-box/config.json 2>/dev/null || true
+}
+
+love_v1355_check() {
+  echo "================ Love v13.55 检查 ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo "cert-mode=$(cat /opt/Love/cert-mode 2>/dev/null || echo self_signed)"
+  echo "node-sni=$(cat /opt/Love/node-sni 2>/dev/null || echo self.local)"
+  echo
+  echo "[1] 旧 1/0 insecure 残留检查："
+  if grep -nE 'insecure=1|insecure=0|allowInsecure=1|allow_insecure=1' /opt/Love/subscribe/all.txt 2>/dev/null; then
+    echo "[WARN] 仍有旧式 1/0 参数，执行 Love source-correct。"
+  else
+    echo "[OK] 未发现旧式 insecure=1/0。"
+  fi
+  echo
+  echo "[2] H2/gRPC/Naive 关键链接："
+  grep -nEi 'LOVE-H2-REALITY|LOVE-GRPC-REALITY|LOVE-NAIVE|LOVE-HY2|LOVE-TUIC' /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+  echo "[3] 服务端 ALPN/Transport："
+  jq -r '.inbounds[]? | select(.tag=="h2-reality-in" or .tag=="grpc-reality-in" or .tag=="tuic-in" or .type=="tuic") | [.tag,.type,.listen_port,(.tls.alpn|tostring),(.transport|tostring)] | @tsv' /etc/sing-box/config.json 2>/dev/null || true
+  echo
+  echo "[4] Green Web 文件："
+  for f in /var/www/love-admin/index.html /var/www/love-admin/all.txt /var/www/love-admin/clients/v2rayn-uri.txt /var/www/love-admin/clients/legacy-raw-links.txt /var/www/love-admin/qr/index.html; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+}
+
+# Keep old command names, but route final output through v13.55.
+love_fix_vless_ws_tls_all_v1347() { love_v1355_norm_file /opt/Love/subscribe/all.txt 2>/dev/null || true; }
+love_v1348_source_correct_outputs() { love_v1355_export_direct; love_v1354_qr_direct; }
+
+# Preserve Green Web style. Only feed it v13.55-correct output before generation.
+web_admin_page() {
+  echo "════════════════════════════════════════════════════════════════════════════════"
+  echo "Love Web 管理页 Green Mode / Source Template v13.55"
+  echo "════════════════════════════════════════════════════════════════════════════════"
+  local PORT AUTH USERNAME PASSWORD
+  read -rp "Web 管理页端口 [8099]: " PORT; PORT="${PORT:-8099}"
+  read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " AUTH; AUTH="${AUTH:-Y}"
+  read -rp "Web 用户名 [love]: " USERNAME; USERNAME="${USERNAME:-love}"
+  if [[ "${AUTH,,}" != "n" ]]; then read -rp "Web 密码，留空自动生成: " PASSWORD; fi
+  love_v1355_export_direct
+  love_v1354_qr_direct
+  love_v1354_web_direct "$PORT" "$AUTH" "$USERNAME" "${PASSWORD:-}"
+}
+
+love_after_node_generated_exports() {
+  echo
+  echo "================ Love Source Template Export v13.55 ================"
+  love_v1355_export_direct
+  love_v1354_qr_direct
+  echo "[OK] 订阅/TXT/二维码已按 v13.55 生成。旧链接已归档到 clients/legacy-raw-links.txt，不参与导入。"
+  web_admin_page
+}
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.55.0-safe-enhance-no-delete-final}"
+  case "${1:-}" in
+    h2-fix|grpc-fix|reality-h2-fix|tuic-fix)
+      love_v1355_h2_fix_existing
+      love_v1355_export_direct
+      love_v1354_qr_direct
+      ;;
+    cert-switch|cert-menu|cert-mode)
+      love_v1354_cert_switch
+      love_v1355_export_direct
+      love_v1354_qr_direct
+      ;;
+    web|web-fix|fix-web)
+      web_admin_page
+      ;;
+    source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|sub|subscribe|true-fix|cert-true-fix)
+      love_v1355_export_direct
+      love_v1354_qr_direct
+      ;;
+    legacy|legacy-links|old-links)
+      love_v1355_archive_legacy_links
+      echo "[OK] 旧链接已归档：/opt/Love/subscribe/clients/legacy-raw-links.txt"
+      ;;
+    v1355-check|v1354-check|check-final|final-check|template-check|source-template-check|body-check)
+      love_v1355_check
+      ;;
+    *)
+      love_original_main_v1354 "$@"
+      ;;
+  esac
+}
+
+
+
+# ==============================================================================
+# Love v13.56 Source-First H2 Reality Final
+#
+# Principle:
+#   - New installs must be correct at the source template body.
+#   - H2/gRPC Reality is generated correctly in write_singbox_config() and save_singbox_info().
+#   - h2-fix remains only as a legacy VPS repair/check command; it is not part of the normal path.
+#   - Green Web appearance is preserved.
+#   - No existing feature is removed.
+# ================================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.56.0-source-first-h2-reality-final"
+
+love_v1356_bool_true() {
+  case "${1:-1}" in
+    0|false|False|FALSE|no|No|NO) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+love_v1356_tls_extra() {
+  local insecure="${1:-1}" proto="${2:-generic}"
+  if ! love_v1356_bool_true "$insecure"; then
+    case "$proto" in
+      tuic) echo "alpn=h3" ;;
+      *) echo "" ;;
+    esac
+    return 0
+  fi
+
+  case "$proto" in
+    hy2) echo "insecure=true" ;;
+    tuic) echo "allow_insecure=true&allowInsecure=true&insecure=true&alpn=h3" ;;
+    vless_ws_tls) echo "allowInsecure=true&insecure=true&allow_insecure=true" ;;
+    trojan) echo "allowInsecure=true&insecure=true&allow_insecure=true" ;;
+    anytls) echo "insecure=true" ;;
+    naive) echo "insecure=true&allowInsecure=true&allow_insecure=true" ;;
+    *) echo "allowInsecure=true&insecure=true&allow_insecure=true" ;;
+  esac
+}
+
+# Keep old function name compatible, but make it source-correct from now on.
+love_v1352_tls_extra() { love_v1356_tls_extra "$@"; }
+
+# Source-correct sing-box template body for new installs.
+# H2 Reality / gRPC Reality / TUIC are written correctly here, not repaired later.
+write_singbox_config() {
+  local reality_sni="$1"
+  local tls_sni="$2"
+  local cert_dir="$3"
+  local start_port="$4"
+
+  local port="$start_port"
+  SB_REALITY_PORT="$port"; ((port++)) || true
+  SB_HY2_PORT="$port"; ((port++)) || true
+  SB_TUIC_PORT="$port"; ((port++)) || true
+  SB_SS_PORT="$port"; ((port++)) || true
+  SB_TROJAN_PORT="$port"; ((port++)) || true
+  SB_VMESS_WS_PORT="$port"; ((port++)) || true
+  SB_VLESS_WS_TLS_PORT="$port"; ((port++)) || true
+  SB_H2_REALITY_PORT="$port"; ((port++)) || true
+  SB_GRPC_REALITY_PORT="$port"; ((port++)) || true
+  SB_ANYTLS_PORT="$port"; ((port++)) || true
+  SB_NAIVE_PORT="$port"; ((port++)) || true
+  SB_SHADOWTLS_PORT="$port"; ((port++)) || true
+
+  local inbound_file="/tmp/love-singbox-inbounds.jsonl"
+  : > "$inbound_file"
+
+  if [[ "$INSTALL_REALITY" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"vless","tag":"vless-reality-in","listen":"::","listen_port":${SB_REALITY_PORT},"users":[{"uuid":"${SB_UUID}","flow":"xtls-rprx-vision"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]}}}
+EOF
+  fi
+
+  if [[ "$INSTALL_HY2" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"hysteria2","tag":"hy2-in","listen":"::","listen_port":${SB_HY2_PORT},"users":[{"password":"${SB_HY2_PASS}"}],"tls":{"enabled":true,"server_name":"${tls_sni}","certificate_path":"${cert_dir}/cert.pem","key_path":"${cert_dir}/key.pem","alpn":["h3"]}}
+EOF
+  fi
+
+  if [[ "$INSTALL_TUIC" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"tuic","tag":"tuic-in","listen":"::","listen_port":${SB_TUIC_PORT},"users":[{"uuid":"${SB_UUID}","password":"${SB_TUIC_PASS}"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"${tls_sni}","certificate_path":"${cert_dir}/cert.pem","key_path":"${cert_dir}/key.pem","alpn":["h3"]}}
+EOF
+  fi
+
+  if [[ "$INSTALL_SS" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"shadowsocks","tag":"ss-in","listen":"::","listen_port":${SB_SS_PORT},"method":"aes-128-gcm","password":"${SB_SS_PASS}"}
+EOF
+  fi
+
+  if [[ "$INSTALL_TROJAN" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"trojan","tag":"trojan-in","listen":"::","listen_port":${SB_TROJAN_PORT},"users":[{"password":"${SB_TROJAN_PASS}"}],"tls":{"enabled":true,"server_name":"${tls_sni}","certificate_path":"${cert_dir}/cert.pem","key_path":"${cert_dir}/key.pem"}}
+EOF
+  fi
+
+  if [[ "$INSTALL_VMESS_WS" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"vmess","tag":"vmess-ws-in","listen":"::","listen_port":${SB_VMESS_WS_PORT},"users":[{"uuid":"${SB_UUID}","alterId":0}],"transport":{"type":"ws","path":"/vmess"}}
+EOF
+  fi
+
+  if [[ "$INSTALL_VLESS_WS_TLS" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"vless","tag":"vless-ws-tls-in","listen":"::","listen_port":${SB_VLESS_WS_TLS_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${tls_sni}","certificate_path":"${cert_dir}/cert.pem","key_path":"${cert_dir}/key.pem"},"transport":{"type":"ws","path":"/vless"}}
+EOF
+  fi
+
+  if [[ "$INSTALL_H2_REALITY" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"vless","tag":"h2-reality-in","listen":"::","listen_port":${SB_H2_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]},"alpn":["h2"]},"transport":{"type":"http","host":["${reality_sni}"],"path":"/h2"}}
+EOF
+  fi
+
+  if [[ "$INSTALL_GRPC_REALITY" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"vless","tag":"grpc-reality-in","listen":"::","listen_port":${SB_GRPC_REALITY_PORT},"users":[{"uuid":"${SB_UUID}"}],"tls":{"enabled":true,"server_name":"${reality_sni}","reality":{"enabled":true,"handshake":{"server":"${reality_sni}","server_port":443},"private_key":"${SB_PRIVATE}","short_id":["${SB_REALITY_SHORT}"]},"alpn":["h2"]},"transport":{"type":"grpc","service_name":"lovegrpc"}}
+EOF
+  fi
+
+  if [[ "$INSTALL_ANYTLS" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"anytls","tag":"anytls-in","listen":"::","listen_port":${SB_ANYTLS_PORT},"users":[{"password":"${SB_ANYTLS_PASS}"}],"tls":{"enabled":true,"server_name":"${tls_sni}","certificate_path":"${cert_dir}/cert.pem","key_path":"${cert_dir}/key.pem"}}
+EOF
+  fi
+
+  if [[ "$INSTALL_NAIVE" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"naive","tag":"naive-in","listen":"::","listen_port":${SB_NAIVE_PORT},"users":[{"username":"${SB_NAIVE_USER}","password":"${SB_NAIVE_PASS}"}],"tls":{"enabled":true,"server_name":"${tls_sni}","certificate_path":"${cert_dir}/cert.pem","key_path":"${cert_dir}/key.pem"}}
+EOF
+  fi
+
+  if [[ "$INSTALL_SHADOWTLS" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF
+{"type":"shadowtls","tag":"shadowtls-in","listen":"::","listen_port":${SB_SHADOWTLS_PORT},"version":3,"users":[{"name":"love","password":"${SB_SHADOWTLS_PASS}"}],"handshake":{"server":"addons.mozilla.org","server_port":443},"detour":"ss-in"}
+EOF
+    if [[ "$INSTALL_SS" != "yes" ]]; then
+      warn "ShadowTLS 需要 SS detour；已自动附加 Shadowsocks 入站。"
+      cat >> "$inbound_file" <<EOF
+{"type":"shadowsocks","tag":"ss-in","listen":"127.0.0.1","listen_port":${SB_SS_PORT},"method":"aes-128-gcm","password":"${SB_SS_PASS}"}
+EOF
+    fi
+  fi
+
+  local inbounds_json
+  inbounds_json="$(jq -s '.' "$inbound_file")"
+
+  mkdir -p "${SINGBOX_DIR}" "${SINGBOX_CERT_DIR}"
+
+  jq -n \
+    --argjson inbounds "$inbounds_json" \
+    '{
+      log: {level: "warn", timestamp: true},
+      dns: {
+        servers: [
+          {tag: "cf", type: "udp", server: "2606:4700:4700::1111"},
+          {tag: "google", type: "udp", server: "2001:4860:4860::8888"}
+        ],
+        final: "cf"
+      },
+      inbounds: $inbounds,
+      outbounds: [
+        {type: "direct", tag: "direct"},
+        {type: "block", tag: "block"}
+      ],
+      route: {
+        rules: [
+          {ip_is_private: true, outbound: "block"},
+          {port: [25,465,587], outbound: "block"},
+          {protocol: "bittorrent", outbound: "block"}
+        ],
+        final: "direct",
+        default_domain_resolver: "cf"
+      }
+    }' > "${SINGBOX_CONF}"
+
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true "${SINGBOX_BIN}" check -c "${SINGBOX_CONF}"
+}
+
+# Source-correct client output. No later h2-fix is required for new output.
+save_singbox_info() {
+  local client_addr="$1"
+  local client_port_base="$2"
+  local reality_sni="$3"
+  local tls_sni="$4"
+  local insecure="$5"
+
+  local h flag hy2_extra tuic_extra vless_extra trojan_extra anytls_extra naive_extra vmess_json vmess_b64
+  h="$(uri_host "${client_addr}")"
+  flag="$(love_v1352_flag_emoji)"
+
+  hy2_extra="$(love_v1356_tls_extra "$insecure" hy2)"
+  tuic_extra="$(love_v1356_tls_extra "$insecure" tuic)"
+  vless_extra="$(love_v1356_tls_extra "$insecure" vless_ws_tls)"
+  trojan_extra="$(love_v1356_tls_extra "$insecure" trojan)"
+  anytls_extra="$(love_v1356_tls_extra "$insecure" anytls)"
+  naive_extra="$(love_v1356_tls_extra "$insecure" naive)"
+
+  : > "${SINGBOX_INFO}"
+
+  {
+    echo "Love sing-box Client Info"
+    echo
+    echo "Client Address: ${client_addr}"
+    echo "Base Port: ${client_port_base}"
+    echo "Reality SNI: ${reality_sni}"
+    echo "TLS SNI: ${tls_sni}"
+    echo "Insecure: ${insecure}"
+    echo "Flag: ${flag}"
+    echo "Source Mode: v13.56 source-first"
+    echo
+  } >> "${SINGBOX_INFO}"
+
+  if [[ "$INSTALL_REALITY" == "yes" ]]; then
+    echo "VLESS Reality:" >> "${SINGBOX_INFO}"
+    echo "vless://${SB_UUID}@${h}:${SB_REALITY_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${reality_sni}&fp=chrome&pbk=${SB_PUBLIC}&sid=${SB_REALITY_SHORT}&type=tcp#$(love_v1352_label LOVE-REALITY)" >> "${SINGBOX_INFO}"
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_HY2" == "yes" ]]; then
+    echo "HY2:" >> "${SINGBOX_INFO}"
+    if [[ -n "$hy2_extra" ]]; then
+      echo "hy2://${SB_HY2_PASS}@${h}:${SB_HY2_PORT}/?sni=${tls_sni}&${hy2_extra}#$(love_v1352_label LOVE-HY2)" >> "${SINGBOX_INFO}"
+    else
+      echo "hy2://${SB_HY2_PASS}@${h}:${SB_HY2_PORT}/?sni=${tls_sni}#$(love_v1352_label LOVE-HY2)" >> "${SINGBOX_INFO}"
+    fi
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_TUIC" == "yes" ]]; then
+    echo "TUIC:" >> "${SINGBOX_INFO}"
+    echo "tuic://${SB_UUID}:${SB_TUIC_PASS}@${h}:${SB_TUIC_PORT}?sni=${tls_sni}&congestion_control=bbr&udp_relay_mode=native&${tuic_extra}#$(love_v1352_label LOVE-TUIC)" >> "${SINGBOX_INFO}"
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_SS" == "yes" ]]; then
+    echo "Shadowsocks:" >> "${SINGBOX_INFO}"
+    echo "ss://$(printf 'aes-128-gcm:%s' "${SB_SS_PASS}" | base64 -w0)@${h}:${SB_SS_PORT}#$(love_v1352_label LOVE-SS)" >> "${SINGBOX_INFO}"
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_TROJAN" == "yes" ]]; then
+    echo "Trojan:" >> "${SINGBOX_INFO}"
+    if [[ -n "$trojan_extra" ]]; then
+      echo "trojan://${SB_TROJAN_PASS}@${h}:${SB_TROJAN_PORT}?security=tls&sni=${tls_sni}&${trojan_extra}#$(love_v1352_label LOVE-TROJAN)" >> "${SINGBOX_INFO}"
+    else
+      echo "trojan://${SB_TROJAN_PASS}@${h}:${SB_TROJAN_PORT}?security=tls&sni=${tls_sni}#$(love_v1352_label LOVE-TROJAN)" >> "${SINGBOX_INFO}"
+    fi
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_VMESS_WS" == "yes" ]]; then
+    echo "VMess WS:" >> "${SINGBOX_INFO}"
+    vmess_json="$(jq -nc \
+      --arg ps "$(love_v1352_label LOVE-VMESS-WS)" \
+      --arg add "${client_addr#[}" \
+      --arg port "${SB_VMESS_WS_PORT}" \
+      --arg id "${SB_UUID}" \
+      '{v:"2",ps:$ps,add:($add|sub("\\]$";"")),port:$port,id:$id,aid:"0",scy:"auto",net:"ws",type:"none",host:"",path:"/vmess",tls:"",sni:""}')"
+    vmess_b64="$(printf '%s' "$vmess_json" | base64 -w0)"
+    echo "vmess://${vmess_b64}" >> "${SINGBOX_INFO}"
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_VLESS_WS_TLS" == "yes" ]]; then
+    echo "VLESS WS TLS:" >> "${SINGBOX_INFO}"
+    if [[ -n "$vless_extra" ]]; then
+      echo "vless://${SB_UUID}@${h}:${SB_VLESS_WS_TLS_PORT}?encryption=none&security=tls&sni=${tls_sni}&type=ws&path=%2Fvless&${vless_extra}#$(love_v1352_label LOVE-VLESS-WS-TLS)" >> "${SINGBOX_INFO}"
+    else
+      echo "vless://${SB_UUID}@${h}:${SB_VLESS_WS_TLS_PORT}?encryption=none&security=tls&sni=${tls_sni}&type=ws&path=%2Fvless#$(love_v1352_label LOVE-VLESS-WS-TLS)" >> "${SINGBOX_INFO}"
+    fi
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_H2_REALITY" == "yes" ]]; then
+    echo "H2 Reality:" >> "${SINGBOX_INFO}"
+    echo "vless://${SB_UUID}@${h}:${SB_H2_REALITY_PORT}?encryption=none&security=reality&sni=${reality_sni}&fp=chrome&pbk=${SB_PUBLIC}&sid=${SB_REALITY_SHORT}&type=http&path=%2Fh2&host=${reality_sni}&alpn=h2#$(love_v1352_label LOVE-H2-REALITY)" >> "${SINGBOX_INFO}"
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_GRPC_REALITY" == "yes" ]]; then
+    echo "gRPC Reality:" >> "${SINGBOX_INFO}"
+    echo "vless://${SB_UUID}@${h}:${SB_GRPC_REALITY_PORT}?encryption=none&security=reality&sni=${reality_sni}&fp=chrome&pbk=${SB_PUBLIC}&sid=${SB_REALITY_SHORT}&type=grpc&serviceName=lovegrpc&authority=${reality_sni}&mode=gun&alpn=h2#$(love_v1352_label LOVE-GRPC-REALITY)" >> "${SINGBOX_INFO}"
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_ANYTLS" == "yes" ]]; then
+    echo "AnyTLS:" >> "${SINGBOX_INFO}"
+    if [[ -n "$anytls_extra" ]]; then
+      echo "anytls://${SB_ANYTLS_PASS}@${h}:${SB_ANYTLS_PORT}?sni=${tls_sni}&${anytls_extra}#$(love_v1352_label LOVE-ANYTLS)" >> "${SINGBOX_INFO}"
+    else
+      echo "anytls://${SB_ANYTLS_PASS}@${h}:${SB_ANYTLS_PORT}?sni=${tls_sni}#$(love_v1352_label LOVE-ANYTLS)" >> "${SINGBOX_INFO}"
+    fi
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_NAIVE" == "yes" ]]; then
+    echo "Naive:" >> "${SINGBOX_INFO}"
+    if [[ -n "$naive_extra" ]]; then
+      echo "https://${SB_NAIVE_USER}:${SB_NAIVE_PASS}@${h}:${SB_NAIVE_PORT}?sni=${tls_sni}&${naive_extra}#$(love_v1352_label LOVE-NAIVE)" >> "${SINGBOX_INFO}"
+    else
+      echo "https://${SB_NAIVE_USER}:${SB_NAIVE_PASS}@${h}:${SB_NAIVE_PORT}?sni=${tls_sni}#$(love_v1352_label LOVE-NAIVE)" >> "${SINGBOX_INFO}"
+    fi
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  if [[ "$INSTALL_SHADOWTLS" == "yes" ]]; then
+    echo "ShadowTLS manual:" >> "${SINGBOX_INFO}"
+    echo "Address=${client_addr} Port=${SB_SHADOWTLS_PORT} Password=${SB_SHADOWTLS_PASS} Version=3 Handshake=addons.mozilla.org Detour=SS Label=$(love_v1352_label LOVE-SHADOWTLS)" >> "${SINGBOX_INFO}"
+    echo >> "${SINGBOX_INFO}"
+  fi
+
+  chmod 600 "${SINGBOX_INFO}"
+  cat "${SINGBOX_INFO}"
+}
+
+love_v1356_source_check() {
+  echo "================ Love v13.56 Source-First 检查 ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[1] 源头服务端模板："
+  declare -f write_singbox_config | grep -q '"tag":"h2-reality-in"' && echo "[OK] H2 Reality 入站在源头模板生成" || echo "[WARN] H2 Reality 源头模板未找到"
+  declare -f write_singbox_config | grep -q '"alpn":\["h2"\]' && echo "[OK] H2/gRPC Reality 源头写入 tls.alpn=[h2]" || echo "[WARN] 源头未发现 alpn h2"
+  declare -f write_singbox_config | grep -q '"transport":{"type":"http","host"' && echo "[OK] H2 Reality 源头写入 http transport/host/path" || echo "[WARN] H2 Reality transport 源头未完整"
+  declare -f write_singbox_config | grep -q '"alpn":\["h3"\]' && echo "[OK] HY2/TUIC 源头写入 h3 ALPN" || echo "[WARN] 源头未发现 h3 ALPN"
+  echo
+  echo "[2] 源头客户端输出："
+  declare -f love_v1356_tls_extra | grep -q 'insecure=true' && echo "[OK] 自签/不可信证书源头输出 true，不再输出 1" || echo "[WARN] 源头未发现 insecure=true"
+  declare -f save_singbox_info | grep -q 'LOVE-H2-REALITY' && echo "[OK] H2 Reality URI 源头输出" || echo "[WARN] H2 Reality URI 源头未找到"
+  declare -f save_singbox_info | grep -q 'type=http&path=%2Fh2&host=' && echo "[OK] H2 Reality URI 源头含 type/http/path/host/alpn" || echo "[WARN] H2 Reality URI 源头参数不完整"
+  declare -f save_singbox_info | grep -q 'LOVE-NAIVE' && declare -f save_singbox_info | grep -q 'sni=${tls_sni}' && echo "[OK] Naive 源头补 sni/insecure" || echo "[WARN] Naive 源头未完整"
+  echo
+  echo "[3] 当前已导出链接残留检查："
+  if grep -nE 'insecure=1|insecure=0|allowInsecure=1|allow_insecure=1' /opt/Love/subscribe/all.txt 2>/dev/null; then
+    echo "[WARN] 当前旧导出仍有 1/0。执行 Love source-correct 重新从源头导出。"
+  else
+    echo "[OK] 当前导出未发现旧式 1/0。"
+  fi
+}
+
+love_after_node_generated_exports() {
+  echo
+  echo "================ Love Source-First Export v13.56 ================"
+  love_v1355_export_direct
+  love_v1354_qr_direct
+  echo "[OK] 新安装节点已从模板源头生成正确服务端配置和客户端链接。h2-fix 仅保留给旧 VPS 维修。"
+  web_admin_page
+}
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.56.0-source-first-h2-reality-final}"
+  case "${1:-}" in
+    h2-fix|grpc-fix|reality-h2-fix|tuic-fix|legacy-h2-fix)
+      echo "[INFO] 这是旧 VPS 遗留配置修复入口；新安装已经从 write_singbox_config 源头生成正确 H2/gRPC Reality。"
+      love_v1355_h2_fix_existing
+      love_v1355_export_direct
+      love_v1354_qr_direct
+      ;;
+    cert-switch|cert-menu|cert-mode)
+      love_v1354_cert_switch
+      love_v1355_export_direct
+      love_v1354_qr_direct
+      ;;
+    web|web-fix|fix-web)
+      web_admin_page
+      ;;
+    source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|sub|subscribe|true-fix|cert-true-fix)
+      love_v1355_export_direct
+      love_v1354_qr_direct
+      ;;
+    legacy|legacy-links|old-links)
+      love_v1355_archive_legacy_links
+      echo "[OK] 旧链接已归档：/opt/Love/subscribe/clients/legacy-raw-links.txt"
+      ;;
+    v1356-check|source-first-check|source-check|v1355-check|v1354-check|check-final|final-check|template-check|source-template-check|body-check)
+      love_v1356_source_check
       ;;
     *)
       love_original_main_v1354 "$@"
