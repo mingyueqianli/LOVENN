@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.44.0-reload-after-update-xrayinfo-fix-final"
+VERSION="Love v13.49.0-install-source-output-source-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.44.0-reload-after-update-xrayinfo-fix-final"
+LOVE_SCRIPT_VERSION="Love v13.49.0-install-source-output-source-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -16104,6 +16104,1421 @@ main() {
     *)
       love_prepare_core_dirs_v1344
       love_original_main_v1344 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.45 WARP Manager Restore + Xray IPv4 Outbound Final
+# Fixes:
+#   - Main menu 20 is forced to a restored WARP Manager, not a missing/old link.
+#   - Original V12 WARP menu is preserved and reachable.
+#   - Adds Xray Reality/HY2 outbound via WARP SOCKS IPv4 path without touching sing-box.
+#   - Keeps v13.44 reload/directory fix, v13.43 colored menu, v13.42 latest Xray/auto Web.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.45.0-warp-manager-restore-xray-ipv4-final"
+
+love_socks_health_gate_v1345() {
+  local port="${1:-40000}"
+  echo
+  echo "==== SOCKS 健康检查 127.0.0.1:${port} ===="
+  if ss -lntp 2>/dev/null | grep -q ":${port}"; then
+    echo "[OK] 端口监听：${port}"
+  else
+    echo "[WARN] 未检测到 SOCKS 监听：${port}"
+    return 1
+  fi
+
+  if curl -s --connect-timeout 10 --max-time 20 --socks5-hostname "127.0.0.1:${port}" https://www.cloudflare.com/cdn-cgi/trace | grep -Ei 'warp=on|warp=plus|ip=|colo='; then
+    echo "[OK] WARP SOCKS 可用：127.0.0.1:${port}"
+    return 0
+  fi
+
+  echo "[WARN] SOCKS 端口存在，但 WARP trace 未通过。"
+  return 1
+}
+
+love_xray_route_via_warp_socks_v1345() {
+  local port="${1:-40000}"
+  [[ -s /usr/local/etc/xray/config.json ]] || { echo "[ERROR] 未找到 /usr/local/etc/xray/config.json"; return 1; }
+
+  if ! love_socks_health_gate_v1345 "$port"; then
+    echo
+    echo "[WARN] 当前 WARP SOCKS 未通过健康检查。"
+    read -rp "是否先尝试启动官方 WARP Proxy ${port}？[Y/n]: " start
+    start="${start:-Y}"
+    if [[ "$start" =~ ^[Yy]$ ]]; then
+      if declare -F love_warp_cli_proxy_v12 >/dev/null 2>&1; then
+        love_warp_cli_proxy_v12 "$port" || true
+      elif declare -F love_warp_set_proxy_mode >/dev/null 2>&1; then
+        love_warp_set_proxy_mode "$port" || true
+      else
+        echo "[ERROR] 未找到 WARP Proxy 启动函数。"
+        return 1
+      fi
+    fi
+  fi
+
+  love_socks_health_gate_v1345 "$port" || {
+    echo "[ERROR] WARP SOCKS 仍不可用，拒绝切换 Xray，避免出站中断。"
+    return 1
+  }
+
+  cp /usr/local/etc/xray/config.json /usr/local/etc/xray/config.json.bak.xray-warp.$(date +%F-%H%M%S)
+
+  jq --argjson port "$port" '
+    .outbounds = ((.outbounds // []) | map(select(.tag!="warp-socks"))) +
+    [{
+      "tag": "warp-socks",
+      "protocol": "socks",
+      "settings": {
+        "servers": [
+          {
+            "address": "127.0.0.1",
+            "port": $port
+          }
+        ]
+      }
+    }] |
+    .routing = (.routing // {}) |
+    .routing.domainStrategy = "IPIfNonMatch" |
+    .routing.rules = ((.routing.rules // []) | map(select(.outboundTag!="warp-socks"))) +
+    [
+      {
+        "type": "field",
+        "network": "tcp,udp",
+        "outboundTag": "warp-socks"
+      }
+    ]
+  ' /usr/local/etc/xray/config.json > /root/xray.warp.json && mv /root/xray.warp.json /usr/local/etc/xray/config.json
+
+  /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json || {
+    echo "[ERROR] Xray 配置检查失败，尝试恢复备份。"
+    ls -t /usr/local/etc/xray/config.json.bak.xray-warp.* 2>/dev/null | head -1 | xargs -r -I{} cp -f {} /usr/local/etc/xray/config.json
+    return 1
+  }
+
+  systemctl restart xray
+  sleep 2
+
+  echo "[OK] Xray 出站已切到 WARP SOCKS：127.0.0.1:${port}"
+  echo "说明：这会让 Xray Reality/HY2 的出站走 WARP IPv4/IPv6，不影响 sing-box 配置。"
+  jq '.outbounds[]? | select(.tag=="warp-socks")' /usr/local/etc/xray/config.json 2>/dev/null || true
+  journalctl -u xray -n 10 -l --no-pager || true
+}
+
+love_xray_restore_direct_v1345() {
+  [[ -s /usr/local/etc/xray/config.json ]] || { echo "[ERROR] 未找到 /usr/local/etc/xray/config.json"; return 1; }
+  cp /usr/local/etc/xray/config.json /usr/local/etc/xray/config.json.bak.restore-direct.$(date +%F-%H%M%S)
+
+  jq '
+    .outbounds = ((.outbounds // []) | map(select(.tag!="warp-socks"))) |
+    .routing = (.routing // {}) |
+    .routing.rules = ((.routing.rules // []) | map(select(.outboundTag!="warp-socks")))
+  ' /usr/local/etc/xray/config.json > /root/xray.direct.json && mv /root/xray.direct.json /usr/local/etc/xray/config.json
+
+  /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json || return 1
+  systemctl restart xray
+  echo "[OK] Xray 出站已恢复 direct。"
+}
+
+love_warp_status_plus_v1345() {
+  echo
+  echo "================ Love WARP / IPv4 出站状态 ================"
+  echo "[VPS direct IPv4]"
+  curl -4 -I --connect-timeout 8 --max-time 12 https://www.google.com 2>&1 | sed -n '1,6p' || true
+  echo
+  echo "[VPS direct IPv6]"
+  curl -6 -I --connect-timeout 8 --max-time 12 https://www.google.com 2>&1 | sed -n '1,6p' || true
+  echo
+  echo "[WARP SOCKS 40000]"
+  curl -s --connect-timeout 8 --max-time 15 --socks5-hostname 127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -Ei 'ip=|warp=|colo=' || true
+  echo
+  echo "[WireProxy SOCKS 40001]"
+  curl -s --connect-timeout 8 --max-time 15 --socks5-hostname 127.0.0.1:40001 https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -Ei 'ip=|warp=|colo=' || true
+  echo
+  echo "[Xray warp-socks outbound]"
+  jq '.outbounds[]? | select(.tag=="warp-socks")' /usr/local/etc/xray/config.json 2>/dev/null || true
+  echo
+  echo "[sing-box route.final]"
+  jq -r '.route.final // empty' /etc/sing-box/config.json 2>/dev/null || true
+  echo
+  echo "[Services]"
+  systemctl is-active xray 2>/dev/null | sed 's/^/xray: /' || true
+  systemctl is-active sing-box 2>/dev/null | sed 's/^/sing-box: /' || true
+  systemctl is-active warp-svc 2>/dev/null | sed 's/^/warp-svc: /' || true
+  systemctl is-active love-wireproxy.service 2>/dev/null | sed 's/^/wireproxy: /' || true
+}
+
+love_install_fs_warp_command_v1345() {
+  cat > /usr/local/bin/warp <<'EOF'
+#!/usr/bin/env bash
+exec /usr/local/bin/Love warp "$@"
+EOF
+  chmod +x /usr/local/bin/warp
+  echo "[OK] FS 风格 warp 命令已安装：warp"
+  echo "示例：warp h | warp 4 | warp 6 | warp d | warp c | warp w | warp g | warp s 4 | warp s 6"
+}
+
+love_warp_restored_menu_v1345() {
+  love_tty_colors_v1343 2>/dev/null || true
+  while true; do
+    clear 2>/dev/null || true
+    love_title_v1343 "Love WARP Manager / IPv4 出站" "Restored V12 WARP + Xray IPv4 outbound" 2>/dev/null || echo "================ Love WARP Manager ================"
+    echo "  1) 原版完整 WARP Manager v12【保留原来的完善菜单】"
+    echo "  2) 一键为 Xray Reality/HY2 增加 WARP IPv4 出站【推荐先试】"
+    echo "  3) Xray 出站恢复 direct"
+    echo "  4) 官方 WARP Proxy 40000"
+    echo "  5) WireProxy SOCKS 40001"
+    echo "  6) sing-box 安全切到 WARP SOCKS 40000"
+    echo "  7) sing-box 安全切到 WireProxy SOCKS 40001"
+    echo "  8) 恢复 sing-box direct"
+    echo "  9) WARP / IPv4 出站状态检查"
+    echo " 10) 安装 FS 风格 warp 命令"
+    echo "  0) 返回"
+    echo
+    echo "说明：2 只改 Xray 出站，不动 sing-box；6/7 只改 sing-box。"
+    read -rp "请选择: " w
+    case "$w" in
+      1)
+        if declare -F love_warp_final_menu_v12 >/dev/null 2>&1; then love_warp_final_menu_v12
+        else echo "[MISS] love_warp_final_menu_v12 不存在。"; fi
+        ;;
+      2) love_xray_route_via_warp_socks_v1345 40000 ;;
+      3) love_xray_restore_direct_v1345 ;;
+      4)
+        if declare -F love_warp_cli_proxy_v12 >/dev/null 2>&1; then love_warp_cli_proxy_v12 40000
+        elif declare -F love_warp_set_proxy_mode >/dev/null 2>&1; then love_warp_set_proxy_mode 40000
+        else echo "[MISS] WARP Proxy 函数不存在。"; fi
+        ;;
+      5)
+        if declare -F love_wireproxy_auto_v12 >/dev/null 2>&1; then love_wireproxy_auto_v12 40001
+        elif declare -F love_warp_wireproxy_mode >/dev/null 2>&1; then love_warp_wireproxy_mode
+        else echo "[MISS] WireProxy 函数不存在。"; fi
+        ;;
+      6)
+        if declare -F love_singbox_switch_warp_socks_v12 >/dev/null 2>&1; then love_singbox_switch_warp_socks_v12 40000 smart
+        elif declare -F love_singbox_route_via_warp_proxy >/dev/null 2>&1; then love_singbox_route_via_warp_proxy 40000
+        else echo "[MISS] sing-box WARP 切换函数不存在。"; fi
+        ;;
+      7)
+        if declare -F love_singbox_switch_warp_socks_v12 >/dev/null 2>&1; then love_singbox_switch_warp_socks_v12 40001 smart
+        else echo "[MISS] sing-box WireProxy 切换函数不存在。"; fi
+        ;;
+      8)
+        if declare -F love_singbox_restore_direct_v12 >/dev/null 2>&1; then love_singbox_restore_direct_v12
+        elif declare -F love_singbox_restore_direct_outbound >/dev/null 2>&1; then love_singbox_restore_direct_outbound
+        else echo "[MISS] sing-box direct 恢复函数不存在。"; fi
+        ;;
+      9) love_warp_status_plus_v1345 ;;
+      10) love_install_fs_warp_command_v1345 ;;
+      0) return 0 ;;
+      *) echo "[WARN] 无效选择。" ;;
+    esac
+    echo
+    read -rp "按 Enter 返回 WARP 菜单..." _
+  done
+}
+
+# Force restore these entry points.
+love_warp_manager_menu() { love_warp_restored_menu_v1345; }
+love_warp_final_menu() { love_warp_restored_menu_v1345; }
+
+# Patch colored main menu 20 and command entry.
+if declare -F love_main_menu_v1343 >/dev/null 2>&1 && ! declare -F love_original_main_menu_v1345 >/dev/null 2>&1; then
+  eval "$(declare -f love_main_menu_v1343 | sed '1s/^love_main_menu_v1343/love_original_main_menu_v1345/')"
+fi
+
+# Rebuild menu with option 20 hard-wired to restored WARP menu.
+love_main_menu_v1343() {
+  love_tty_colors_v1343 2>/dev/null || true
+  while true; do
+    clear 2>/dev/null || true
+    love_title_v1343 "Love Node Server Manager ${LOVE_SCRIPT_VERSION:-Love v13.45}" "Color UI / Latest Xray / Auto Web / Restored WARP"
+    if declare -F love_safe_status_v1335 >/dev/null 2>&1; then love_safe_status_v1335; fi
+    echo
+    printf '%b\n' "${C_BOLD}主菜单${C_RESET}"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}1)${C_RESET} 节点目录                     ${C_CYAN}│${C_RESET} ${C_GREEN}14)${C_RESET} v6 Project Tools"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}2)${C_RESET} Xray Reality + HY2           ${C_CYAN}│${C_RESET} ${C_GREEN}15)${C_RESET} v7 Stable Tools"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}3)${C_RESET} sing-box 全协议              ${C_CYAN}│${C_RESET} ${C_GREEN}16)${C_RESET} v8 Project Panel"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}4)${C_RESET} Argo 隧道                    ${C_CYAN}│${C_RESET} ${C_GREEN}17)${C_RESET} Nginx Reverse Proxy"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}5)${C_RESET} UDP 端口跳跃                 ${C_CYAN}│${C_RESET} ${C_GREEN}18)${C_RESET} HY2/sing-box 修复"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}6)${C_RESET} WARP 说明                    ${C_CYAN}│${C_RESET} ${C_GREEN}19)${C_RESET} IPv6-only 出站"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}7)${C_RESET} 节点信息 Love -n             ${C_CYAN}│${C_RESET} ${C_GREEN}20)${C_RESET} WARP Manager / IPv4"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}8)${C_RESET} 导出订阅 Love sub            ${C_CYAN}│${C_RESET} ${C_GREEN}21)${C_RESET} 查看运行状态"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}9)${C_RESET} 生成二维码 Love qr          ${C_CYAN}│${C_RESET} ${C_GREEN}22)${C_RESET} 备份配置"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}10)${C_RESET} Super Tools                ${C_CYAN}│${C_RESET} ${C_GREEN}23)${C_RESET} 卸载菜单"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}11)${C_RESET} Web 管理页 Love web        ${C_CYAN}│${C_RESET} ${C_GREEN}24)${C_RESET} GitHub 发布说明"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}12)${C_RESET} 在线更新 / 下载链接        ${C_CYAN}│${C_RESET} ${C_GREEN}25)${C_RESET} 安装 warp 命令"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}13)${C_RESET} 客户端导出                 ${C_CYAN}│${C_RESET} ${C_GREEN}0)${C_RESET} 退出"
+    echo
+    printf '%b\n' "${C_YELLOW}WARP：20 已恢复原版 WARP Manager，并新增 Xray IPv4 出站。${C_RESET}"
+    printf '%b\n' "${C_DIM}常用：Love warp | Love warp-ipv4 | Love warp-status | Love web-sync${C_RESET}"
+    echo
+    read -rp "请选择: " choice
+    case "$choice" in
+      1) love_call_v1343 show_all_node_catalog ;;
+      2) love_call_v1343 install_xray_stable ;;
+      3) love_call_v1343 install_singbox_native ;;
+      4) love_call_v1343 argo_helper ;;
+      5) love_call_v1343 port_hopping_helper ;;
+      6) love_call_v1343 warp_helper ;;
+      7) love_call_v1343 show_node_info ;;
+      8) love_call_v1343 love_sub_safe_v1341 || love_call_v1343 export_subscription ;;
+      9) love_call_v1343 generate_qrcodes ;;
+      10) love_call_v1343 super_menu ;;
+      11) love_call_v1343 web_admin_page ;;
+      12) love_call_v1343 self_update_love ;;
+      13) love_call_v1343 love_full_client_pack ;;
+      14) love_call_v1343 v6_super_menu ;;
+      15) love_call_v1343 v7_stable_menu ;;
+      16) love_call_v1343 v8_menu ;;
+      17) love_call_v1343 nginx_rp_menu ;;
+      18) love_call_v1343 love_fix_hy2_now ;;
+      19) love_call_v1343 love_ipv6_outbound_menu ;;
+      20) love_warp_restored_menu_v1345 ;;
+      21) love_call_v1343 show_status ;;
+      22) love_call_v1343 backup_configs ;;
+      23) love_uninstall_menu_v1343 ;;
+      24) love_call_v1343 github_publish_note ;;
+      25) love_install_fs_warp_command_v1345 ;;
+      0) exit 0 ;;
+      *) echo "[WARN] 无效选择。" ;;
+    esac
+    echo
+    read -rp "按 Enter 返回主菜单..." _
+  done
+}
+
+love_hard_menu_v1335() { love_main_menu_v1343; }
+main_menu() { love_main_menu_v1343; }
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1345 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1345/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.45.0-warp-manager-restore-xray-ipv4-final}"
+  case "${1:-}" in
+    ""|menu)
+      need_root 2>/dev/null || true
+      prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_prepare_core_dirs_v1344 2>/dev/null || true
+      love_main_menu_v1343
+      ;;
+    warp|warp-menu|warp-manager)
+      love_warp_restored_menu_v1345
+      ;;
+    warp-ipv4|xray-warp|xray-ipv4)
+      love_xray_route_via_warp_socks_v1345 40000
+      ;;
+    xray-direct|warp-direct-xray)
+      love_xray_restore_direct_v1345
+      ;;
+    warp-status|warp-test)
+      love_warp_status_plus_v1345
+      ;;
+    warp-install)
+      love_install_fs_warp_command_v1345
+      ;;
+    *)
+      love_original_main_v1345 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.46 Web/QR + WARP Final Restore
+# Fixes:
+#   - Confirms WARP uses the post-13.27 final V12 WARP functions.
+#   - Keeps menu 20 hard-wired to restored WARP manager.
+#   - Fixes Web 404 for 推荐节点 / 节点清晰版 / 全部节点.
+#   - Fixes QR gallery crowding and overlarge QR display.
+#   - Adds Love web-fix and Love qr-fix.
+#   - Keeps Xray latest / auto Web / xray-info dir fix / sing-box untouched.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.46.0-web-qr-warp-final-restore"
+
+love_web_css_final_v1346() {
+  cat <<'EOF'
+<style>
+:root{
+  --bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;
+  --line:#334155;--blue:#60a5fa;--green:#22c55e;--btn:#2563eb;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:1120px;margin:0 auto;padding:24px}
+.hero{background:linear-gradient(135deg,#1d4ed8,#7c3aed);border-radius:20px;padding:24px;box-shadow:0 14px 36px rgba(0,0,0,.28)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin:16px 0;box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;align-items:start}
+.qr-card{text-align:center;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;overflow:hidden}
+.qr-card img{width:180px;max-width:88%;height:auto;image-rendering:pixelated;background:white;border-radius:12px;padding:8px;margin:8px auto;display:block}
+.qr-card h3{font-size:14px;line-height:1.35;word-break:break-all;min-height:36px}
+h1{margin:0 0 8px;font-size:28px} h2{color:#93c5fd;margin:24px 0 12px}
+a{color:#93c5fd;text-decoration:none;word-break:break-all}
+.btn{display:inline-block;background:var(--btn);color:white!important;border-radius:999px;padding:8px 12px;margin:5px 4px;font-weight:700}
+.btn.gray{background:#475569}.btn.green{background:#16a34a}.btn.orange{background:#ea580c}
+textarea{width:100%;height:180px;border-radius:14px;border:1px solid var(--line);background:#020617;color:#d1d5db;padding:12px}
+code{background:#020617;border:1px solid #1f2937;border-radius:8px;padding:3px 7px;color:#d1d5db}
+.muted{color:var(--muted)} .ok{color:#86efac;font-weight:700}
+@media(max-width:520px){.wrap{padding:14px}.qr-grid{grid-template-columns:1fr}.qr-card img{width:165px}}
+</style>
+EOF
+}
+
+love_copy_one_if_exists_v1346() {
+  local src="$1" dst="$2"
+  [[ -s "$src" ]] || return 0
+  mkdir -p "$(dirname "$dst")"
+  cp -f "$src" "$dst" 2>/dev/null || true
+}
+
+love_web_fix_files_v1346() {
+  local web="${LOVE_WEB:-/var/www/love-admin}"
+  local sub="${LOVE_SUB:-/opt/Love/subscribe}"
+  local token
+  token="$(get_sub_token 2>/dev/null || true)"
+  [[ -n "$token" ]] || token="default"
+
+  mkdir -p "$web" "$web/sub" "$web/qr" "$web/clients" "$web/downloads"
+  mkdir -p "$web/$token" "$web/$token/subscribe" "$web/$token/qr" "$web/$token/clients" "$web/$token/downloads"
+
+  # Canonical subscriptions.
+  love_copy_one_if_exists_v1346 "$sub/all.txt" "$web/sub/all.txt"
+  love_copy_one_if_exists_v1346 "$sub/all_base64.txt" "$web/sub/all_base64.txt"
+  love_copy_one_if_exists_v1346 "$sub/clash_like.yaml" "$web/sub/clash_like.yaml"
+  love_copy_one_if_exists_v1346 "$sub/mihomo.yaml" "$web/sub/mihomo.yaml"
+
+  # Root shortcuts to stop 404 from old index links.
+  love_copy_one_if_exists_v1346 "$sub/all.txt" "$web/all.txt"
+  love_copy_one_if_exists_v1346 "$sub/all.txt" "$web/node-links.txt"
+  love_copy_one_if_exists_v1346 "$sub/all.txt" "$web/全部节点.txt"
+  love_copy_one_if_exists_v1346 "$sub/all_base64.txt" "$web/all_base64.txt"
+
+  # User-facing txt files: several historical names are supported.
+  love_copy_one_if_exists_v1346 "$sub/推荐节点.txt" "$web/推荐节点.txt"
+  love_copy_one_if_exists_v1346 "$sub/节点清晰版.txt" "$web/节点清晰版.txt"
+  love_copy_one_if_exists_v1346 "$sub/clients/nodes-clean.txt" "$web/nodes-clean.txt"
+  love_copy_one_if_exists_v1346 "$sub/clients/nodes-clean.txt" "$web/节点清晰版.txt"
+
+  # Token panel copies.
+  cp -a "$sub/." "$web/$token/subscribe/" 2>/dev/null || true
+  cp -a "$sub/qr/." "$web/$token/qr/" 2>/dev/null || true
+  cp -a "$sub/clients/." "$web/$token/clients/" 2>/dev/null || true
+  love_copy_one_if_exists_v1346 "$sub/all.txt" "$web/$token/全部节点.txt"
+  love_copy_one_if_exists_v1346 "$sub/推荐节点.txt" "$web/$token/推荐节点.txt"
+  love_copy_one_if_exists_v1346 "$sub/节点清晰版.txt" "$web/$token/节点清晰版.txt"
+  love_copy_one_if_exists_v1346 "$sub/clients/nodes-clean.txt" "$web/$token/nodes-clean.txt"
+
+  # Non-token copies for QR and clients.
+  cp -a "$sub/qr/." "$web/qr/" 2>/dev/null || true
+  cp -a "$sub/clients/." "$web/clients/" 2>/dev/null || true
+
+  chown -R www-data:www-data "$web" 2>/dev/null || true
+  find "$web" -type d -exec chmod 755 {} \; 2>/dev/null || true
+  find "$web" -type f -exec chmod 644 {} \; 2>/dev/null || true
+
+  echo "[OK] Web 文件副本已修复：$web"
+  echo "关键文件："
+  for f in "$web/all.txt" "$web/node-links.txt" "$web/全部节点.txt" "$web/推荐节点.txt" "$web/节点清晰版.txt" "$web/sub/all.txt"; do
+    [[ -f "$f" ]] && echo "  [OK] $f" || echo "  [MISS] $f"
+  done
+}
+
+love_write_qr_gallery_v1346() {
+  local qrdir="$1"
+  local base_title="${2:-Love QR Gallery}"
+  [[ -d "$qrdir" ]] || return 0
+
+  local count
+  count="$(find "$qrdir" -maxdepth 1 -type f -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+
+  cat > "$qrdir/index.html" <<EOF
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${base_title}</title>
+$(love_web_css_final_v1346)
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>${base_title}</h1>
+    <div>二维码数量：<span class="ok">${count}</span></div>
+    <div class="muted">二维码已限制显示尺寸，不再挤在一起；点击可单独打开原图。</div>
+    <p><a class="btn" href="/">返回 Web 首页</a></p>
+  </div>
+  <h2>二维码列表</h2>
+  <div class="qr-grid">
+EOF
+
+  local f name svg title
+  while IFS= read -r f; do
+    name="$(basename "$f")"
+    svg="${name%.png}.svg"
+    title="$name"
+    cat >> "$qrdir/index.html" <<EOF
+    <div class="qr-card">
+      <h3>${title}</h3>
+      <a href="./${name}" target="_blank"><img src="./${name}" alt="${name}" loading="lazy"></a>
+      <a class="btn" href="./${name}" target="_blank">打开 PNG</a>
+EOF
+    if [[ -f "$qrdir/$svg" ]]; then
+      cat >> "$qrdir/index.html" <<EOF
+      <a class="btn gray" href="./${svg}" target="_blank">打开 SVG</a>
+EOF
+    fi
+    cat >> "$qrdir/index.html" <<'EOF'
+    </div>
+EOF
+  done < <(find "$qrdir" -maxdepth 1 -type f -name '*.png' | sort)
+
+  cat >> "$qrdir/index.html" <<'EOF'
+  </div>
+</div>
+</body>
+</html>
+EOF
+}
+
+# Override historical gallery names too.
+love_write_qr_gallery_v1329() { love_write_qr_gallery_v1346 "$@"; }
+love_write_qr_gallery_v1332() { love_write_qr_gallery_v1346 "$@"; }
+
+love_generate_qr_fixed_v1346() {
+  local sub="${LOVE_SUB:-/opt/Love/subscribe}"
+  mkdir -p "$sub/qr"
+  [[ -s "$sub/all.txt" ]] || { echo "[WARN] 没有 $sub/all.txt，先执行 Love sub"; return 1; }
+
+  command -v qrencode >/dev/null 2>&1 || apt install -y qrencode >/dev/null 2>&1 || true
+  command -v qrencode >/dev/null 2>&1 || { echo "[ERROR] qrencode 不存在"; return 1; }
+
+  rm -f "$sub/qr/"* 2>/dev/null || true
+
+  local i=0 line label safe
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    ((i++)) || true
+    label="${line#*#}"
+    [[ "$label" == "$line" || -z "$label" ]] && label="node-$i"
+    safe="$(echo "$label" | sed 's#[/\\:*?"<>| ]#_#g' | head -c 80)"
+    printf '%s' "$line" | qrencode -t ANSIUTF8 > "$sub/qr/node-${i}.ansi" 2>/dev/null || true
+    printf '%s' "$line" | qrencode -t PNG -s 5 -m 2 -o "$sub/qr/node-${i}.png" 2>/dev/null || true
+    printf '%s' "$line" | qrencode -t SVG -o "$sub/qr/node-${i}.svg" 2>/dev/null || true
+    # Named copy for easier UI.
+    cp -f "$sub/qr/node-${i}.png" "$sub/qr/${safe}.png" 2>/dev/null || true
+  done < "$sub/all.txt"
+
+  # Aggregated QR files can be huge; generate smaller display scale and let gallery cap them.
+  [[ -s "$sub/all.txt" ]] && printf '%s' "$(cat "$sub/all.txt")" | qrencode -t PNG -s 3 -m 1 -o "$sub/qr/all.png" 2>/dev/null || true
+  [[ -s "$sub/all_base64.txt" ]] && printf '%s' "$(cat "$sub/all_base64.txt")" | qrencode -t PNG -s 3 -m 1 -o "$sub/qr/all_base64.png" 2>/dev/null || true
+  [[ -s "$sub/clients/v2rayn-uri.txt" ]] && printf '%s' "$(cat "$sub/clients/v2rayn-uri.txt")" | qrencode -t PNG -s 3 -m 1 -o "$sub/qr/v2rayn.png" 2>/dev/null || true
+  [[ -s "$sub/clients/nekobox-uri.txt" ]] && printf '%s' "$(cat "$sub/clients/nekobox-uri.txt")" | qrencode -t PNG -s 3 -m 1 -o "$sub/qr/nekobox.png" 2>/dev/null || true
+
+  love_write_qr_gallery_v1346 "$sub/qr" "Love QR Gallery"
+  echo "[OK] 二维码已修复生成：$sub/qr/"
+}
+
+# Override generate_qrcodes conservatively.
+if declare -F generate_qrcodes >/dev/null 2>&1 && ! declare -F love_original_generate_qrcodes_v1346 >/dev/null 2>&1; then
+  eval "$(declare -f generate_qrcodes | sed '1s/^generate_qrcodes/love_original_generate_qrcodes_v1346/')"
+fi
+
+generate_qrcodes() {
+  love_generate_qr_fixed_v1346 "$@"
+}
+
+love_web_index_final_v1346() {
+  local web="${LOVE_WEB:-/var/www/love-admin}"
+  local token
+  token="$(get_sub_token 2>/dev/null || true)"
+  [[ -n "$token" ]] || token="default"
+
+  cat > "$web/index.html" <<EOF
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Love Admin Panel</title>
+$(love_web_css_final_v1346)
+<script>
+async function copyUrl(path){
+  const url = location.origin + path;
+  await navigator.clipboard.writeText(url);
+  alert("Copied: " + url);
+}
+async function copyText(path){
+  const r = await fetch(path);
+  const t = await r.text();
+  await navigator.clipboard.writeText(t);
+  alert("Copied text");
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>Love Admin Panel</h1>
+    <div>Web fixed: 推荐节点 / 节点清晰版 / 全部节点 / QR Gallery</div>
+    <p><a class="btn" href="/${token}/">打开 Token 面板</a><a class="btn green" href="/qr/index.html">二维码网格</a></p>
+  </div>
+
+  <div class="card">
+    <h2>订阅 / 节点文本</h2>
+    <div class="grid">
+      <div><a class="btn" href="/sub/all.txt" target="_blank">全部节点 all.txt</a><button class="btn gray" onclick="copyUrl('/sub/all.txt')">复制URL</button></div>
+      <div><a class="btn" href="/all.txt" target="_blank">全部节点 根目录</a><button class="btn gray" onclick="copyUrl('/all.txt')">复制URL</button></div>
+      <div><a class="btn" href="/推荐节点.txt" target="_blank">推荐节点</a><button class="btn gray" onclick="copyUrl('/推荐节点.txt')">复制URL</button></div>
+      <div><a class="btn" href="/节点清晰版.txt" target="_blank">节点清晰版</a><button class="btn gray" onclick="copyUrl('/节点清晰版.txt')">复制URL</button></div>
+      <div><a class="btn" href="/node-links.txt" target="_blank">node-links.txt</a><button class="btn gray" onclick="copyUrl('/node-links.txt')">复制URL</button></div>
+      <div><a class="btn" href="/sub/all_base64.txt" target="_blank">Base64</a><button class="btn gray" onclick="copyUrl('/sub/all_base64.txt')">复制URL</button></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>二维码 / 客户端</h2>
+    <a class="btn green" href="/qr/index.html" target="_blank">二维码网格页面</a>
+    <a class="btn" href="/clients/v2rayn-uri.txt" target="_blank">V2RayN URI</a>
+    <a class="btn" href="/clients/nekobox-uri.txt" target="_blank">NekoBox URI</a>
+  </div>
+</div>
+</body>
+</html>
+EOF
+
+  mkdir -p "$web/$token"
+  cp -f "$web/index.html" "$web/$token/index.html" 2>/dev/null || true
+}
+
+love_web_fix_v1346() {
+  echo "================ Love Web Fix v13.46 ================"
+  [[ -s "${LOVE_SUB:-/opt/Love/subscribe}/all.txt" ]] || {
+    echo "[WARN] 订阅为空，先执行 Love sub"
+    if declare -F love_sub_safe_v1341 >/dev/null 2>&1; then love_sub_safe_v1341; else export_subscription; fi
+  }
+
+  love_generate_qr_fixed_v1346 || true
+  love_web_fix_files_v1346
+  love_write_qr_gallery_v1346 "${LOVE_WEB:-/var/www/love-admin}/qr" "Love QR Gallery"
+  love_web_index_final_v1346
+
+  nginx -t >/dev/null 2>&1 && systemctl reload nginx 2>/dev/null || true
+  echo "[OK] Web 404 和二维码布局已修复。"
+  find "${LOVE_WEB:-/var/www/love-admin}" -maxdepth 2 -type f \( -name 'all.txt' -o -name '推荐节点.txt' -o -name '节点清晰版.txt' -o -name 'index.html' \) -print 2>/dev/null || true
+}
+
+# Wrap existing web sync/web admin to always apply final web fix.
+if declare -F love_web_sync_v1342 >/dev/null 2>&1 && ! declare -F love_original_web_sync_v1346 >/dev/null 2>&1; then
+  eval "$(declare -f love_web_sync_v1342 | sed '1s/^love_web_sync_v1342/love_original_web_sync_v1346/')"
+fi
+love_web_sync_v1342() {
+  love_original_web_sync_v1346 "$@" 2>/dev/null || true
+  love_web_fix_v1346
+}
+
+if declare -F web_admin_page >/dev/null 2>&1 && ! declare -F love_original_web_admin_v1346 >/dev/null 2>&1; then
+  eval "$(declare -f web_admin_page | sed '1s/^web_admin_page/love_original_web_admin_v1346/')"
+fi
+web_admin_page() {
+  love_original_web_admin_v1346 "$@"
+  love_web_fix_v1346
+}
+
+love_warp_version_check_v1346() {
+  echo "================ Love WARP Version Check ================"
+  for f in love_warp_final_menu_v12 love_warp_auto_fix_v12 love_wireproxy_auto_v12 love_singbox_switch_warp_socks_v12 love_warp_proxy_safe_install love_warp_restored_menu_v1345; do
+    if declare -F "$f" >/dev/null 2>&1; then
+      echo "[OK] $f"
+    else
+      echo "[MISS] $f"
+    fi
+  done
+  echo
+  echo "说明：V13.46 使用 13.27 之后已经完善的 V12 WARP 函数；主菜单 20 只是把入口重新接回，并额外增加 Xray IPv4 出站。"
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1346 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1346/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.46.0-web-qr-warp-final-restore}"
+  case "${1:-}" in
+    web-fix|fix-web|web-sync)
+      love_web_fix_v1346
+      ;;
+    qr-fix|fix-qr)
+      love_generate_qr_fixed_v1346
+      ;;
+    warp-version|warp-check)
+      love_warp_version_check_v1346
+      ;;
+    *)
+      love_original_main_v1346 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.47 VLESS WS TLS Insecure Restore Final
+# Fix:
+#   - Restores the historical post-processing fix for VLESS WS TLS self-signed cert.
+#   - Adds allowInsecure=1, insecure=1, allow_insecure=1 to every VLESS WS TLS URI.
+#   - Applies to all.txt, client exports, xray/singbox info text, and Web copies.
+#   - Does not touch Xray HY2 old-format logic.
+#   - Does not touch sing-box server config.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.47.0-vless-ws-tls-insecure-restore-final"
+
+love_fix_vless_ws_tls_line_v1347() {
+  local line="$1"
+  local low="${line,,}"
+
+  if [[ "$line" == vless://* && "$low" == *"security=tls"* && "$low" == *"type=ws"* ]]; then
+    local main frag base query
+    if [[ "$line" == *"#"* ]]; then
+      main="${line%%#*}"
+      frag="${line#*#}"
+    else
+      main="$line"
+      frag="LOVE-VLESS-WS-TLS"
+    fi
+
+    if [[ "$main" == *"?"* ]]; then
+      base="${main%%\?*}"
+      query="${main#*\?}"
+    else
+      base="$main"
+      query=""
+    fi
+
+    # remove duplicates first, then append final compatibility flags
+    query="$(tr '&' '\n' <<< "$query" | awk -F= '
+      BEGIN{IGNORECASE=1}
+      $1!="allowInsecure" && $1!="allow_insecure" && $1!="insecure" {print}
+    ' | paste -sd'&' -)"
+    [[ -n "$query" ]] && query="${query}&"
+    query="${query}allowInsecure=1&insecure=1&allow_insecure=1"
+
+    echo "${base}?${query}#${frag}"
+  else
+    echo "$line"
+  fi
+}
+
+love_fix_vless_ws_tls_file_v1347() {
+  local f="$1" tmp
+  [[ -s "$f" ]] || return 0
+  tmp="/tmp/love-vless-ws-tls-fix.$$.$RANDOM"
+  : > "$tmp"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    love_fix_vless_ws_tls_line_v1347 "$line" >> "$tmp"
+  done < "$f"
+  mv "$tmp" "$f"
+}
+
+love_fix_vless_ws_tls_all_v1347() {
+  echo "================ Love VLESS WS TLS 修复 v13.47 ================"
+  local files=()
+
+  # Core subscription and client/info exports
+  while IFS= read -r f; do files+=("$f"); done < <(
+    find /opt/Love -type f \( \
+      -name '*.txt' -o -name '*.yaml' -o -name '*.yml' -o -name '*.html' \
+    \) 2>/dev/null
+  )
+
+  # Web copies
+  while IFS= read -r f; do files+=("$f"); done < <(
+    find /var/www/love-admin -type f \( \
+      -name '*.txt' -o -name '*.yaml' -o -name '*.yml' -o -name '*.html' \
+    \) 2>/dev/null
+  )
+
+  local f
+  for f in "${files[@]}"; do
+    grep -qiE '^vless://|VLESS-WS-TLS|type=ws|security=tls' "$f" 2>/dev/null || continue
+    love_fix_vless_ws_tls_file_v1347 "$f"
+  done
+
+  # Rebuild base64 after fixing all.txt
+  if [[ -s /opt/Love/subscribe/all.txt ]]; then
+    if base64 --help 2>/dev/null | grep -q -- '-w'; then
+      base64 -w0 /opt/Love/subscribe/all.txt > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    else
+      base64 /opt/Love/subscribe/all.txt | tr -d '\n' > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+    fi
+  fi
+
+  # Sync fixed copies to Web common paths
+  mkdir -p /var/www/love-admin/sub /var/www/love-admin/clients 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/sub/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/node-links.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all_base64.txt /var/www/love-admin/sub/all_base64.txt 2>/dev/null || true
+  cp -a /opt/Love/subscribe/clients/. /var/www/love-admin/clients/ 2>/dev/null || true
+
+  echo "==== 修复后的 VLESS WS TLS ===="
+  grep -nEi 'VLESS-WS-TLS|vless://.*security=tls.*type=ws|8887|38006|50006' /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+  echo "[OK] 已恢复 VLESS WS TLS 自签证书兼容参数：allowInsecure=1 & insecure=1 & allow_insecure=1"
+}
+
+# Wrap subscription export so the fix is always applied after generation.
+if declare -F love_sub_safe_v1341 >/dev/null 2>&1 && ! declare -F love_original_sub_safe_v1347 >/dev/null 2>&1; then
+  eval "$(declare -f love_sub_safe_v1341 | sed '1s/^love_sub_safe_v1341/love_original_sub_safe_v1347/')"
+fi
+love_sub_safe_v1341() {
+  love_original_sub_safe_v1347 "$@"
+  love_fix_vless_ws_tls_all_v1347
+}
+
+# Wrap web fix so web copies never go stale.
+if declare -F love_web_fix_v1346 >/dev/null 2>&1 && ! declare -F love_original_web_fix_v1347 >/dev/null 2>&1; then
+  eval "$(declare -f love_web_fix_v1346 | sed '1s/^love_web_fix_v1346/love_original_web_fix_v1347/')"
+fi
+love_web_fix_v1346() {
+  love_original_web_fix_v1347 "$@"
+  love_fix_vless_ws_tls_all_v1347
+}
+
+# Wrap QR generation after link fixing to avoid QR carrying old links.
+if declare -F generate_qrcodes >/dev/null 2>&1 && ! declare -F love_original_generate_qrcodes_v1347 >/dev/null 2>&1; then
+  eval "$(declare -f generate_qrcodes | sed '1s/^generate_qrcodes/love_original_generate_qrcodes_v1347/')"
+fi
+generate_qrcodes() {
+  love_fix_vless_ws_tls_all_v1347 >/dev/null 2>&1 || true
+  love_original_generate_qrcodes_v1347 "$@"
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1347 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1347/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.47.0-vless-ws-tls-insecure-restore-final}"
+  case "${1:-}" in
+    fix-vless-ws|vless-ws-fix|fix-ws-tls)
+      love_fix_vless_ws_tls_all_v1347
+      ;;
+    sub|subscribe|subscription|link-fix|client-fix|fix-links)
+      if declare -F love_sub_safe_v1341 >/dev/null 2>&1; then love_sub_safe_v1341 "$@"; else love_original_main_v1347 "$@"; love_fix_vless_ws_tls_all_v1347; fi
+      ;;
+    web-fix|fix-web|web-sync)
+      if declare -F love_web_fix_v1346 >/dev/null 2>&1; then love_web_fix_v1346 "$@"; else love_original_main_v1347 "$@"; fi
+      ;;
+    *)
+      love_original_main_v1347 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.48 Source-Correct Cert/Flag/Client Output Final
+# 新 VPS 首装 + 旧 VPS 修复双场景。
+# 边界：不写 xray/sing-box 服务端 config，不重启服务，不换 UUID/key/auth/cert。
+# 只统一生成客户端输出：client-info / all.txt / clients / QR / Web。
+# ==============================================================================
+LOVE_SCRIPT_VERSION="Love v13.48.0-source-correct-cert-flag-all-final"
+
+love_v1348_mkdirs() {
+  mkdir -p /opt/Love/client-info /opt/Love/subscribe/clients /opt/Love/subscribe/qr /opt/Love/subscribe/sing-box
+  mkdir -p /var/www/love-admin/sub /var/www/love-admin/clients /var/www/love-admin/qr 2>/dev/null || true
+}
+
+love_v1348_is_ip() {
+  local x="$1"; x="${x#[}"; x="${x%]}"
+  [[ "$x" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ || "$x" == *:* ]]
+}
+
+love_v1348_flag() {
+  if declare -F love_flag_get_v1341 >/dev/null 2>&1; then love_flag_get_v1341
+  elif [[ -s /opt/Love/node-flag ]]; then cat /opt/Love/node-flag
+  else echo "🇺🇸"; fi
+}
+
+love_v1348_strip_flag() {
+  local x="$1"
+  for f in 🇺🇸 🇯🇵 🇸🇬 🇭🇰 🇹🇼 🇰🇷 🇩🇪 🇬🇧 🇫🇷 🇳🇱 🇨🇦 🇦🇺 🇮🇳 🇹🇭 🇻🇳 🇮🇩 🇲🇾 🇵🇭 🇧🇷 🇹🇷 🇦🇪 🇪🇸 🇮🇹 🇵🇱; do
+    x="${x#${f} }"
+  done
+  echo "$x"
+}
+
+love_v1348_label() {
+  local label="$1" flag
+  flag="$(love_v1348_flag)"
+  label="$(love_v1348_strip_flag "$label")"
+  echo "$flag ${label# }"
+}
+
+love_v1348_get_param() {
+  local line="$1" key="$2" q
+  q="${line#*\?}"; q="${q%%#*}"
+  tr '&' '\n' <<< "$q" | awk -F= -v k="$key" 'tolower($1)==tolower(k){print $2; exit}'
+}
+
+love_v1348_manual_mode() {
+  local m
+  m="$(cat /opt/Love/cert-mode 2>/dev/null || cat /opt/Love/domain-cert-mode 2>/dev/null || true)"
+  m="${m,,}"
+  case "$m" in
+    public|public_ca|domain_public_ca|ca|letsencrypt|lets_encrypt|zerossl) echo "public_ca"; return ;;
+    self|selfsigned|self_signed|domain_self_signed|no_domain_self_signed|custom|custom_cert|insecure) echo "self_signed"; return ;;
+  esac
+  echo ""
+}
+
+love_v1348_probe_cert_mode() {
+  local sni="$1" cert="$2" manual sans cn
+  manual="$(love_v1348_manual_mode)"
+  [[ -n "$manual" ]] && { echo "$manual"; return; }
+
+  if [[ -z "$sni" || "$sni" == "self.local" || "$sni" == "localhost" || "$sni" == *.local ]] || love_v1348_is_ip "$sni"; then
+    echo "self_signed"; return
+  fi
+  [[ -s "$cert" ]] || { echo "self_signed"; return; }
+  openssl x509 -checkend 0 -noout -in "$cert" >/dev/null 2>&1 || { echo "cert_expired"; return; }
+  sans="$(openssl x509 -noout -ext subjectAltName -in "$cert" 2>/dev/null | tr '\n' ' ' || true)"
+  cn="$(openssl x509 -noout -subject -in "$cert" 2>/dev/null | sed -n 's/.*CN *= *\([^,/]*\).*/\1/p' || true)"
+  if echo "$sans" | grep -qi "DNS:${sni}\b" || [[ "$cn" == "$sni" ]]; then
+    echo "public_ca"
+  else
+    echo "cert_mismatch"
+  fi
+}
+
+love_v1348_detect_mode() {
+  local scfg="/etc/sing-box/config.json" xcfg="/usr/local/etc/xray/config.json"
+  local sni cert mode xsni xcert xmode
+  sni="$(jq -r '.inbounds[]? | select((.type=="vless" or .type=="trojan" or .type=="tuic" or .type=="hysteria2") and (.tls.enabled==true)) | .tls.server_name // empty' "$scfg" 2>/dev/null | head -1)"
+  cert="$(jq -r '.inbounds[]? | select((.type=="vless" or .type=="trojan" or .type=="tuic" or .type=="hysteria2") and (.tls.enabled==true)) | .tls.certificate_path // empty' "$scfg" 2>/dev/null | head -1)"
+  mode="$(love_v1348_probe_cert_mode "${sni:-self.local}" "$cert")"
+
+  xsni="$(jq -r '.inbounds[]? | select(.tag=="hy2-in") | .streamSettings.tlsSettings.serverName // empty' "$xcfg" 2>/dev/null | head -1)"
+  xcert="$(jq -r '.inbounds[]? | select(.tag=="hy2-in") | .streamSettings.tlsSettings.certificates[0].certificateFile // empty' "$xcfg" 2>/dev/null | head -1)"
+  xmode="$(love_v1348_probe_cert_mode "${xsni:-self.local}" "$xcert")"
+
+  [[ -n "$mode" ]] || mode="$xmode"
+  [[ -n "$mode" ]] || mode="self_signed"
+  cat > /opt/Love/source-correct.env <<EOF
+GLOBAL_CERT_MODE="$mode"
+XRAY_CERT_MODE="${xmode:-self_signed}"
+SINGBOX_CERT_MODE="${mode:-self_signed}"
+EOF
+  cat /opt/Love/source-correct.env
+}
+
+love_v1348_clean_query() {
+  tr '&' '\n' | awk -F= 'BEGIN{IGNORECASE=1}$1!="allowInsecure"&&$1!="allow_insecure"&&$1!="insecure"&&$1!=""{print}' | paste -sd'&' -
+}
+
+love_v1348_flags() {
+  local proto="$1" mode="$2"
+  if [[ "$mode" == "public_ca" ]]; then
+    [[ "$proto" == "hy2" ]] && echo "insecure=0"
+    [[ "$proto" == "tuic" ]] && echo "alpn=h3"
+    return
+  fi
+  case "$proto" in
+    vless_ws_tls) echo "allowInsecure=1&insecure=1&allow_insecure=1" ;;
+    trojan) echo "allowInsecure=1&insecure=1&allow_insecure=1" ;;
+    hy2) echo "insecure=1" ;;
+    tuic) echo "allow_insecure=1&allowInsecure=1&insecure=1&alpn=h3" ;;
+  esac
+}
+
+love_v1348_line_mode() {
+  local line="$1" def="$2" sni
+  [[ "${line,,}" == *"security=reality"* ]] && { echo "public_ca"; return; }
+  sni="$(love_v1348_get_param "$line" "sni")"
+  [[ -z "$sni" ]] && sni="$(love_v1348_get_param "$line" "host")"
+  if [[ -z "$sni" || "$sni" == "self.local" || "$sni" == *.local ]] || love_v1348_is_ip "$sni"; then
+    echo "self_signed"
+  else
+    echo "${def:-self_signed}"
+  fi
+}
+
+love_v1348_fix_line() {
+  local line="$1" mode="$2" low main frag base query newq proto flags
+  low="${line,,}"
+  [[ "$line" =~ ^(vless|hy2|hysteria2|tuic|trojan|ss|vmess|anytls|https|shadowtls):// ]] || { echo "$line"; return; }
+
+  if [[ "$line" == *"#"* ]]; then main="${line%%#*}"; frag="${line#*#}"; else main="$line"; frag="LOVE"; fi
+  if [[ "$main" == *"?"* ]]; then base="${main%%\?*}"; query="${main#*\?}"; else base="$main"; query=""; fi
+
+  proto=""
+  [[ "$low" == *"security=reality"* ]] && proto="reality"
+  [[ "$line" == vless://* && "$low" == *"security=tls"* && "$low" == *"type=ws"* ]] && proto="vless_ws_tls"
+  [[ "$line" == trojan://* ]] && proto="trojan"
+  [[ "$line" == hy2://* || "$line" == hysteria2://* ]] && proto="hy2"
+  [[ "$line" == tuic://* ]] && proto="tuic"
+
+  if [[ "$proto" == "reality" ]]; then
+    newq="$(printf '%s' "$query" | love_v1348_clean_query)"
+    echo "${base}?${newq}#$(love_v1348_label "$frag")"; return
+  fi
+
+  if [[ -z "$proto" ]]; then
+    echo "${main}#$(love_v1348_label "$frag")"; return
+  fi
+
+  newq="$(printf '%s' "$query" | love_v1348_clean_query)"
+  flags="$(love_v1348_flags "$proto" "$mode")"
+  [[ -n "$newq" && -n "$flags" ]] && newq="${newq}&${flags}" || newq="${newq}${flags}"
+  echo "${base}?${newq}#$(love_v1348_label "$frag")"
+}
+
+love_v1348_fix_file() {
+  local f="$1" def="$2" tmp line mode
+  [[ -s "$f" ]] || return 0
+  tmp="/tmp/love-v1348.$$.$RANDOM"
+  : > "$tmp"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^(vless|hy2|hysteria2|tuic|trojan|ss|vmess|anytls|https|shadowtls):// ]]; then
+      mode="$(love_v1348_line_mode "$line" "$def")"
+      love_v1348_fix_line "$line" "$mode" >> "$tmp"
+    else
+      echo "$line" >> "$tmp"
+    fi
+  done < "$f"
+  awk '!seen[$0]++' "$tmp" > "$f"
+  rm -f "$tmp"
+}
+
+love_v1348_disk_guard() {
+  local avail size
+  avail="$(df -Pk / | awk 'NR==2{print $4}')"
+  [[ -n "$avail" && "$avail" -lt 102400 ]] && { echo "[ERROR] 根分区剩余不足100MB，停止生成，避免爆盘。"; df -h /; return 1; }
+  size="$(du -sk /opt/Love/subscribe 2>/dev/null | awk '{print $1}')"
+  if [[ -n "$size" && "$size" -gt 51200 ]]; then
+    echo "[WARN] subscribe 超过50MB，清理旧 QR/clients 后重建。"
+    rm -rf /opt/Love/subscribe/qr /opt/Love/subscribe/clients
+    mkdir -p /opt/Love/subscribe/qr /opt/Love/subscribe/clients
+  fi
+  find /opt/Love/subscribe -type f -name 'sed*' -delete 2>/dev/null || true
+  find /opt/Love/subscribe/clients -type f -size +5M -delete 2>/dev/null || true
+}
+
+love_v1348_rebuild_txts() {
+  local sub="/opt/Love/subscribe"
+  [[ -s "$sub/all.txt" ]] || return 0
+  mkdir -p "$sub/clients"
+  cp -f "$sub/all.txt" "$sub/全部节点.txt"
+  cp -f "$sub/all.txt" "$sub/推荐节点.txt"
+  cp -f "$sub/all.txt" "$sub/节点清晰版.txt"
+  cp -f "$sub/all.txt" "$sub/clients/v2rayn-uri.txt"
+  cp -f "$sub/all.txt" "$sub/clients/nekobox-uri.txt"
+  cp -f "$sub/all.txt" "$sub/clients/nodes-clean.txt"
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then base64 -w0 "$sub/all.txt" > "$sub/all_base64.txt"; else base64 "$sub/all.txt" | tr -d '\n' > "$sub/all_base64.txt"; fi
+}
+
+love_v1348_sync_web_simple() {
+  local web="/var/www/love-admin" sub="/opt/Love/subscribe"
+  mkdir -p "$web/sub" "$web/clients" "$web/qr"
+  cp -f "$sub/all.txt" "$web/all.txt" 2>/dev/null || true
+  cp -f "$sub/all.txt" "$web/node-links.txt" 2>/dev/null || true
+  cp -f "$sub/all.txt" "$web/全部节点.txt" 2>/dev/null || true
+  cp -f "$sub/推荐节点.txt" "$web/推荐节点.txt" 2>/dev/null || true
+  cp -f "$sub/节点清晰版.txt" "$web/节点清晰版.txt" 2>/dev/null || true
+  cp -f "$sub/all.txt" "$web/sub/all.txt" 2>/dev/null || true
+  cp -f "$sub/all_base64.txt" "$web/sub/all_base64.txt" 2>/dev/null || true
+  cp -a "$sub/clients/." "$web/clients/" 2>/dev/null || true
+  cp -a "$sub/qr/." "$web/qr/" 2>/dev/null || true
+  chown -R www-data:www-data "$web" 2>/dev/null || true
+}
+
+love_v1348_source_correct_outputs() {
+  echo "================ Love Source-Correct v13.48 ================"
+  love_v1348_mkdirs
+  love_v1348_disk_guard || return 1
+  love_v1348_detect_mode
+  . /opt/Love/source-correct.env 2>/dev/null || true
+  local mode="${GLOBAL_CERT_MODE:-self_signed}" f
+
+  for f in /opt/Love/client-info/*.txt /opt/Love/subscribe/*.txt /opt/Love/subscribe/clients/*.txt /var/www/love-admin/*.txt /var/www/love-admin/sub/*.txt /var/www/love-admin/clients/*.txt; do
+    love_v1348_fix_file "$f" "$mode"
+  done
+
+  [[ -s /opt/Love/subscribe/all.txt ]] && love_v1348_fix_file /opt/Love/subscribe/all.txt "$mode"
+  love_v1348_rebuild_txts
+
+  if declare -F love_generate_qr_fixed_v1346 >/dev/null 2>&1; then love_generate_qr_fixed_v1346 >/dev/null 2>&1 || true; fi
+  love_v1348_sync_web_simple
+
+  echo "==== 最终节点预览 ===="
+  grep -nE 'LOVE-XRAY|LOVE-SB|VLESS-WS-TLS|TUIC|TROJAN|HY2' /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo "==== 体积检查 ===="
+  du -xhd1 /opt/Love/subscribe 2>/dev/null | sort -h || true
+  find /opt/Love/subscribe -type f -size +5M -printf '%s %p\n' 2>/dev/null | sort -n | tail -20 || true
+  echo "[OK] 证书模式、insecure 参数、国旗、TXT/QR/Web 已统一。"
+}
+
+if declare -F love_after_node_generated_exports >/dev/null 2>&1 && ! declare -F love_original_after_exports_v1348 >/dev/null 2>&1; then
+  eval "$(declare -f love_after_node_generated_exports | sed '1s/^love_after_node_generated_exports/love_original_after_exports_v1348/')"
+fi
+love_after_node_generated_exports() {
+  love_v1348_mkdirs
+  love_original_after_exports_v1348 "$@"
+  love_v1348_source_correct_outputs
+}
+
+if declare -F love_sub_safe_v1341 >/dev/null 2>&1 && ! declare -F love_original_sub_safe_v1348 >/dev/null 2>&1; then
+  eval "$(declare -f love_sub_safe_v1341 | sed '1s/^love_sub_safe_v1341/love_original_sub_safe_v1348/')"
+fi
+love_sub_safe_v1341() {
+  love_original_sub_safe_v1348 "$@"
+  love_v1348_source_correct_outputs
+}
+
+love_v1348_menu_check() {
+  echo "================ Love v13.48 按钮检查 ================"
+  for f in love_main_menu_v1343 install_xray_stable install_singbox_native love_after_node_generated_exports love_sub_safe_v1341 web_admin_page love_web_fix_v1346 love_generate_qr_fixed_v1346 love_warp_restored_menu_v1345 love_v1348_source_correct_outputs love_uninstall_menu_v1343; do
+    declare -F "$f" >/dev/null 2>&1 && echo "[OK] $f" || echo "[MISS] $f"
+  done
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1348 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1348/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.48.0-source-correct-cert-flag-all-final}"
+  case "${1:-}" in
+    source-correct|cert-fix|final-fix|client-output-fix) love_v1348_source_correct_outputs ;;
+    menu-check|check-buttons) love_v1348_menu_check ;;
+    sub|subscribe|subscription|link-fix|client-fix|fix-links)
+      if declare -F love_sub_safe_v1341 >/dev/null 2>&1; then love_sub_safe_v1341 "$@"; else love_original_main_v1348 "$@"; love_v1348_source_correct_outputs; fi ;;
+    web-fix|fix-web|web-sync)
+      if declare -F love_web_fix_v1346 >/dev/null 2>&1; then love_web_fix_v1346 "$@"; fi
+      love_v1348_source_correct_outputs ;;
+    qr-fix|fix-qr) love_v1348_source_correct_outputs ;;
+    *) love_original_main_v1348 "$@" ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.49 Install-Source + Output-Source Correct Final
+# 修正 V13.48 的边界：V13.48 偏“输出源头正确”；V13.49 增加“首次安装源头选择正确”。
+#
+# 首次安装时：
+#   - Xray / sing-box 都先选择证书环境。
+#   - 保存 /opt/Love/cert-mode、node-sni、node-address、client-address。
+#   - 服务端安装按选择使用正式 CA 或自签证书。
+#   - client-info 保存后立刻按证书模式和国旗统一修正。
+#   - 最后自动 sub/QR/Web/source-correct。
+#
+# 已安装机器修复时：
+#   - Love sub / source-correct 仍然只重建客户端输出，不改服务端 config。
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.49.0-install-source-output-source-final"
+
+love_v1349_cert_menu() {
+  echo
+  echo "================ 证书 / 连接环境选择 ================"
+  echo "1) 无域名 + self.local + 自签证书【IP/IPv6直连】"
+  echo "2) 有域名 + 正式 CA 证书【Let's Encrypt / ZeroSSL】"
+  echo "3) 有域名 + 自签 / 自管证书"
+  echo "4) 优选 IP / CFIP + 域名 SNI + 正式 CA 证书"
+  echo "5) 优选 IP / CFIP + 域名 SNI + 自签 / 自管证书"
+  echo
+  read -rp "请选择证书环境 [1-5]: " LOVE_CERT_CASE
+  LOVE_CERT_CASE="${LOVE_CERT_CASE:-1}"
+
+  LOVE_CERT_MODE="self_signed"
+  LOVE_HAS_DOMAIN="no"
+  LOVE_NEED_CA="no"
+  LOVE_DOMAIN=""
+  LOVE_TLS_SNI="self.local"
+  LOVE_NODE_ADDR=""
+
+  case "$LOVE_CERT_CASE" in
+    1)
+      LOVE_CERT_MODE="no_domain_self_signed"
+      LOVE_HAS_DOMAIN="no"
+      read_node_addr_with_default LOVE_NODE_ADDR
+      read -rp "自签证书 SNI [self.local]: " LOVE_TLS_SNI
+      LOVE_TLS_SNI="${LOVE_TLS_SNI:-self.local}"
+      ;;
+    2)
+      LOVE_CERT_MODE="domain_public_ca"
+      LOVE_HAS_DOMAIN="yes"
+      LOVE_NEED_CA="yes"
+      read -rp "节点域名，例如 node.example.com: " LOVE_DOMAIN
+      [[ -n "$LOVE_DOMAIN" ]] || die "域名不能为空。"
+      LOVE_NODE_ADDR="$LOVE_DOMAIN"
+      LOVE_TLS_SNI="$LOVE_DOMAIN"
+      ;;
+    3)
+      LOVE_CERT_MODE="domain_self_signed"
+      LOVE_HAS_DOMAIN="yes"
+      LOVE_NEED_CA="no"
+      read -rp "节点域名，例如 node.example.com: " LOVE_DOMAIN
+      [[ -n "$LOVE_DOMAIN" ]] || die "域名不能为空。"
+      LOVE_NODE_ADDR="$LOVE_DOMAIN"
+      LOVE_TLS_SNI="$LOVE_DOMAIN"
+      ;;
+    4)
+      LOVE_CERT_MODE="domain_public_ca"
+      LOVE_HAS_DOMAIN="yes"
+      LOVE_NEED_CA="yes"
+      read -rp "SNI / 证书域名，例如 node.example.com: " LOVE_DOMAIN
+      [[ -n "$LOVE_DOMAIN" ]] || die "域名不能为空。"
+      LOVE_NODE_ADDR="$LOVE_DOMAIN"
+      LOVE_TLS_SNI="$LOVE_DOMAIN"
+      ;;
+    5)
+      LOVE_CERT_MODE="domain_self_signed"
+      LOVE_HAS_DOMAIN="yes"
+      LOVE_NEED_CA="no"
+      read -rp "SNI / 自签证书域名，例如 node.example.com: " LOVE_DOMAIN
+      [[ -n "$LOVE_DOMAIN" ]] || die "域名不能为空。"
+      LOVE_NODE_ADDR="$LOVE_DOMAIN"
+      LOVE_TLS_SNI="$LOVE_DOMAIN"
+      ;;
+    *)
+      die "无效证书环境选择。"
+      ;;
+  esac
+
+  mkdir -p /opt/Love
+  case "$LOVE_CERT_MODE" in
+    domain_public_ca) echo "public_ca" > /opt/Love/cert-mode ;;
+    *) echo "self_signed" > /opt/Love/cert-mode ;;
+  esac
+  echo "$LOVE_NODE_ADDR" > /opt/Love/node-address
+  echo "$LOVE_TLS_SNI" > /opt/Love/node-sni
+}
+
+love_v1349_record_client_endpoint() {
+  mkdir -p /opt/Love
+  echo "${CLIENT_ADDR:-}" > /opt/Love/client-address
+  echo "${CLIENT_PORT:-}" > /opt/Love/client-port
+  echo "${LOVE_CERT_MODE:-}" > /opt/Love/install-cert-case
+}
+
+love_v1349_cert_need_insecure() {
+  case "${LOVE_CERT_MODE:-self_signed}" in
+    domain_public_ca) echo "0" ;;
+    *) echo "1" ;;
+  esac
+}
+
+# 保存文件源头也立即正确：写完 client-info 后直接修这个文件，不等 all.txt。
+if declare -F save_xray_info >/dev/null 2>&1 && ! declare -F love_original_save_xray_info_v1349 >/dev/null 2>&1; then
+  eval "$(declare -f save_xray_info | sed '1s/^save_xray_info/love_original_save_xray_info_v1349/')"
+fi
+save_xray_info() {
+  love_v1348_mkdirs 2>/dev/null || mkdir -p /opt/Love/client-info /opt/Love/subscribe
+  love_original_save_xray_info_v1349 "$@"
+  if declare -F love_v1348_detect_mode >/dev/null 2>&1; then
+    love_v1348_detect_mode >/dev/null 2>&1 || true
+    . /opt/Love/source-correct.env 2>/dev/null || true
+    love_v1348_fix_file "${XRAY_INFO:-/opt/Love/client-info/xray-client-info.txt}" "${GLOBAL_CERT_MODE:-self_signed}" 2>/dev/null || true
+  fi
+}
+
+if declare -F save_singbox_info >/dev/null 2>&1 && ! declare -F love_original_save_singbox_info_v1349 >/dev/null 2>&1; then
+  eval "$(declare -f save_singbox_info | sed '1s/^save_singbox_info/love_original_save_singbox_info_v1349/')"
+fi
+save_singbox_info() {
+  love_v1348_mkdirs 2>/dev/null || mkdir -p /opt/Love/client-info /opt/Love/subscribe
+  love_original_save_singbox_info_v1349 "$@"
+  if declare -F love_v1348_detect_mode >/dev/null 2>&1; then
+    love_v1348_detect_mode >/dev/null 2>&1 || true
+    . /opt/Love/source-correct.env 2>/dev/null || true
+    love_v1348_fix_file "${SINGBOX_INFO:-/opt/Love/client-info/sing-box-client-info.txt}" "${GLOBAL_CERT_MODE:-self_signed}" 2>/dev/null || true
+  fi
+}
+
+# 备份旧安装入口，V13.49 用新安装源头。
+if declare -F install_xray_stable >/dev/null 2>&1 && ! declare -F love_original_install_xray_stable_v1349 >/dev/null 2>&1; then
+  eval "$(declare -f install_xray_stable | sed '1s/^install_xray_stable/love_original_install_xray_stable_v1349/')"
+fi
+
+install_xray_stable() {
+  echo
+  echo "================ Love Xray 稳定模式 v13.49【安装源头正确】 ================"
+
+  love_v1349_cert_menu
+
+  local node_addr domain email enable_hy2 hy2_sni insecure reality_sni
+  node_addr="$LOVE_NODE_ADDR"
+  domain="$LOVE_DOMAIN"
+  hy2_sni="$LOVE_TLS_SNI"
+  insecure="$(love_v1349_cert_need_insecure)"
+
+  read -rp "安装 HY2 / Hysteria2？[Y/n]: " hy2_choice
+  hy2_choice="${hy2_choice:-Y}"
+  [[ "$hy2_choice" =~ ^[Yy]$ ]] && enable_hy2="yes" || enable_hy2="no"
+
+  read -rp "Reality SNI [www.cloudflare.com]: " reality_sni
+  reality_sni="${reality_sni:-www.cloudflare.com}"
+
+  # 优选 IP / CFIP 场景也通过这里设置客户端 Address，SNI 仍保持域名。
+  ask_preferred_endpoint "$node_addr" "443"
+  love_v1349_record_client_endpoint
+
+  ask_ssh_port
+  install_base
+  setup_ufw "$([[ "$LOVE_NEED_CA" == "yes" && "$enable_hy2" == "yes" ]] && echo yes || echo no)" yes "$([[ "$enable_hy2" == "yes" ]] && echo yes || echo no)" no
+  install_xray_core
+  gen_xray_keys
+  test_reality_sni "$reality_sni"
+
+  if [[ "$enable_hy2" == "yes" ]]; then
+    if [[ "$LOVE_NEED_CA" == "yes" ]]; then
+      read -rp "Let's Encrypt 邮箱: " email
+      [[ -n "$email" ]] || die "邮箱不能为空。"
+      issue_cert_generic "$domain" "$email" "$XRAY_CONF_DIR" "xray"
+      mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+      cat > /etc/letsencrypt/renewal-hooks/deploy/love-xray-copy-cert.sh <<EOF
+#!/usr/bin/env bash
+set -e
+DOMAIN="${domain}"
+if echo " \$RENEWED_DOMAINS " | grep -q " \$DOMAIN "; then
+  install -m 640 -o root -g xray "/etc/letsencrypt/live/\$DOMAIN/fullchain.pem" "${XRAY_CONF_DIR}/cert.pem"
+  install -m 640 -o root -g xray "/etc/letsencrypt/live/\$DOMAIN/privkey.pem" "${XRAY_CONF_DIR}/key.pem"
+  systemctl restart xray || true
+fi
+EOF
+      chmod +x /etc/letsencrypt/renewal-hooks/deploy/love-xray-copy-cert.sh
+    else
+      make_selfsigned_generic "$hy2_sni" "$XRAY_CONF_DIR" "xray"
+    fi
+  fi
+
+  write_xray_config "$node_addr" "$reality_sni" "$enable_hy2" "$hy2_sni"
+  write_xray_service
+
+  "$XRAY_BIN" run -test -config "$XRAY_CONF"
+  systemctl enable xray
+  systemctl restart xray
+
+  sleep 2
+  systemctl status xray --no-pager || true
+  ss -lntp | grep ':443' || true
+  ss -lunp | grep ':443' || true
+
+  save_xray_info "$node_addr" "$reality_sni" "$enable_hy2" "$hy2_sni" "$insecure" "$CLIENT_ADDR" "$CLIENT_PORT"
+  love_after_node_generated_exports
+  log "Xray 稳定模式安装完成：证书环境=${LOVE_CERT_MODE}，客户端地址=${CLIENT_ADDR}:${CLIENT_PORT}，SNI=${hy2_sni}"
+}
+
+if declare -F install_singbox_native >/dev/null 2>&1 && ! declare -F love_original_install_singbox_native_v1349 >/dev/null 2>&1; then
+  eval "$(declare -f install_singbox_native | sed '1s/^install_singbox_native/love_original_install_singbox_native_v1349/')"
+fi
+
+install_singbox_native() {
+  echo
+  echo "================ Love sing-box 全协议 v13.49【安装源头正确】 ================"
+  warn "建议使用干净服务器。若 443 已被 Xray 占用，请先停止 Xray 或选择非 443 起始端口。"
+
+  choose_singbox_protocols
+  love_v1349_cert_menu
+
+  local node_addr domain email tls_sni insecure cert_needed reality_sni start_port
+  node_addr="$LOVE_NODE_ADDR"
+  domain="$LOVE_DOMAIN"
+  tls_sni="$LOVE_TLS_SNI"
+  insecure="$(love_v1349_cert_need_insecure)"
+  cert_needed="no"
+
+  if [[ "$INSTALL_HY2$INSTALL_TUIC$INSTALL_TROJAN$INSTALL_VLESS_WS_TLS$INSTALL_ANYTLS$INSTALL_NAIVE" == *yes* ]]; then
+    cert_needed="yes"
+  fi
+
+  read -rp "Reality SNI [www.cloudflare.com]: " reality_sni
+  reality_sni="${reality_sni:-www.cloudflare.com}"
+
+  read -rp "起始端口 [8881]: " start_port
+  start_port="${start_port:-8881}"
+
+  ask_preferred_endpoint "$node_addr" "$start_port"
+  love_v1349_record_client_endpoint
+
+  ask_ssh_port
+  install_base
+  install_singbox_core
+  gen_singbox_values
+  test_reality_sni "$reality_sni"
+
+  if [[ "$cert_needed" == "yes" ]]; then
+    if [[ "$LOVE_NEED_CA" == "yes" ]]; then
+      setup_ufw yes yes yes yes
+      read -rp "Let's Encrypt 邮箱: " email
+      [[ -n "$email" ]] || die "邮箱不能为空。"
+      issue_cert_generic "$domain" "$email" "$SINGBOX_CERT_DIR" "root"
+    else
+      setup_ufw no yes yes yes
+      make_selfsigned_generic "$tls_sni" "$SINGBOX_CERT_DIR" "root"
+    fi
+  else
+    setup_ufw no yes yes yes
+  fi
+
+  write_singbox_config "$reality_sni" "$tls_sni" "$SINGBOX_CERT_DIR" "$start_port"
+  write_singbox_service
+
+  systemctl enable sing-box
+  systemctl restart sing-box
+  sleep 2
+  systemctl status sing-box --no-pager || true
+  ss -tulpn | grep -E ':443|:8443|:888|sing-box' || true
+
+  save_singbox_info "$CLIENT_ADDR" "$CLIENT_PORT" "$reality_sni" "$tls_sni" "$insecure"
+  love_after_node_generated_exports
+  log "sing-box 原生模式安装完成：证书环境=${LOVE_CERT_MODE}，客户端地址=${CLIENT_ADDR}:${CLIENT_PORT}，SNI=${tls_sni}"
+}
+
+love_v1349_install_source_check() {
+  echo "================ Love v13.49 安装源头检查 ================"
+  for f in install_xray_stable install_singbox_native save_xray_info save_singbox_info love_after_node_generated_exports love_v1348_source_correct_outputs; do
+    declare -F "$f" >/dev/null 2>&1 && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  echo
+  echo "当前保存的证书环境："
+  for f in /opt/Love/cert-mode /opt/Love/install-cert-case /opt/Love/node-address /opt/Love/node-sni /opt/Love/client-address /opt/Love/client-port; do
+    [[ -f "$f" ]] && echo "$f = $(cat "$f")" || echo "$f = <empty>"
+  done
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1349 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1349/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.49.0-install-source-output-source-final}"
+  case "${1:-}" in
+    install-source-check|source-check)
+      love_v1349_install_source_check
+      ;;
+    xray|reality|hy2|xray-hy2)
+      install_xray_stable
+      ;;
+    singbox|sing-box|sb)
+      install_singbox_native
+      ;;
+    *)
+      love_original_main_v1349 "$@"
       ;;
   esac
 }
