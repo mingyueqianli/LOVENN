@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.41.0-safe-main-xray-sub-flag-final"
+VERSION="Love v13.43.0-color-menu-clean-uninstall-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.41.0-safe-main-xray-sub-flag-final"
+LOVE_SCRIPT_VERSION="Love v13.43.0-color-menu-clean-uninstall-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -15443,6 +15443,524 @@ main() {
       ;;
     *)
       love_original_main_v1341 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.42 Latest Xray + Auto Web Final
+# User requirements:
+#   - Xray pulls the latest version, not locked 26.5.9.
+#   - Do not touch sing-box logic.
+#   - After node generation, automatically run Web setup interactively:
+#       port / Basic Auth / username / password.
+#   - Keep v13.41 zero-byte update guard, old Xray HY2 subscription format, auto flag.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.42.0-latest-xray-auto-web-final"
+XRAY_INSTALL_POLICY="latest"
+
+# Force Xray install/update to latest release.
+# No --version parameter here.
+install_xray_core() {
+  info "安装 / 更新 Xray-core：拉取最新版 latest..."
+
+  useradd --system --no-create-home --shell /usr/sbin/nologin xray 2>/dev/null || true
+  mkdir -p "${XRAY_CONF_DIR}" /usr/local/share/xray /var/log/xray
+  chown -R root:xray "${XRAY_CONF_DIR}" 2>/dev/null || true
+  chown -R xray:xray /var/log/xray 2>/dev/null || true
+  chmod 750 "${XRAY_CONF_DIR}" /var/log/xray 2>/dev/null || true
+
+  if bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install --install-user xray; then
+    "${XRAY_BIN}" version | head -5
+    log "Xray-core 最新版安装完成。"
+    return 0
+  fi
+
+  warn "在线安装 Xray-core 最新版失败。"
+
+  if [[ -x "${XRAY_BIN}" ]]; then
+    "${XRAY_BIN}" version | head -5
+    log "检测到已有 Xray-core，继续使用当前版本。"
+    return 0
+  fi
+
+  if [[ -f /root/Xray-linux-64.zip ]]; then
+    warn "检测到 /root/Xray-linux-64.zip，尝试本地安装。"
+    rm -rf /tmp/love-xray
+    mkdir -p /tmp/love-xray
+    unzip -o /root/Xray-linux-64.zip -d /tmp/love-xray
+    install -m 755 /tmp/love-xray/xray "${XRAY_BIN}"
+    [[ -f /tmp/love-xray/geoip.dat ]] && install -m 644 /tmp/love-xray/geoip.dat /usr/local/share/xray/geoip.dat
+    [[ -f /tmp/love-xray/geosite.dat ]] && install -m 644 /tmp/love-xray/geosite.dat /usr/local/share/xray/geosite.dat
+    "${XRAY_BIN}" version | head -5
+    log "Xray-core 已从 /root/Xray-linux-64.zip 本地安装。"
+    return 0
+  fi
+
+  die "无法安装 Xray-core。可先上传 Xray-linux-64.zip 到 /root，或修复 GitHub 访问。"
+}
+
+love_xray_update_latest_v1342() {
+  love_menu_title "Love Xray Core 最新版更新" "latest"
+  echo "当前版本："
+  /usr/local/bin/xray version 2>/dev/null | head -5 || true
+  echo
+  read -rp "确认拉取 Xray 最新版？[Y/n]: " ok
+  ok="${ok:-Y}"
+  [[ "$ok" =~ ^[Yy]$ ]] || { echo "已取消。"; return 0; }
+
+  cp -f /usr/local/bin/xray /usr/local/bin/xray.bak.$(date +%F-%H%M%S) 2>/dev/null || true
+  install_xray_core
+
+  if [[ -s /usr/local/etc/xray/config.json ]]; then
+    /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json || return 1
+    systemctl restart xray 2>/dev/null || true
+  fi
+
+  echo
+  echo "更新后版本："
+  /usr/local/bin/xray version 2>/dev/null | head -5 || true
+  ss -lntup | grep -E ':443|xray' || true
+}
+
+# Auto Web after node generation.
+# This intentionally calls interactive web_admin_page so the user can input port/user/password.
+if declare -F love_after_node_generated_exports >/dev/null 2>&1 && ! declare -F love_original_after_exports_v1342 >/dev/null 2>&1; then
+  eval "$(declare -f love_after_node_generated_exports | sed '1s/^love_after_node_generated_exports/love_original_after_exports_v1342/')"
+fi
+
+love_after_node_generated_exports() {
+  if declare -F love_original_after_exports_v1342 >/dev/null 2>&1; then
+    love_original_after_exports_v1342 "$@"
+  else
+    export_subscription >/dev/null 2>&1 || true
+    generate_qrcodes quiet >/dev/null 2>&1 || true
+    generate_client_exports >/dev/null 2>&1 || true
+  fi
+
+  echo
+  echo "================ Love Auto Web ================"
+  echo "节点已生成，开始自动启动/更新 Web 管理页。"
+  echo "下面会要求输入 Web 端口、Basic Auth、用户名和密码。"
+  echo
+
+  if declare -F web_admin_page >/dev/null 2>&1; then
+    web_admin_page
+  else
+    echo "[WARN] web_admin_page 函数不存在，无法自动运行 Web。"
+  fi
+}
+
+love_web_sync_v1342() {
+  love_menu_title "Love Web 同步" "sync existing panel files"
+  local token
+  token="$(get_sub_token 2>/dev/null || true)"
+  [[ -n "$token" ]] || token="default"
+
+  mkdir -p "${LOVE_WEB}/${token}/subscribe" "${LOVE_WEB}/${token}/qr" "${LOVE_WEB}/${token}/clients" "${LOVE_WEB}/${token}/sing-box"
+  cp -a "${LOVE_SUB}/." "${LOVE_WEB}/${token}/subscribe/" 2>/dev/null || true
+  cp -a "${LOVE_SUB}/qr/." "${LOVE_WEB}/${token}/qr/" 2>/dev/null || true
+  cp -a "${LOVE_SUB}/clients/." "${LOVE_WEB}/${token}/clients/" 2>/dev/null || true
+  cp -a "${LOVE_SUB}/sing-box/." "${LOVE_WEB}/${token}/sing-box/" 2>/dev/null || true
+
+  # Also provide simple non-token shortcut copies for easier inspection.
+  mkdir -p "${LOVE_WEB}/sub" "${LOVE_WEB}/qr" "${LOVE_WEB}/clients"
+  cp -f "${LOVE_SUB}/all.txt" "${LOVE_WEB}/sub/all.txt" 2>/dev/null || true
+  cp -f "${LOVE_SUB}/all_base64.txt" "${LOVE_WEB}/sub/all_base64.txt" 2>/dev/null || true
+  cp -a "${LOVE_SUB}/qr/." "${LOVE_WEB}/qr/" 2>/dev/null || true
+  cp -a "${LOVE_SUB}/clients/." "${LOVE_WEB}/clients/" 2>/dev/null || true
+
+  chown -R www-data:www-data "${LOVE_WEB}" 2>/dev/null || true
+  find "${LOVE_WEB}" -type d -exec chmod 755 {} \; 2>/dev/null || true
+  find "${LOVE_WEB}" -type f -exec chmod 644 {} \; 2>/dev/null || true
+
+  nginx -t >/dev/null 2>&1 && systemctl reload nginx 2>/dev/null || true
+
+  echo "[OK] Web 文件已同步：${LOVE_WEB}"
+  find "${LOVE_WEB}" -type f -name 'all.txt' -print 2>/dev/null || true
+}
+
+# Wrap Web generation: after interactive setup, also create shortcut /sub/all.txt copies.
+if declare -F web_admin_page >/dev/null 2>&1 && ! declare -F love_original_web_admin_v1342 >/dev/null 2>&1; then
+  eval "$(declare -f web_admin_page | sed '1s/^web_admin_page/love_original_web_admin_v1342/')"
+fi
+
+web_admin_page() {
+  love_original_web_admin_v1342 "$@"
+  love_web_sync_v1342 >/dev/null 2>&1 || true
+}
+
+# Extend diagnostics.
+if declare -F love_boot_check_v1341 >/dev/null 2>&1 && ! declare -F love_original_boot_check_v1342 >/dev/null 2>&1; then
+  eval "$(declare -f love_boot_check_v1341 | sed '1s/^love_boot_check_v1341/love_original_boot_check_v1342/')"
+fi
+
+love_boot_check_v1341() {
+  love_original_boot_check_v1342 "$@"
+  echo
+  echo "==== Xray install policy ===="
+  echo "XRAY_INSTALL_POLICY=${XRAY_INSTALL_POLICY}"
+  echo
+  echo "==== Web copies ===="
+  find /var/www/love-admin -type f -name 'all.txt' -print 2>/dev/null || true
+}
+
+# Final main override for new commands.
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1342 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1342/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.42.0-latest-xray-auto-web-final}"
+  case "${1:-}" in
+    xray-latest|xray-update-latest|xray-version)
+      love_xray_update_latest_v1342
+      ;;
+    web-sync)
+      love_web_sync_v1342
+      ;;
+    boot-check|doctor)
+      love_boot_check_v1341
+      ;;
+    *)
+      love_original_main_v1342 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.43 Color Menu + Clean Uninstall Final
+# Fixes:
+#   - Restores colored aligned main menu.
+#   - Menu choices call the newest safe wrappers, not old legacy functions.
+#   - Uninstall menu is force-overridden; Full uninstall really cleans and exits.
+#   - Keeps v13.42 latest Xray + Auto Web.
+#   - Keeps sing-box logic untouched.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.43.0-color-menu-clean-uninstall-final"
+
+# ------------------------------
+# Color helpers
+# ------------------------------
+love_tty_colors_v1343() {
+  if [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
+    C_RESET="$(tput sgr0 2>/dev/null || true)"
+    C_BOLD="$(tput bold 2>/dev/null || true)"
+    C_DIM="$(tput dim 2>/dev/null || true)"
+    C_RED="$(tput setaf 1 2>/dev/null || true)"
+    C_GREEN="$(tput setaf 2 2>/dev/null || true)"
+    C_YELLOW="$(tput setaf 3 2>/dev/null || true)"
+    C_BLUE="$(tput setaf 4 2>/dev/null || true)"
+    C_MAGENTA="$(tput setaf 5 2>/dev/null || true)"
+    C_CYAN="$(tput setaf 6 2>/dev/null || true)"
+    C_WHITE="$(tput setaf 7 2>/dev/null || true)"
+  else
+    C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GREEN=""; C_YELLOW=""; C_BLUE=""; C_MAGENTA=""; C_CYAN=""; C_WHITE=""
+  fi
+}
+
+love_line_v1343() {
+  printf '%b\n' "${C_CYAN}════════════════════════════════════════════════════════════════════════════════${C_RESET}"
+}
+
+love_title_v1343() {
+  local title="$1" sub="${2:-}"
+  love_line_v1343
+  printf '%b\n' "${C_BOLD}${C_MAGENTA}${title}${C_RESET}"
+  [[ -n "$sub" ]] && printf '%b\n' "${C_DIM}${sub}${C_RESET}"
+  love_line_v1343
+}
+
+love_row_v1343() {
+  # Use short mixed Chinese/English labels to avoid CJK width drift.
+  # Borders are kept stable by fixed visual padding.
+  printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}$1${C_RESET} ${C_DIM}${2}${C_RESET}        ${C_CYAN}│${C_RESET} ${C_GREEN}$3${C_RESET} ${C_DIM}${4}${C_RESET}"
+}
+
+love_pause_v1343() {
+  echo
+  read -rp "按 Enter 返回菜单..." _
+}
+
+# ------------------------------
+# Clean uninstall, forced override
+# ------------------------------
+love_clean_web_v1343() {
+  systemctl stop nginx 2>/dev/null || true
+  rm -rf /var/www/love-admin
+  rm -f /etc/nginx/sites-enabled/love-admin
+  rm -f /etc/nginx/sites-available/love-admin
+  rm -f /etc/nginx/sites-enabled/love-sub
+  rm -f /etc/nginx/sites-available/love-sub
+  rm -f /etc/nginx/.love_web_htpasswd
+  nginx -t >/dev/null 2>&1 && systemctl restart nginx 2>/dev/null || true
+}
+
+love_full_uninstall_v1343() {
+  echo
+  printf '%b\n' "${C_RED}${C_BOLD}Full 卸载会删除 Love、Xray、sing-box、Web、WARP/WireProxy、订阅 TXT、二维码和客户端导出。${C_RESET}"
+  read -rp "确认继续？输入 y 执行 [y/N]: " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || { echo "已取消。"; return 0; }
+
+  echo "[1/8] 停止并禁用服务..."
+  systemctl stop xray sing-box nginx love-wireproxy.service love-argo.service love-backup.timer love-backup.service wireproxy 2>/dev/null || true
+  systemctl disable xray sing-box love-wireproxy.service love-argo.service love-backup.timer love-backup.service wireproxy 2>/dev/null || true
+
+  echo "[2/8] 删除 systemd 服务..."
+  rm -f /etc/systemd/system/xray.service
+  rm -rf /etc/systemd/system/xray.service.d
+  rm -f /etc/systemd/system/xray@.service
+  rm -rf /etc/systemd/system/xray@.service.d
+  rm -f /etc/systemd/system/sing-box.service
+  rm -rf /etc/systemd/system/sing-box.service.d
+  rm -f /etc/systemd/system/love-wireproxy.service
+  rm -f /etc/systemd/system/love-argo.service
+  rm -f /etc/systemd/system/love-backup.service
+  rm -f /etc/systemd/system/love-backup.timer
+  rm -f /etc/systemd/system/wireproxy.service
+
+  echo "[3/8] 删除核心配置和数据..."
+  rm -rf /opt/Love
+  rm -rf /etc/sing-box
+  rm -rf /usr/local/etc/xray
+  rm -rf /usr/local/share/xray
+  rm -rf /var/log/xray
+  rm -rf /etc/wireproxy
+  rm -rf /opt/warp /opt/wireproxy
+
+  echo "[4/8] 删除 Web 副本和 nginx Love 配置..."
+  rm -rf /var/www/love-admin
+  rm -f /etc/nginx/sites-enabled/love-admin
+  rm -f /etc/nginx/sites-available/love-admin
+  rm -f /etc/nginx/sites-enabled/love-sub
+  rm -f /etc/nginx/sites-available/love-sub
+  rm -f /etc/nginx/.love_web_htpasswd
+
+  echo "[5/8] 删除证书续签 Hook..."
+  rm -f /etc/letsencrypt/renewal-hooks/deploy/love-xray-copy-cert.sh
+
+  echo "[6/8] 删除命令和二进制..."
+  rm -f /usr/local/bin/Love
+  rm -f /usr/local/bin/love
+  rm -f /usr/local/bin/xray
+  rm -f /usr/local/bin/sing-box
+  rm -f /usr/local/bin/warp
+  rm -f /usr/local/bin/warp-go
+  rm -f /usr/local/bin/wireproxy
+
+  echo "[7/8] 清理缓存残留..."
+  rm -rf /tmp/love-* /tmp/Love.* /tmp/xray.* /tmp/singbox.* 2>/dev/null || true
+
+  echo "[8/8] 刷新 systemd..."
+  systemctl daemon-reload || true
+  systemctl reset-failed || true
+  nginx -t >/dev/null 2>&1 && systemctl restart nginx 2>/dev/null || true
+
+  echo
+  echo "[OK] Full 卸载完成。"
+  echo "已删除：/opt/Love、/etc/sing-box、/usr/local/etc/xray、/var/www/love-admin、Love/love 命令。"
+  echo "当前脚本即将退出，避免继续显示旧菜单。"
+  exit 0
+}
+
+love_uninstall_menu_v1343() {
+  love_tty_colors_v1343
+  while true; do
+    clear 2>/dev/null || true
+    love_title_v1343 "Love 卸载 / 清理菜单" "Clean uninstall / Web copies / systemd leftovers"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}1)${C_RESET} Soft 卸载节点服务              ${C_CYAN}│${C_RESET} ${C_GREEN}6)${C_RESET} 清理 Web 面板和副本"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}2)${C_RESET} Full 卸载 Love 全部文件        ${C_CYAN}│${C_RESET} ${C_GREEN}7)${C_RESET} 清理 WARP / WireProxy"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}3)${C_RESET} 仅停止 sing-box                ${C_CYAN}│${C_RESET} ${C_GREEN}8)${C_RESET} 清理 nginx Love 配置"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}4)${C_RESET} 删除订阅/二维码/Web副本        ${C_CYAN}│${C_RESET} ${C_GREEN}9)${C_RESET} 清理 systemd 残留"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}5)${C_RESET} 仅删除客户端导出              ${C_CYAN}│${C_RESET} ${C_GREEN}0)${C_RESET} 返回"
+    echo
+    printf '%b\n' "${C_YELLOW}危险操作前建议先执行：Love backup-auto${C_RESET}"
+    read -rp "请选择: " u
+    case "$u" in
+      1)
+        systemctl stop xray sing-box love-wireproxy.service love-argo.service wireproxy 2>/dev/null || true
+        systemctl disable xray sing-box love-wireproxy.service love-argo.service wireproxy 2>/dev/null || true
+        systemctl daemon-reload || true
+        echo "[OK] 节点服务已停止并禁用，配置保留。"
+        ;;
+      2) love_full_uninstall_v1343 ;;
+      3)
+        systemctl stop sing-box 2>/dev/null || true
+        systemctl disable sing-box 2>/dev/null || true
+        echo "[OK] sing-box 已停止。"
+        ;;
+      4)
+        rm -rf /opt/Love/subscribe
+        rm -rf /var/www/love-admin/sub /var/www/love-admin/qr /var/www/love-admin/clients /var/www/love-admin/sing-box
+        rm -f /var/www/love-admin/node-links.txt
+        echo "[OK] 订阅 TXT、二维码、Web 副本已删除。"
+        ;;
+      5)
+        rm -rf /opt/Love/subscribe/clients
+        rm -rf /var/www/love-admin/clients
+        echo "[OK] 客户端导出已删除。"
+        ;;
+      6)
+        love_clean_web_v1343
+        echo "[OK] Web 面板和副本已清理。"
+        ;;
+      7)
+        systemctl stop love-wireproxy.service wireproxy 2>/dev/null || true
+        systemctl disable love-wireproxy.service wireproxy 2>/dev/null || true
+        rm -f /etc/systemd/system/love-wireproxy.service /etc/systemd/system/wireproxy.service
+        rm -rf /etc/wireproxy /opt/warp /opt/wireproxy
+        systemctl daemon-reload || true
+        echo "[OK] WARP / WireProxy 已清理。"
+        ;;
+      8)
+        rm -f /etc/nginx/sites-enabled/love-admin /etc/nginx/sites-available/love-admin /etc/nginx/.love_web_htpasswd
+        nginx -t >/dev/null 2>&1 && systemctl restart nginx 2>/dev/null || true
+        echo "[OK] nginx Love 配置已清理。"
+        ;;
+      9)
+        rm -f /etc/systemd/system/xray.service /etc/systemd/system/xray@.service /etc/systemd/system/sing-box.service /etc/systemd/system/love-wireproxy.service /etc/systemd/system/love-argo.service /etc/systemd/system/love-backup.service /etc/systemd/system/love-backup.timer
+        rm -rf /etc/systemd/system/xray.service.d /etc/systemd/system/xray@.service.d /etc/systemd/system/sing-box.service.d
+        systemctl daemon-reload || true
+        systemctl reset-failed || true
+        echo "[OK] systemd 残留已清理。"
+        ;;
+      0) return 0 ;;
+      *) echo "[WARN] 无效选择。" ;;
+    esac
+    love_pause_v1343
+  done
+}
+
+uninstall_menu_v7() { love_uninstall_menu_v1343; }
+uninstall_menu() { love_uninstall_menu_v1343; }
+
+# ------------------------------
+# Colored main menu, forced override
+# ------------------------------
+love_call_v1343() {
+  local f="$1"; shift || true
+  if declare -F "$f" >/dev/null 2>&1; then
+    "$f" "$@"
+  else
+    echo "[MISS] 功能不存在：$f"
+    return 1
+  fi
+}
+
+love_main_menu_v1343() {
+  love_tty_colors_v1343
+  while true; do
+    clear 2>/dev/null || true
+    love_title_v1343 "Love Node Server Manager ${LOVE_SCRIPT_VERSION:-Love v13.43}" "Color UI / aligned menu / latest Xray / auto Web"
+    if declare -F love_safe_status_v1335 >/dev/null 2>&1; then
+      love_safe_status_v1335
+    elif declare -F show_status >/dev/null 2>&1; then
+      show_status
+    fi
+    echo
+    printf '%b\n' "${C_BOLD}主菜单${C_RESET}"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}1)${C_RESET} 节点目录                     ${C_CYAN}│${C_RESET} ${C_GREEN}14)${C_RESET} v6 Project Tools"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}2)${C_RESET} Xray Reality + HY2           ${C_CYAN}│${C_RESET} ${C_GREEN}15)${C_RESET} v7 Stable Tools"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}3)${C_RESET} sing-box 全协议              ${C_CYAN}│${C_RESET} ${C_GREEN}16)${C_RESET} v8 Project Panel"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}4)${C_RESET} Argo 隧道                    ${C_CYAN}│${C_RESET} ${C_GREEN}17)${C_RESET} Nginx Reverse Proxy"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}5)${C_RESET} UDP 端口跳跃                 ${C_CYAN}│${C_RESET} ${C_GREEN}18)${C_RESET} HY2/sing-box 修复"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}6)${C_RESET} WARP 说明                    ${C_CYAN}│${C_RESET} ${C_GREEN}19)${C_RESET} IPv6-only 出站"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}7)${C_RESET} 节点信息 Love -n             ${C_CYAN}│${C_RESET} ${C_GREEN}20)${C_RESET} WARP Manager / FS"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}8)${C_RESET} 导出订阅 Love sub            ${C_CYAN}│${C_RESET} ${C_GREEN}21)${C_RESET} 查看运行状态"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}9)${C_RESET} 生成二维码 Love qr          ${C_CYAN}│${C_RESET} ${C_GREEN}22)${C_RESET} 备份配置"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}10)${C_RESET} Super Tools                ${C_CYAN}│${C_RESET} ${C_GREEN}23)${C_RESET} 卸载菜单"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}11)${C_RESET} Web 管理页 Love web        ${C_CYAN}│${C_RESET} ${C_GREEN}24)${C_RESET} GitHub 发布说明"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}12)${C_RESET} 在线更新 / 下载链接        ${C_CYAN}│${C_RESET} ${C_GREEN}25)${C_RESET} 安装 warp 命令"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}13)${C_RESET} 客户端导出                 ${C_CYAN}│${C_RESET} ${C_GREEN}0)${C_RESET} 退出"
+    echo
+    printf '%b\n' "${C_YELLOW}双栈推荐：2 保留 Xray 443；3 生成 sing-box 全协议；Love sub 合并两边。${C_RESET}"
+    printf '%b\n' "${C_DIM}常用：Love ports | Love sub | Love qr | Love txt | Love web | Love web-sync | Love count${C_RESET}"
+    echo
+    read -rp "请选择: " choice
+    case "$choice" in
+      1) love_call_v1343 show_all_node_catalog ;;
+      2) love_call_v1343 install_xray_stable ;;
+      3) love_call_v1343 install_singbox_native ;;
+      4) love_call_v1343 argo_helper ;;
+      5) love_call_v1343 port_hopping_helper ;;
+      6) love_call_v1343 warp_helper ;;
+      7) love_call_v1343 show_node_info ;;
+      8) love_call_v1343 love_sub_safe_v1341 || love_call_v1343 export_subscription ;;
+      9) love_call_v1343 generate_qrcodes ;;
+      10) love_call_v1343 super_menu ;;
+      11) love_call_v1343 web_admin_page ;;
+      12) love_call_v1343 self_update_love ;;
+      13) love_call_v1343 love_full_client_pack ;;
+      14) love_call_v1343 v6_super_menu ;;
+      15) love_call_v1343 v7_stable_menu ;;
+      16) love_call_v1343 v8_menu ;;
+      17) love_call_v1343 nginx_rp_menu ;;
+      18) love_call_v1343 love_fix_hy2_now ;;
+      19) love_call_v1343 love_ipv6_outbound_menu ;;
+      20) love_call_v1343 love_warp_manager_menu ;;
+      21) love_call_v1343 show_status ;;
+      22) love_call_v1343 backup_configs ;;
+      23) love_uninstall_menu_v1343 ;;
+      24) love_call_v1343 github_publish_note ;;
+      25) love_call_v1343 love_install_fs_warp_command ;;
+      0) exit 0 ;;
+      *) echo "[WARN] 无效选择。" ;;
+    esac
+    love_pause_v1343
+  done
+}
+
+love_hard_menu_v1335() { love_main_menu_v1343; }
+main_menu() { love_main_menu_v1343; }
+
+love_menu_check_v1343() {
+  love_tty_colors_v1343
+  love_title_v1343 "Love 菜单入口检查" "v13.43"
+  local f
+  for f in \
+    love_main_menu_v1343 install_xray_stable install_singbox_native love_sub_safe_v1341 \
+    generate_qrcodes web_admin_page love_web_sync_v1342 show_status backup_configs \
+    love_uninstall_menu_v1343 love_full_uninstall_v1343 self_update_love \
+    love_xray_update_latest_v1342 love_safe_install_script_v1341; do
+    if declare -F "$f" >/dev/null 2>&1; then
+      printf '%b\n' "${C_GREEN}[OK]${C_RESET}   $f"
+    else
+      printf '%b\n' "${C_RED}[MISS]${C_RESET} $f"
+    fi
+  done
+}
+
+# Final main override.
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1343 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1343/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.43.0-color-menu-clean-uninstall-final}"
+  case "${1:-}" in
+    ""|menu)
+      need_root 2>/dev/null || true
+      prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_main_menu_v1343
+      ;;
+    uninstall|remove|clean-uninstall)
+      love_uninstall_menu_v1343
+      ;;
+    menu-check)
+      love_menu_check_v1343
+      ;;
+    sub|subscribe|subscription|link-fix|client-fix|fix-links)
+      if declare -F love_sub_safe_v1341 >/dev/null 2>&1; then love_sub_safe_v1341 "$@"; else export_subscription "$@"; fi
+      ;;
+    *)
+      love_original_main_v1343 "$@"
       ;;
   esac
 }
