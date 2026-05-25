@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.54.0-from-1352-complete-final"
+LOVE_SCRIPT_VERSION="Love v13.56.1-source-first-export-hotfix"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -18433,7 +18433,7 @@ main() {
 #   8. Cert mode switch is provided for link/output generation; new installs still use install cert menu.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.54.0-from-1352-complete-final"
+LOVE_SCRIPT_VERSION="Love v13.56.1-source-first-export-hotfix"
 
 love_v1354_cert_mode() {
   local m
@@ -18989,7 +18989,9 @@ INNERPY
 }
 
 love_v1355_archive_legacy_links() {
-  local SUBDIR="/opt/Love/subscribe" CLIENTDIR="$SUBDIR/clients" out="$CLIENTDIR/legacy-raw-links.txt"
+  local SUBDIR="/opt/Love/subscribe"
+  local CLIENTDIR="${SUBDIR}/clients"
+  local out="${CLIENTDIR}/legacy-raw-links.txt"
   mkdir -p "$CLIENTDIR"
   : > "$out"
   {
@@ -19004,7 +19006,8 @@ love_v1355_archive_legacy_links() {
 
 love_v1355_export_direct() {
   love_v1354_export_direct
-  local SUBDIR="/opt/Love/subscribe" CLIENTDIR="$SUBDIR/clients"
+  local SUBDIR="/opt/Love/subscribe"
+  local CLIENTDIR="${SUBDIR}/clients"
   for f in "$SUBDIR/all.txt" "$SUBDIR/全部节点.txt" "$SUBDIR/推荐节点.txt" "$SUBDIR/节点清晰版.txt" "$CLIENTDIR/v2rayn-uri.txt" "$CLIENTDIR/nekobox-uri.txt" "$CLIENTDIR/nodes-clean.txt"; do
     love_v1355_norm_file "$f" 2>/dev/null || true
   done
