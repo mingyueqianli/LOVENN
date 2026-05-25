@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.43.0-color-menu-clean-uninstall-final"
+VERSION="Love v13.44.0-reload-after-update-xrayinfo-fix-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11084,7 +11084,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.43.0-color-menu-clean-uninstall-final"
+LOVE_SCRIPT_VERSION="Love v13.44.0-reload-after-update-xrayinfo-fix-final"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -15961,6 +15961,149 @@ main() {
       ;;
     *)
       love_original_main_v1343 "$@"
+      ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.44 Reload After Update + Xray Info Dir Fix Final
+# Fixes the exact field issue:
+#   1) After update, current old bash process returns to old menu. Now update execs new Love menu.
+#   2) Xray node generation failed because /opt/Love/client-info did not exist.
+#      save_xray_info is wrapped to mkdir required dirs first.
+#   3) Keep v13.43 colored menu, clean uninstall, latest Xray, auto Web, auto flag.
+#   4) sing-box logic untouched.
+# ==============================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.44.0-reload-after-update-xrayinfo-fix-final"
+
+love_prepare_core_dirs_v1344() {
+  mkdir -p /opt/Love
+  mkdir -p /opt/Love/client-info
+  mkdir -p /opt/Love/subscribe
+  mkdir -p /opt/Love/subscribe/qr
+  mkdir -p /opt/Love/subscribe/clients
+  mkdir -p /opt/Love/subscribe/sing-box
+  mkdir -p /var/www/love-admin 2>/dev/null || true
+}
+
+# Wrap save_xray_info to prevent:
+# /usr/local/bin/love: line 781: /opt/Love/client-info/xray-client-info.txt: No such file or directory
+if declare -F save_xray_info >/dev/null 2>&1 && ! declare -F love_original_save_xray_info_v1344 >/dev/null 2>&1; then
+  eval "$(declare -f save_xray_info | sed '1s/^save_xray_info/love_original_save_xray_info_v1344/')"
+fi
+
+save_xray_info() {
+  love_prepare_core_dirs_v1344
+  local info_dir
+  info_dir="$(dirname "${XRAY_INFO:-/opt/Love/client-info/xray-client-info.txt}")"
+  mkdir -p "$info_dir" /opt/Love/client-info
+  love_original_save_xray_info_v1344 "$@"
+
+  # Also keep a stable copy path.
+  if [[ -s "${XRAY_INFO:-}" ]]; then
+    cp -f "${XRAY_INFO}" /opt/Love/client-info/xray-client-info.txt 2>/dev/null || true
+  fi
+}
+
+# Wrap auto export to ensure dirs exist before any copy/export.
+if declare -F love_after_node_generated_exports >/dev/null 2>&1 && ! declare -F love_original_after_exports_v1344 >/dev/null 2>&1; then
+  eval "$(declare -f love_after_node_generated_exports | sed '1s/^love_after_node_generated_exports/love_original_after_exports_v1344/')"
+fi
+
+love_after_node_generated_exports() {
+  love_prepare_core_dirs_v1344
+  love_original_after_exports_v1344 "$@"
+}
+
+# Update must reload the new script immediately; otherwise user stays in old v13.41/v13.42 menu.
+love_update_safe_v1344() {
+  love_tty_colors_v1343 2>/dev/null || true
+  love_title_v1343 "Love 安全更新" "Zero-byte protected / Auto reload new menu" 2>/dev/null || {
+    echo "================ Love 安全更新 ================"
+  }
+
+  local url tmp size
+  url="${LOVE_UPDATE_URL:-https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh?force=$(date +%s)}"
+  tmp="/root/Love.new"
+
+  rm -f "$tmp" /tmp/Love.new 2>/dev/null || true
+
+  echo "下载：$url"
+  curl -L --fail --retry 5 \
+    -H 'Cache-Control: no-cache, no-store, must-revalidate' \
+    -H 'Pragma: no-cache' \
+    -H 'Expires: 0' \
+    -o "$tmp" "$url" || { echo "[ERROR] 下载失败。"; return 1; }
+
+  ls -lh "$tmp"
+  size="$(stat -c '%s' "$tmp" 2>/dev/null || echo 0)"
+  echo "size=${size}"
+
+  if [[ "$size" -lt 100000 ]]; then
+    echo "[ERROR] 新脚本太小：${size} bytes，禁止覆盖。"
+    return 1
+  fi
+  grep -q '^VERSION=' "$tmp" || { echo "[ERROR] 新脚本找不到 VERSION，禁止覆盖。"; return 1; }
+  bash -n "$tmp" || { echo "[ERROR] 新脚本语法检查失败，禁止覆盖。"; return 1; }
+
+  mkdir -p /opt/Love
+  if [[ -s /opt/Love/Love.sh ]]; then
+    cp -f /opt/Love/Love.sh /opt/Love/Love.sh.bak.safe.$(date +%F-%H%M%S) 2>/dev/null || true
+  fi
+
+  install -m 755 "$tmp" /opt/Love/Love.sh
+  ln -sf /opt/Love/Love.sh /usr/local/bin/Love
+  ln -sf /opt/Love/Love.sh /usr/local/bin/love
+  hash -r 2>/dev/null || true
+
+  echo "[OK] Love 脚本已安全安装：/opt/Love/Love.sh"
+  grep '^VERSION=' /opt/Love/Love.sh || true
+
+  echo
+  echo "[OK] 正在重新载入新版主菜单，避免继续停留在旧菜单..."
+  exec /usr/local/bin/Love menu
+}
+
+self_update_love() { love_update_safe_v1344; }
+
+love_boot_check_v1344() {
+  echo "==== Love 文件 ===="
+  ls -lh /opt/Love/Love.sh 2>/dev/null || true
+  stat -c 'size=%s' /opt/Love/Love.sh 2>/dev/null || true
+  grep '^VERSION=' /opt/Love/Love.sh 2>/dev/null || true
+  bash -n /opt/Love/Love.sh && echo "[OK] bash -n"
+  echo
+  echo "==== 关键目录 ===="
+  for d in /opt/Love /opt/Love/client-info /opt/Love/subscribe /opt/Love/subscribe/qr /opt/Love/subscribe/clients /var/www/love-admin; do
+    [[ -d "$d" ]] && echo "[OK] $d" || echo "[MISS] $d"
+  done
+  echo
+  echo "==== Xray info ===="
+  ls -lh /opt/Love/client-info/xray-client-info.txt 2>/dev/null || true
+  echo
+  echo "==== Web all.txt ===="
+  find /var/www/love-admin -type f -name 'all.txt' -print 2>/dev/null || true
+}
+
+# Final main override for boot-check and update.
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1344 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1344/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.44.0-reload-after-update-xrayinfo-fix-final}"
+  case "${1:-}" in
+    update|self-update)
+      love_update_safe_v1344
+      ;;
+    boot-check|doctor)
+      love_boot_check_v1344
+      ;;
+    *)
+      love_prepare_core_dirs_v1344
+      love_original_main_v1344 "$@"
       ;;
   esac
 }
