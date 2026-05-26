@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.25-version-variable-clean-final"
+VERSION="Love v13.60.26-warp-integrated-tools-final"
 LOVE_SCRIPT_VERSION="$VERSION"
 
 RED='\033[0;31m'
@@ -7655,7 +7655,7 @@ main_menu() {
     love_main_menu_row "4) Argo / Cloudflared 隧道" "17) Nginx Reverse Proxy"
     love_main_menu_row "5) Port Hopping UDP 端口跳跃" "18) HY2/sing-box 修复与订阅"
     love_main_menu_row "6) WARP 出站增强说明" "19) IPv6-only 出站修复"
-    love_main_menu_row "7) 查看节点信息 Love -n" "20) WARP Manager / FS-style"
+    love_main_menu_row "7) 查看节点信息 Love -n" "20) WARP 双栈管理 / WARP Dual-stack"
     love_main_menu_row "8) 导出订阅 Love sub" "21) 查看运行状态"
     love_main_menu_row "9) 生成二维码 Love qr" "22) 备份配置"
     love_main_menu_row "10) Super Tools 诊断/修复/更新" "23) 卸载菜单"
@@ -8262,7 +8262,7 @@ main_menu() {
     love_main_menu_row "4) Argo / Cloudflared 隧道" "17) Nginx Reverse Proxy"
     love_main_menu_row "5) Port Hopping UDP 端口跳跃" "18) HY2/sing-box 修复与订阅"
     love_main_menu_row "6) WARP 出站增强说明" "19) IPv6-only 出站修复"
-    love_main_menu_row "7) 查看节点信息 Love -n" "20) WARP Manager / FS-style"
+    love_main_menu_row "7) 查看节点信息 Love -n" "20) WARP 双栈管理 / WARP Dual-stack"
     love_main_menu_row "8) 导出订阅 Love sub" "21) 查看运行状态"
     love_main_menu_row "9) 生成二维码 Love qr" "22) 备份配置"
     love_main_menu_row "10) Super Tools 诊断/修复/更新" "23) 卸载菜单"
@@ -8764,13 +8764,13 @@ love_color_menu13601() {
     love_row13601 "13) 客户端导出 / Client export" "30) 专用订阅 / Client-specific sub" yellow yellow
     love_row13601 "31) Clash Meta / Mihomo YAML" "38) H2 Reality v2rayN help" cyan cyan
 
-    love_section13601 "旧版工具保留 / Legacy Tools Kept"
+    love_section13601 "工具与维护 / Tools & Maintenance"
     love_row13601 "14) v6 Project Tools" "15) v7 Stable Tools" white white
     love_row13601 "16) v8 Project Panel" "17) Nginx Reverse Proxy" white white
     love_row13601 "18) HY2/sing-box 修复 / Fix" "19) IPv6-only 出站修复" white white
-    love_row13601 "20) WARP Manager / FS-style" "21) 运行状态 / Runtime status" white white
+    love_row13601 "20) WARP 双栈管理 / WARP Dual-stack" "21) 运行状态 / Runtime status" white white
     love_row13601 "22) 备份配置 / Backup" "23) 卸载菜单 / Uninstall" white red
-    love_row13601 "24) GitHub 发布说明" "25) 安装 FS warp 命令" white white
+    love_row13601 "24) GitHub 发布说明" "25) 安装/修复 warp 命令" white white
 
     love_section13601 "v13.60 新增 / New Automation"
     love_row13601 "26) VPS 环境识别 / VPS env" "27) BBR/MTU 优化 / Optimize" cyan cyan
@@ -9029,7 +9029,7 @@ main_menu() {
     love_ui_menu2 "4) Argo 隧道" "17) Nginx Reverse Proxy"
     love_ui_menu2 "5) UDP 端口跳跃" "18) HY2/sing-box 修复"
     love_ui_menu2 "6) WARP 说明" "19) IPv6-only 出站"
-    love_ui_menu2 "7) 节点信息 Love -n" "20) WARP Manager / FS"
+    love_ui_menu2 "7) 节点信息 Love -n" "20) WARP 双栈管理 / WARP Dual-stack"
     love_ui_menu2 "8) 导出订阅 Love sub" "21) 查看运行状态"
     love_ui_menu2 "9) 生成二维码 Love qr" "22) 备份配置"
     love_ui_menu2 "10) Super Tools" "23) 卸载菜单"
@@ -9331,7 +9331,7 @@ main_menu() {
     love_ui_menu2 "4) Argo 隧道" "17) Nginx Reverse Proxy"
     love_ui_menu2 "5) UDP 端口跳跃" "18) HY2/sing-box 修复"
     love_ui_menu2 "6) WARP 说明" "19) IPv6-only 出站"
-    love_ui_menu2 "7) 节点信息 Love -n" "20) WARP Manager / FS"
+    love_ui_menu2 "7) 节点信息 Love -n" "20) WARP 双栈管理 / WARP Dual-stack"
     love_ui_menu2 "8) 导出订阅 Love sub" "21) 查看运行状态"
     love_ui_menu2 "9) 生成二维码 Love qr" "22) 备份配置"
     love_ui_menu2 "10) Super Tools" "23) 卸载菜单"
@@ -9756,7 +9756,7 @@ love_ipv6_outbound_menu(){
   while true; do
     love_menu_title "Love IPv6-only 出站修复" "IPv6-only / WARP / prefer_ipv6"
     love_menu2 "1) 测试 IPv4 / IPv6 出站" "4) Auto Fix 自动修复"
-    love_menu2 "2) sing-box prefer_ipv6 修复" "5) WARP Manager / FS"
+    love_menu2 "2) sing-box prefer_ipv6 修复" "5) WARP 双栈管理 / WARP Dual-stack"
     love_menu2 "3) WARP / IPv4 出站说明" "0) 返回"
     read -rp "$(printf "%b请选择:%b " "$(lc bold)$(lc yellow)" "$(lc reset)")" x
     case "$x" in
@@ -14206,7 +14206,7 @@ love_hard_menu_v1335() {
     printf "  │ %-36s │ %-36s │\n" "4) Argo 隧道" "17) Nginx Reverse Proxy"
     printf "  │ %-36s │ %-36s │\n" "5) UDP 端口跳跃" "18) HY2/sing-box 修复"
     printf "  │ %-36s │ %-36s │\n" "6) WARP 说明" "19) IPv6-only 出站"
-    printf "  │ %-36s │ %-36s │\n" "7) 节点信息 Love -n" "20) WARP Manager / FS"
+    printf "  │ %-36s │ %-36s │\n" "7) 节点信息 Love -n" "20) WARP 双栈管理 / WARP Dual-stack"
     printf "  │ %-36s │ %-36s │\n" "8) 导出订阅 Love sub" "21) 查看运行状态"
     printf "  │ %-36s │ %-36s │\n" "9) 生成二维码 Love qr" "22) 备份配置"
     printf "  │ %-36s │ %-36s │\n" "10) Super Tools" "23) 卸载菜单"
@@ -16195,7 +16195,7 @@ love_main_menu_v1343() {
     printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}4)${C_RESET} Argo 隧道                    ${C_CYAN}│${C_RESET} ${C_GREEN}17)${C_RESET} Nginx Reverse Proxy"
     printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}5)${C_RESET} UDP 端口跳跃                 ${C_CYAN}│${C_RESET} ${C_GREEN}18)${C_RESET} HY2/sing-box 修复"
     printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}6)${C_RESET} WARP 说明                    ${C_CYAN}│${C_RESET} ${C_GREEN}19)${C_RESET} IPv6-only 出站"
-    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}7)${C_RESET} 节点信息 Love -n             ${C_CYAN}│${C_RESET} ${C_GREEN}20)${C_RESET} WARP Manager / FS"
+    printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}7)${C_RESET} 节点信息 Love -n             ${C_CYAN}│${C_RESET} ${C_GREEN}20)${C_RESET} WARP 双栈管理 / WARP Dual-stack"
     printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}8)${C_RESET} 导出订阅 Love sub            ${C_CYAN}│${C_RESET} ${C_GREEN}21)${C_RESET} 查看运行状态"
     printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}9)${C_RESET} 生成二维码 Love qr          ${C_CYAN}│${C_RESET} ${C_GREEN}22)${C_RESET} 备份配置"
     printf '%b\n' "  ${C_CYAN}│${C_RESET} ${C_GREEN}10)${C_RESET} Super Tools                ${C_CYAN}│${C_RESET} ${C_GREEN}23)${C_RESET} 卸载菜单"
@@ -21802,19 +21802,19 @@ love_v13605_classic_menu() {
     love_menu_row13605 "12) 在线更新 / Update" "37) CF DNS 自动解析 / DNS upsert"
     love_menu_row13605 "13) 客户端导出 / Client export" "38) CF DNS-01 证书 / DNS cert"
 
-    love_menu_section13605 "旧版工具保留 / Legacy Tools Kept"
+    love_menu_section13605 "工具与维护 / Tools & Maintenance"
     love_menu_row13605 "14) v6 Project Tools" "39) H2 Reality v2rayN help"
     love_menu_row13605 "15) v7 Stable Tools" "40) 查看旧链接 / Show legacy"
     love_menu_row13605 "16) v8 Project Panel" "41) 备份旧链接 / Backup legacy"
     love_menu_row13605 "17) Nginx Reverse Proxy" "42) 清空旧链接 / Clean legacy"
     love_menu_row13605 "18) HY2/sing-box 修复 / Fix" "43) 帮助 / Help"
     love_menu_row13605 "19) IPv6-only 出站修复" "44) v13.60 检查 / Final check"
-    love_menu_row13605 "20) WARP Manager / FS-style" "45) 端口/防火墙 / Ports"
+    love_menu_row13605 "20) WARP 双栈管理 / WARP Dual-stack" "45) 端口/防火墙 / Ports"
     love_menu_row13605 "21) 运行状态 / Runtime status" "46) 国旗图标设置 / Flag icon"
     love_menu_row13605 "22) 备份配置 / Backup" "47) 自动识别国旗 / Auto flag"
     love_menu_row13605 "23) 卸载菜单 / Uninstall" "48) TRUE 手动提醒 / TRUE note"
     love_menu_row13605 "24) GitHub 发布说明" "49) Xray 补全检查 / Xray ext check"
-    love_menu_row13605 "25) 安装 FS warp 命令" "0) 退出 / Exit"
+    love_menu_row13605 "25) 安装/修复 warp 命令" "0) 退出 / Exit"
 
     echo
     printf "%b提示:%b 绿色 Web / QR / 已通 sing-box 节点不动；Xray Stable 和 Xray Extended 分开。\n" "$(love_c13605 yellow)" "$(love_c13605 reset)"
@@ -22127,7 +22127,7 @@ love_v13607_classic_menu() {
     love_v13607_row "12) 一键更新 / One-click update" "37) CF DNS / DNS upsert"
     love_v13607_row "13) 客户端导出 / Client export" "38) CF DNS-01 证书 / DNS cert"
 
-    love_v13607_section "旧版工具保留 / Legacy Tools Kept"
+    love_v13607_section "工具与维护 / Tools & Maintenance"
     love_v13607_row "14) v6 Project Tools" "39) H2 Reality v2rayN help"
     love_v13607_row "15) v7 Stable Tools" "40) 查看旧链接 / Show legacy"
     love_v13607_row "16) v8 Project Panel" "41) 备份旧链接 / Backup legacy"
@@ -22139,7 +22139,7 @@ love_v13607_classic_menu() {
     love_v13607_row "22) 备份配置 / Backup" "47) 自动识别国旗 / Auto flag"
     love_v13607_row "23) 卸载菜单 / Uninstall" "48) TRUE 手动提醒 / TRUE note"
     love_v13607_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
-    love_v13607_row "25) 安装 FS warp 命令" "0) 退出 / Exit"
+    love_v13607_row "25) 安装/修复 warp 命令" "0) 退出 / Exit"
 
     echo
     echo "提示: 12 为一键更新，不再默认要求输入地址；23 为固定卸载菜单。"
@@ -22386,7 +22386,7 @@ love_v13610_classic_menu() {
     love_v13610_row "12) 一键更新 / One-click update" "37) CF DNS / DNS upsert"
     love_v13610_row "13) 客户端导出 / Client export" "38) CF DNS-01 证书 / DNS cert"
 
-    love_v13610_section "旧版工具保留 / Legacy Tools Kept"
+    love_v13610_section "工具与维护 / Tools & Maintenance"
     love_v13610_row "14) v6 Project Tools" "39) H2 Reality v2rayN help"
     love_v13610_row "15) v7 Stable Tools" "40) 查看旧链接 / Show legacy"
     love_v13610_row "16) v8 Project Panel" "41) 备份旧链接 / Backup legacy"
@@ -22398,7 +22398,7 @@ love_v13610_classic_menu() {
     love_v13610_row "22) 备份配置 / Backup" "47) 自动识别国旗 / Auto flag"
     love_v13610_row "23) 卸载菜单 / Uninstall" "48) TRUE 手动提醒 / TRUE note"
     love_v13610_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
-    love_v13610_row "25) 安装 FS warp 命令" "0) 退出 / Exit"
+    love_v13610_row "25) 安装/修复 warp 命令" "0) 退出 / Exit"
 
     echo
     echo "提示: 菜单统一经典样式；节点目录安装入口已恢复为真实安装，不再误进修复。"
@@ -22509,7 +22509,7 @@ main() {
 #       * Web files missing after clean chain
 # ==============================================================================
 
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.25-version-variable-clean-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.26-warp-integrated-tools-final"
 # disabled duplicate legacy VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13619_prepare_dirs() {
@@ -23095,7 +23095,7 @@ love_v13619_final_export() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.25 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.26 final exporter；旧导出链不再参与最终写入。"
 }
 
 extract_raw_links() {
@@ -23240,7 +23240,7 @@ love_v13619_menu() {
     love_v13619_row "12) 一键更新 / One-click update" "37) CF DNS / DNS upsert"
     love_v13619_row "13) 客户端导出 / Client export" "38) CF DNS-01 证书 / DNS cert"
 
-    love_v13619_section "旧版工具保留 / Legacy Tools Kept"
+    love_v13619_section "工具与维护 / Tools & Maintenance"
     love_v13619_row "14) v6 Project Tools" "39) H2 Reality v2rayN help"
     love_v13619_row "15) v7 Stable Tools" "40) 查看旧链接 / Show legacy"
     love_v13619_row "16) v8 Project Panel" "41) 备份旧链接 / Backup legacy"
@@ -23252,11 +23252,11 @@ love_v13619_menu() {
     love_v13619_row "22) 备份配置 / Backup" "47) 自动识别国旗 / Auto flag"
     love_v13619_row "23) 卸载菜单 / Uninstall" "48) TRUE 手动提醒 / TRUE note"
     love_v13619_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
-    love_v13619_row "25) 安装 FS warp 命令" "50) Xray 26.5.9 更新"
+    love_v13619_row "25) 安装/修复 warp 命令" "50) Xray 26.5.9 更新"
     love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
-    love_v13619_row "53) v13.60.25 检查" "0) 退出 / Exit"
+    love_v13619_row "53) v13.60.26 检查" "0) 退出 / Exit"
     echo
-    echo "提示: 最终导出只走 v13.60.25；旧导出链不再写 all.txt/Web/QR。"
+    echo "提示: 最终导出只走 v13.60.26；旧导出链不再写 all.txt/Web/QR。"
     read -rp "请选择 / Select: " c
     case "$c" in
       1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
@@ -23341,7 +23341,7 @@ main() {
 #   - Old v13.51 post-install matrix no longer runs after install.
 #   - Final check is clean and checks real final files only.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.25-version-variable-clean-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.26-warp-integrated-tools-final"
 # disabled duplicate legacy VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13622_any_protocol_selected() {
@@ -23558,7 +23558,7 @@ love_v13622_export_from_configs() {
 
   local count
   count="$(grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$all" 2>/dev/null || echo 0)"
-  echo "[OK] v13.60.25 final export generated ${count} URI nodes."
+  echo "[OK] v13.60.26 final export generated ${count} URI nodes."
 }
 
 love_v13619_export_from_configs() {
@@ -23566,10 +23566,10 @@ love_v13619_export_from_configs() {
 }
 
 love_v13619_final_export() {
-  echo "================ Love Final Export v13.60.25 ================"
+  echo "================ Love Final Export v13.60.26 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.25 ================"
+  echo "================ 最终节点 / Final Links v13.60.26 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
@@ -23580,7 +23580,7 @@ love_v13622_check_duplicate_sni() {
 }
 
 love_v13619_check() {
-  echo "================ Love v13.60.25 Clean Check ================"
+  echo "================ Love v13.60.26 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23619,7 +23619,7 @@ love_v13619_check() {
 
 love_v1351_matrix_check() { love_v13619_check; }
 love_v1351_post_install_guard() {
-  echo "================ Love Post-Install Guard v13.60.25 ================"
+  echo "================ Love Post-Install Guard v13.60.26 ================"
   love_v1351_open_ports_from_current_configs 2>/dev/null || true
   love_v13619_final_export
   love_v13619_check
@@ -23627,7 +23627,7 @@ love_v1351_post_install_guard() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.25 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.26 final exporter；旧导出链不再参与最终写入。"
 }
 
 export_subscription() { love_v13619_final_export; }
@@ -23638,24 +23638,24 @@ generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; echo "[OK] 
 
 
 # ===============================================================================
-# v13.60.25 Clean Install + Export Final
+# v13.60.26 Clean Install + Export Final
 # Purpose:
 #   Keep the proven install core, but remove old post-install export/check chains
 #   from the execution path. The final output is generated once from live configs.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.25-version-variable-clean-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.26-warp-integrated-tools-final"
 # disabled duplicate legacy VERSION="$LOVE_SCRIPT_VERSION"
 
 love_v13624_final_export() {
-  echo "================ Love Final Export v13.60.25 ================"
+  echo "================ Love Final Export v13.60.26 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.25 ================"
+  echo "================ 最终节点 / Final Links v13.60.26 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
 love_v13624_check() {
-  echo "================ Love v13.60.25 Clean Check ================"
+  echo "================ Love v13.60.26 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23695,7 +23695,7 @@ love_v13624_check() {
 # Disable old export/check/print chains completely. They must not decide final files.
 love_v1351_post_install_guard() { :; }
 love_v1351_matrix_check() { love_v13624_check; }
-love_after_node_generated_exports() { love_v13624_final_export; echo "[OK] 安装完成后只走 v13.60.25 final exporter；旧导出/检查链已禁用。"; }
+love_after_node_generated_exports() { love_v13624_final_export; echo "[OK] 安装完成后只走 v13.60.26 final exporter；旧导出/检查链已禁用。"; }
 export_subscription() { love_v13624_final_export; }
 love_sub_safe_v1341() { love_v13624_final_export; }
 extract_raw_links() { love_v13624_final_export >/dev/null; echo /opt/Love/subscribe/all.txt; }
@@ -23710,7 +23710,7 @@ if declare -F love_original_install_singbox_native_v1351 >/dev/null 2>&1; then
     love_original_install_singbox_native_v1351 "$@"
     love_v13624_final_export
     love_v13624_check
-    log "sing-box 全协议安装完成：最终导出已统一为 v13.60.25。"
+    log "sing-box 全协议安装完成：最终导出已统一为 v13.60.26。"
   }
 fi
 
@@ -23719,7 +23719,7 @@ if declare -F love_original_install_xray_stable_v1351 >/dev/null 2>&1; then
     love_original_install_xray_stable_v1351 "$@"
     love_v13624_final_export
     love_v13624_check
-    log "Xray 稳定模式安装完成：最终导出已统一为 v13.60.25。"
+    log "Xray 稳定模式安装完成：最终导出已统一为 v13.60.26。"
   }
 fi
 
@@ -23729,13 +23729,13 @@ love_v13619_check() { love_v13624_check; }
 
 
 # ===============================================================================
-# v13.60.25 One-click Update Clean Final
+# v13.60.26 One-click Update Clean Final
 # Fix:
 #   - old updater printed "Unknown command: v13607-version" after successful update.
 #   - keep compatibility aliases v13607-version/v136xx-check.
 #   - do not run legacy version command after self update; just read VERSION from target.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.25-version-variable-clean-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.26-warp-integrated-tools-final"
 # disabled duplicate legacy VERSION="$LOVE_SCRIPT_VERSION"
 
 love_v13624_oneclick_update() {
@@ -23820,5 +23820,309 @@ main() {
   esac
 }
 
+
+
+# ===============================================================================
+# v13.60.26 WARP + Integrated Tools Final
+# Purpose:
+#   - Integrate the old WARP tools into the current menu; no more "legacy" label.
+#   - Fix menu 25: install/repair FS-style warp command.
+#   - Add Love warp command family back into the final main dispatcher.
+#   - Keep the proven install core and v13.60.26 final exporter.
+# ===============================================================================
+
+love_v13626_warp_status() {
+  echo "================ Love WARP 双栈状态 / Dual-stack Status ================"
+  echo "[Direct IPv4]"
+  curl -4 -I --connect-timeout 8 --max-time 12 https://github.com 2>&1 | sed -n '1,5p' || true
+  echo
+  echo "[Direct IPv6]"
+  curl -6 -I --connect-timeout 8 --max-time 12 https://github.com 2>&1 | sed -n '1,5p' || true
+  echo
+  echo "[Cloudflare WARP Client]"
+  if command -v warp-cli >/dev/null 2>&1; then
+    warp-cli --accept-tos status 2>/dev/null || warp-cli status 2>/dev/null || true
+  else
+    echo "warp-cli: not installed"
+  fi
+  echo
+  echo "[SOCKS 40000 / official WARP proxy]"
+  curl -s --connect-timeout 8 --max-time 15 --socks5-hostname 127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -Ei 'ip=|warp=|colo=' || echo "40000 not available"
+  echo
+  echo "[SOCKS 40001 / WireProxy]"
+  curl -s --connect-timeout 8 --max-time 15 --socks5-hostname 127.0.0.1:40001 https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -Ei 'ip=|warp=|colo=' || echo "40001 not available"
+  echo
+  echo "[sing-box route.final]"
+  jq -r '.route.final // "direct"' /etc/sing-box/config.json 2>/dev/null || true
+  echo
+  echo "[Services]"
+  systemctl is-active sing-box 2>/dev/null | sed 's/^/sing-box: /' || true
+  systemctl is-active xray 2>/dev/null | sed 's/^/xray: /' || true
+  systemctl is-active nginx 2>/dev/null | sed 's/^/nginx: /' || true
+  systemctl is-active warp-svc 2>/dev/null | sed 's/^/warp-svc: /' || true
+  systemctl is-active love-wireproxy.service 2>/dev/null | sed 's/^/wireproxy: /' || true
+}
+
+love_v13626_install_warp_command() {
+  cat > /usr/local/bin/warp <<'EOF'
+#!/usr/bin/env bash
+exec /usr/local/bin/Love warp "$@"
+EOF
+  chmod +x /usr/local/bin/warp
+  echo "[OK] warp 命令已安装/修复：/usr/local/bin/warp"
+  echo "示例：warp h | warp status | warp c | warp w | warp 4 | warp d | warp restore"
+}
+
+love_install_fs_warp_command() { love_v13626_install_warp_command "$@"; }
+love_install_fs_warp_command_v1345() { love_v13626_install_warp_command "$@"; }
+
+love_v13626_warp_help() {
+  cat <<'EOF'
+================ Love WARP 双栈命令 / Dual-stack Commands ================
+
+菜单入口：
+  Love warp              进入 WARP 双栈管理菜单
+  Love warp status       查看 IPv4/IPv6/WARP/SOCKS/sing-box 状态
+  Love warp install      安装/修复系统 warp 命令
+
+安全推荐：
+  Love warp c            官方 WARP Proxy 40000，并尝试切 sing-box 出站到 SOCKS
+  Love warp w            WireProxy 40001，并尝试切 sing-box 出站到 SOCKS
+  Love warp 4            IPv6-only VPS 推荐：优先用官方 WARP Proxy 补 IPv4 出站
+  Love warp d            Auto Fix：自动尝试 WARP/WireProxy 并安全切换
+  Love warp restore      恢复 sing-box direct 出站
+
+说明：
+  WARP 双栈解决的是 VPS 出站 IPv4/IPv6，例如 GitHub/IPv4 网站。
+  它不会给 IPv6-only VPS 增加公网 IPv4 入站。
+
+=========================================================================
+EOF
+}
+
+love_v13626_try_singbox_warp_socks() {
+  local port="${1:-40000}"
+  if declare -F love_singbox_switch_warp_socks_v12 >/dev/null 2>&1; then
+    love_singbox_switch_warp_socks_v12 "$port" smart
+  elif declare -F love_singbox_route_via_warp_proxy >/dev/null 2>&1; then
+    love_singbox_route_via_warp_proxy "$port"
+  else
+    echo "[WARN] sing-box WARP route function not found; SOCKS may still be available at 127.0.0.1:${port}."
+  fi
+}
+
+love_v13626_restore_direct() {
+  if declare -F love_singbox_restore_direct_v12 >/dev/null 2>&1; then
+    love_singbox_restore_direct_v12
+  elif declare -F love_singbox_restore_direct_outbound >/dev/null 2>&1; then
+    love_singbox_restore_direct_outbound
+  else
+    echo "[WARN] direct restore function not found."
+  fi
+}
+
+love_v13626_warp_command() {
+  local sub="${1:-menu}"; shift 2>/dev/null || true
+  case "$sub" in
+    h|help|--help) love_v13626_warp_help ;;
+    install|i) love_v13626_install_warp_command ;;
+    status|s|check) love_v13626_warp_status ;;
+    c|proxy|40000)
+      if declare -F love_warp_cli_proxy_v12 >/dev/null 2>&1; then love_warp_cli_proxy_v12 40000
+      elif declare -F love_warp_set_proxy_mode >/dev/null 2>&1; then love_warp_set_proxy_mode 40000
+      else love_warp_proxy_safe_install; fi
+      love_v13626_try_singbox_warp_socks 40000
+      ;;
+    w|wireproxy|40001)
+      if declare -F love_wireproxy_auto_v12 >/dev/null 2>&1; then love_wireproxy_auto_v12 40001
+      elif declare -F love_warp_wireproxy_mode >/dev/null 2>&1; then love_warp_wireproxy_mode
+      else echo "[MISS] WireProxy function not found."; fi
+      love_v13626_try_singbox_warp_socks 40001
+      ;;
+    4|ipv4)
+      echo "[INFO] IPv4 出站增强：启动 WARP Proxy 40000，并让 sing-box 出站走它。"
+      love_v13626_warp_command c
+      ;;
+    6|ipv6)
+      echo "[INFO] IPv6 优先策略。"
+      if declare -F love_warp_set_priority >/dev/null 2>&1; then love_warp_set_priority; else love_v13626_warp_status; fi
+      ;;
+    d|dual|auto|auto-fix)
+      if declare -F love_warp_auto_fix_v12 >/dev/null 2>&1; then love_warp_auto_fix_v12
+      elif declare -F love_warp_proxy_safe_install >/dev/null 2>&1; then love_warp_proxy_safe_install
+      else love_v13626_warp_command c; fi
+      ;;
+    g|global)
+      if declare -F love_warp_global_toggle_menu >/dev/null 2>&1; then love_warp_global_toggle_menu; else love_v13626_warp_status; fi
+      ;;
+    restore|direct|r) love_v13626_restore_direct ;;
+    menu|"") love_v13626_warp_manager ;;
+    *) echo "[WARN] Unknown warp command: $sub"; love_v13626_warp_help ;;
+  esac
+}
+
+love_v13626_warp_manager() {
+  while true; do
+    echo
+    echo "================ Love WARP 双栈管理 / Dual-stack Manager ================"
+    echo "  1) 状态检查 / Status"
+    echo "  2) 安装/修复 warp 命令 / Install warp command"
+    echo "  3) 官方 WARP Proxy 40000 + sing-box 出站 / Safe IPv4 outbound"
+    echo "  4) WireProxy 40001 + sing-box 出站 / WireProxy outbound"
+    echo "  5) Auto Fix 自动修复 / Auto fix"
+    echo "  6) 恢复 sing-box direct / Restore direct"
+    echo "  7) 打开命令说明 / Help"
+    echo "  0) 返回 / Back"
+    read -rp "请选择 / Select: " w
+    case "$w" in
+      1) love_v13626_warp_status ;;
+      2) love_v13626_install_warp_command ;;
+      3) love_v13626_warp_command c ;;
+      4) love_v13626_warp_command w ;;
+      5) love_v13626_warp_command d ;;
+      6) love_v13626_restore_direct ;;
+      7) love_v13626_warp_help ;;
+      0|q|Q) return 0 ;;
+      *) echo "[WARN] 无效选择。" ;;
+    esac
+    read -rp "按 Enter 返回 WARP 菜单..." _
+  done
+}
+
+warp_manager_fs() { love_v13626_warp_manager "$@"; }
+love_warp_manager_menu() { love_v13626_warp_manager "$@"; }
+love_warp_final_menu() { love_v13626_warp_manager "$@"; }
+
+love_v13619_menu() {
+  while true; do
+    clear 2>/dev/null || true
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo "  Love Node Server Manager · 经典主菜单 / Classic Main Menu"
+    echo "  ${LOVE_SCRIPT_VERSION}"
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo
+    echo "系统状态 / Status"
+    echo "  OS:        $(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")"
+    echo "  Arch:      $(uname -m)"
+    echo "  sing-box:  $(systemctl is-active sing-box 2>/dev/null || echo inactive)"
+    echo "  xray:      $(systemctl is-active xray 2>/dev/null || echo inactive)"
+    echo "  nginx web: $(systemctl is-active nginx 2>/dev/null || echo inactive)"
+
+    love_v13619_section "核心安装 / Core Install"
+    love_v13619_row "1) 节点目录 / Node catalog" "26) Xray 补全 / Xray Extended"
+    love_v13619_row "2) Xray 稳定 / Xray Stable" "27) VPS 环境 / VPS env"
+    love_v13619_row "3) sing-box 全协议 / All" "28) BBR/MTU 优化 / Optimize"
+    love_v13619_row "4) Argo 隧道 / Cloudflared" "29) 一键测速 / Speed"
+    love_v13619_row "5) UDP 跳跃 / Port hopping" "30) 重建订阅 / Rebuild sub"
+    love_v13619_row "6) WARP 双栈说明 / WARP Help" "31) 客户端订阅 / Client sub"
+
+    love_v13619_section "导出与客户端 / Export & Clients"
+    love_v13619_row "7) 节点信息 / Node info" "32) Clash/Mihomo YAML"
+    love_v13619_row "8) 订阅生成 / Build sub" "33) 证书检查 / Cert check"
+    love_v13619_row "9) 二维码 / QR codes" "34) HTTP-01 证书 / LE cert"
+    love_v13619_row "10) Super Tools / 修复" "35) 证书切换 / Cert switch"
+    love_v13619_row "11) 绿色 Web / Green Web" "36) CF Token / CF config"
+    love_v13619_row "12) 一键更新 / One-click update" "37) CF DNS / DNS upsert"
+    love_v13619_row "13) 客户端导出 / Client export" "38) CF DNS-01 证书 / DNS cert"
+
+    love_v13619_section "工具与维护 / Tools & Maintenance"
+    love_v13619_row "14) v6 Project Tools" "39) H2 Reality v2rayN help"
+    love_v13619_row "15) v7 Stable Tools" "40) 查看归档链接 / Show archive"
+    love_v13619_row "16) v8 Project Panel" "41) 备份归档链接 / Backup archive"
+    love_v13619_row "17) Nginx Reverse Proxy" "42) 清空归档链接 / Clean archive"
+    love_v13619_row "18) HY2/sing-box 修复" "43) 帮助 / Help"
+    love_v13619_row "19) IPv6-only 修复" "44) v13.60 检查 / Final check"
+    love_v13619_row "20) WARP 双栈管理" "45) 端口/防火墙 / Ports"
+    love_v13619_row "21) 运行状态 / Status" "46) 国旗图标 / Flag icon"
+    love_v13619_row "22) 备份配置 / Backup" "47) 自动识别国旗 / Auto flag"
+    love_v13619_row "23) 卸载菜单 / Uninstall" "48) TRUE 手动提醒 / TRUE note"
+    love_v13619_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
+    love_v13619_row "25) 安装/修复 warp 命令" "50) Xray 26.5.9 更新"
+    love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
+    love_v13619_row "53) v13.60.26 检查" "0) 退出 / Exit"
+    echo
+    echo "提示: 工具已整合到新版菜单；最终导出只走 v13.60.26。"
+    read -rp "请选择 / Select: " c
+    case "$c" in
+      1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
+      2) install_xray_stable ;;
+      3) install_singbox_native ;;
+      4) argo_helper ;;
+      5) port_hopping_helper ;;
+      6) love_v13626_warp_help ;;
+      7|8|13|30|31) love_v13624_final_export ;;
+      9) generate_qrcodes ;;
+      10) if declare -F super_tools_menu >/dev/null; then super_tools_menu; else love_v13624_check; fi ;;
+      11) web_admin_page ;;
+      12) love_v13624_oneclick_update ;;
+      20) love_v13626_warp_manager ;;
+      21) if declare -F show_status >/dev/null; then show_status; else love_v13624_check; fi ;;
+      22) if declare -F backup_configs >/dev/null; then backup_configs; else mkdir -p /opt/Love/backup; cp -a /etc/sing-box /usr/local/etc/xray /opt/Love/backup/ 2>/dev/null || true; fi ;;
+      23) if declare -F love_v13607_uninstall_menu >/dev/null; then love_v13607_uninstall_menu; else echo "uninstall unavailable"; fi ;;
+      24) github_publish_note 2>/dev/null || echo "GitHub Raw: https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh" ;;
+      25) love_v13626_install_warp_command ;;
+      26) install_xray_extended ;;
+      27) if declare -F love_v1360_env_detect >/dev/null; then love_v1360_env_detect; else detect_network; fi ;;
+      28) love_v13619_safe_bbr ;;
+      29) if declare -F love_v1360_speed >/dev/null; then love_v1360_speed; else love_v13624_check; fi ;;
+      32) generate_mihomo_yaml ;;
+      33) if declare -F love_v1360_cert_check >/dev/null; then love_v1360_cert_check; else openssl x509 -in /etc/sing-box/cert/cert.pem -noout -subject -dates 2>/dev/null || true; fi ;;
+      34) if declare -F love_v1360_cert_http01 >/dev/null; then love_v1360_cert_http01; else echo "cert-ca"; fi ;;
+      35) if declare -F love_cert_switch13600 >/dev/null; then love_cert_switch13600; else echo "cert-switch unavailable"; fi ;;
+      36) if declare -F love_v1360_cf_config >/dev/null; then love_v1360_cf_config; else echo "cf config unavailable"; fi ;;
+      37) if declare -F love_v1360_cf_dns >/dev/null; then love_v1360_cf_dns; else echo "cf dns unavailable"; fi ;;
+      38) if declare -F love_v1360_cf_cert_dns01 >/dev/null; then love_v1360_cf_cert_dns01; else echo "cf cert unavailable"; fi ;;
+      39) if declare -F love_h2_v2rayn_help13601 >/dev/null; then love_h2_v2rayn_help13601; else echo "H2 Reality: v2rayN Core use sing_box."; fi ;;
+      40) if declare -F love_legacy_show13601 >/dev/null; then love_legacy_show13601; else ls -lah /opt/Love/backup 2>/dev/null || true; fi ;;
+      41) if declare -F love_legacy_backup13601 >/dev/null; then love_legacy_backup13601; else cp -a /opt/Love/subscribe /opt/Love/backup/subscribe.$(date +%F-%H%M%S) 2>/dev/null || true; fi ;;
+      42) if declare -F love_legacy_clean13601 >/dev/null; then love_legacy_clean13601; else echo "clean archive unavailable"; fi ;;
+      43) echo "Love ${LOVE_SCRIPT_VERSION}"; echo "Commands: Love sub | Love web | Love qr | Love check | Love warp | Love update" ;;
+      44|53) love_v13624_check ;;
+      45) if declare -F love_ports_v1334 >/dev/null; then love_ports_v1334; else ss -tulnp; fi ;;
+      46) if declare -F love_flag_set13602 >/dev/null; then love_flag_set13602; else read -rp "Flag emoji: " f; echo "$f" >/opt/Love/flag-icon; fi ;;
+      47) if declare -F love_flag_auto13602 >/dev/null; then love_flag_auto13602; else echo "auto flag unavailable"; fi; love_v13624_final_export ;;
+      48) if declare -F love_v13604_tls_manual_report >/dev/null; then love_v13604_tls_manual_report; else echo "self.local 手动 TRUE: Allow insecure=True, ALPN=h3"; fi ;;
+      49) if declare -F love_v13605_xray_extended_check >/dev/null; then love_v13605_xray_extended_check; else love_v13624_check; fi ;;
+      50) love_v13619_xray_update_version "26.5.9" ;;
+      51) if declare -F install_xray_core >/dev/null; then install_xray_core; else love_v13619_xray_update_version "26.5.9"; fi ;;
+      52) read -rp "Xray version, e.g. 26.5.9: " xv; love_v13619_xray_update_version "$xv" ;;
+      0|q|Q|exit) exit 0 ;;
+      *) echo "[WARN] 无效选择。" ;;
+    esac
+    read -rp "按回车返回主菜单 / Press Enter to return..." _
+  done
+}
+
+main() {
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      love_v13619_prepare_dirs 2>/dev/null || prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_v13619_menu
+      ;;
+    version|-v|--version|v13607-version|v13624-version|v13626-version) echo "${LOVE_SCRIPT_VERSION}" ;;
+    update|self-update|online-update) love_v13624_oneclick_update ;;
+    warp) shift || true; love_v13626_warp_command "$@" ;;
+    warp-install|install-warp-command|warp-command) love_v13626_install_warp_command ;;
+    warp-manager|warp-dual|warp-final) love_v13626_warp_manager ;;
+    warp-status|warp-report) love_v13626_warp_status ;;
+    warp-restore-direct) love_v13626_restore_direct ;;
+    sub|subscribe|subscription|clients|client-export|link-fix|client-fix|fix-links) love_v13624_final_export ;;
+    web|green-web) web_admin_page ;;
+    qr|qrcode) generate_qrcodes ;;
+    check|final-check|v13626-check|v13624-check|v13623-check|v13622-check|v13621-check|v13620-check|v13619-check|v13618-check|v13617-check|v13616-check|v13615-check|v13614-check|v13613-check) love_v13624_check ;;
+    xray-2659) love_v13619_xray_update_version "26.5.9" ;;
+    xray-custom) read -rp "Xray version: " xv; love_v13619_xray_update_version "$xv" ;;
+    optimize|bbr) love_v13619_safe_bbr ;;
+    singbox|sing-box|sb) install_singbox_native ;;
+    xray|reality|xray-hy2) install_xray_stable ;;
+    xray-extended|xray-all|xray-plus|xray-ext) install_xray_extended ;;
+    uninstall|uninstall-menu) if declare -F love_v13607_uninstall_menu >/dev/null; then love_v13607_uninstall_menu; else echo "uninstall unavailable"; fi ;;
+    *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
+  esac
+}
 
 main "$@"
