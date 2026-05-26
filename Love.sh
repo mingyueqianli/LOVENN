@@ -8777,11 +8777,14 @@ love_color_menu13601() {
     love_section13601 "旧链接归档 / Legacy Link Archive"
     love_row13601 "39) 查看旧链接 / Show legacy" "40) 备份旧链接 / Backup legacy" gray gray
     love_row13601 "41) 清空旧链接 / Clean legacy" "42) 帮助 / Help" red cyan
+    love_row13601 "45) 国旗图标设置 / Flag icon" "46) 自动识别国旗 / Auto flag" magenta magenta
+    love_row13601 "47) 修复国旗字母 / Fix flag letters" "48) TRUE 手动提醒 / TRUE note" magenta yellow
     love_row13601 "0) 退出 / Exit" "" red white
 
     echo
     printf "%b提示 / Tips:%b 绿色 Web 不改样式；旧链接不进入正式订阅，只用于回滚和排错。\n" "$(love_c13601 yellow)" "$(love_c13601 reset)"
     printf "%bLOVE-H2-REALITY:%b v2rayN 里 VLESS Core 要改成 sing_box。\n" "$(love_c13601 yellow)" "$(love_c13601 reset)"
+    printf "%b证书 TRUE 提醒:%b 自签/self.local 的 TLS 节点若 v2rayN 导入后仍为 False，请按 48 查看手动开关。\n" "$(love_c13601 yellow)" "$(love_c13601 reset)"
     echo
     read -rp "请选择 / Select: " choice
 
@@ -8830,6 +8833,10 @@ love_color_menu13601() {
       42) love_color_menu_help13601 ;;
       43) love_v1360_env_detect; echo; love_v1360_cert_check; echo; love_v1356_source_check 2>/dev/null || true ;;
       44) love_call13601 love_ports_v1334 ;;
+      45) love_flag_set13602 ;;
+      46) love_flag_auto13602; love_v13602_fix_flags_all ;;
+      47) love_v13602_fix_flags_all ;;
+      48) love_v13604_tls_manual_report ;;
       0|q|Q|exit) exit 0 ;;
       *) printf "%b[WARN]%b 无效选择 / Invalid choice.\n" "$(love_c13601 yellow)" "$(love_c13601 reset)" ;;
     esac
@@ -20414,6 +20421,1523 @@ main() {
       love_v1360_help ;;
     *)
       love_original_main_v1357 "$@" ;;
+  esac
+}
+
+
+# ================================================================================
+# Love v13.60.2 Flag Icon Final
+# Purpose:
+#   - Convert country letters such as US/JP/DE into real emoji flag icons.
+#   - Apply the same flag to all subscription outputs, client-specific files,
+#     Web copied text files, and QR source links.
+#   - Add menu/command entries without deleting any existing feature.
+# ================================================================================
+LOVE_SCRIPT_VERSION="Love v13.60.2-flag-icon-final"
+
+love_v13602_cc_to_emoji() {
+  local cc
+  cc="$(echo "${1:-US}" | tr '[:lower:]' '[:upper:]' | tr -dc 'A-Z' | head -c 2)"
+  [[ ${#cc} -eq 2 ]] || cc="US"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$cc" <<'PYFLAG'
+import sys
+cc=(sys.argv[1] or 'US').upper()[:2]
+print(''.join(chr(0x1F1E6 + ord(c) - ord('A')) for c in cc))
+PYFLAG
+  else
+    case "$cc" in
+      US) echo "🇺🇸" ;; JP) echo "🇯🇵" ;; SG) echo "🇸🇬" ;; HK) echo "🇭🇰" ;; TW) echo "🇹🇼" ;;
+      KR) echo "🇰🇷" ;; DE) echo "🇩🇪" ;; GB|UK) echo "🇬🇧" ;; FR) echo "🇫🇷" ;; NL) echo "🇳🇱" ;;
+      CA) echo "🇨🇦" ;; AU) echo "🇦🇺" ;; IN) echo "🇮🇳" ;; BR) echo "🇧🇷" ;; *) echo "🇺🇸" ;;
+    esac
+  fi
+}
+
+love_v13602_detect_country() {
+  local cc
+  cc="$(curl -fsS -4 --max-time 4 https://ipinfo.io/country 2>/dev/null | tr -dc 'A-Za-z' | head -c 2 || true)"
+  [[ -z "$cc" ]] && cc="$(curl -fsS -6 --max-time 4 https://ipinfo.io/country 2>/dev/null | tr -dc 'A-Za-z' | head -c 2 || true)"
+  [[ -z "$cc" ]] && cc="$(curl -fsS --max-time 4 https://ifconfig.co/country-iso 2>/dev/null | tr -dc 'A-Za-z' | head -c 2 || true)"
+  [[ -z "$cc" ]] && cc="US"
+  echo "$(echo "$cc" | tr '[:lower:]' '[:upper:]' | head -c 2)"
+}
+
+love_v13602_flag_get() {
+  mkdir -p /opt/Love
+  local cc flag raw
+  raw="$(cat /opt/Love/node-flag 2>/dev/null || true)"
+  cc="$(cat /opt/Love/node-country 2>/dev/null || true)"
+  cc="$(echo "${cc:-}" | tr '[:lower:]' '[:upper:]' | tr -dc 'A-Z' | head -c 2)"
+
+  # If node-flag accidentally contains letters like US, convert them into emoji.
+  if [[ "$raw" =~ ^[A-Za-z]{2}$ ]]; then
+    cc="$(echo "$raw" | tr '[:lower:]' '[:upper:]')"
+    flag="$(love_v13602_cc_to_emoji "$cc")"
+  elif [[ -n "$raw" && ! "$raw" =~ ^[A-Za-z]+$ ]]; then
+    flag="$raw"
+    [[ -n "$cc" ]] || cc="US"
+  else
+    [[ -n "$cc" ]] || cc="$(love_v13602_detect_country)"
+    flag="$(love_v13602_cc_to_emoji "$cc")"
+  fi
+
+  echo "$cc" > /opt/Love/node-country
+  echo "$flag" > /opt/Love/node-flag
+  printf '%s' "$flag"
+}
+
+love_flag_show13602() {
+  local cc flag
+  flag="$(love_v13602_flag_get)"
+  cc="$(cat /opt/Love/node-country 2>/dev/null || echo US)"
+  echo "当前国旗 / Current flag: $flag $cc"
+}
+
+love_flag_auto13602() {
+  mkdir -p /opt/Love
+  local cc flag
+  cc="$(love_v13602_detect_country)"
+  flag="$(love_v13602_cc_to_emoji "$cc")"
+  echo "$cc" > /opt/Love/node-country
+  echo "$flag" > /opt/Love/node-flag
+  echo "[OK] 自动识别国旗 / Auto flag: $flag $cc"
+}
+
+love_flag_set13602() {
+  mkdir -p /opt/Love
+  echo "================ Love Flag Icon / 国旗图标设置 ================"
+  love_flag_show13602 || true
+  echo
+  echo "输入两位国家代码会自动变成 emoji，例如：US -> 🇺🇸, DE -> 🇩🇪, JP -> 🇯🇵"
+  echo "You may also paste an emoji flag directly."
+  read -rp "国家代码或国旗 emoji [US]: " input
+  input="${input:-US}"
+  local cc flag
+  if [[ "$input" =~ ^[A-Za-z]{2}$ ]]; then
+    cc="$(echo "$input" | tr '[:lower:]' '[:upper:]')"
+    flag="$(love_v13602_cc_to_emoji "$cc")"
+  else
+    cc="CUSTOM"
+    flag="$input"
+  fi
+  echo "$cc" > /opt/Love/node-country
+  echo "$flag" > /opt/Love/node-flag
+  echo "[OK] 已设置 / Set: $flag $cc"
+  echo "[INFO] 现在执行 Love flag-fix 或 Love sub，会把 US/JP/DE 等字母标签改成国旗图标。"
+}
+
+love_v13602_apply_flag_to_file() {
+  local file="$1" flag
+  [[ -s "$file" ]] || return 0
+  flag="$(love_v13602_flag_get)"
+  python3 - "$file" "$flag" <<'PYFLAGFIX'
+from pathlib import Path
+import sys, re, urllib.parse, base64, json
+
+p = Path(sys.argv[1])
+flag = sys.argv[2]
+flag_re = re.compile(r'^[\U0001F1E6-\U0001F1FF]{2}\s*')
+letter_re = re.compile(r'^(?:US|USA|JP|SG|HK|TW|KR|DE|GB|UK|FR|NL|CA|AU|IN|BR|SE|CH|IT|ES|PL|FI|NO|RU|TR|AE|TH|VN|ID|MY|PH|KR|CN)[\s_\-]+', re.I)
+proto = ('vless://','hy2://','hysteria2://','tuic://','ss://','trojan://','vmess://','anytls://','https://','shadowtls://')
+
+def clean_label(x: str) -> str:
+    x = urllib.parse.unquote(x or 'LOVE').strip()
+    x = flag_re.sub('', x).strip()
+    x = letter_re.sub('', x).strip()
+    return x or 'LOVE'
+
+def with_flag(x: str) -> str:
+    return f'{flag} {clean_label(x)}'
+
+def b64decode_any(s: str) -> bytes:
+    pad = '=' * (-len(s) % 4)
+    return base64.urlsafe_b64decode((s + pad).encode())
+
+def b64encode_plain(b: bytes) -> str:
+    return base64.b64encode(b).decode().rstrip('=')
+
+def fix_vmess(line: str) -> str:
+    main, sep, frag = line.partition('#')
+    payload = main[len('vmess://'):]
+    try:
+        obj = json.loads(b64decode_any(payload).decode('utf-8', errors='ignore'))
+        obj['ps'] = with_flag(str(obj.get('ps') or frag or 'LOVE-VMESS'))
+        enc = b64encode_plain(json.dumps(obj, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+        return 'vmess://' + enc + (('#' + obj['ps']) if sep else '')
+    except Exception:
+        if sep:
+            return main + '#' + with_flag(frag)
+        return line
+
+def fix_uri(line: str) -> str:
+    if line.startswith('vmess://'):
+        return fix_vmess(line)
+    main, sep, frag = line.partition('#')
+    if sep:
+        return main + '#' + with_flag(frag)
+    if line.startswith(proto):
+        return main + '#' + with_flag('LOVE')
+    return line
+
+def fix_yaml_name(line: str) -> str:
+    # name: US LOVE-HY2  /  - name: "US LOVE-HY2"
+    m = re.match(r'^(\s*-?\s*name:\s*)(["\']?)(.*?)(\2)\s*$', line)
+    if not m:
+        return line
+    head, quote, name, tail = m.groups()
+    if 'LOVE' not in name and not flag_re.match(name):
+        return line
+    return f'{head}{quote}{with_flag(name)}{quote}'
+
+out = []
+for raw in p.read_text(encoding='utf-8', errors='ignore').splitlines():
+    line = raw.strip()
+    if line.startswith(proto):
+        out.append(fix_uri(line))
+    elif 'name:' in raw and ('LOVE' in raw or flag_re.search(raw) or letter_re.search(raw.strip().split('name:',1)[-1].strip().strip('"\''))):
+        out.append(fix_yaml_name(raw))
+    else:
+        out.append(raw)
+
+p.write_text('\n'.join(out) + ('\n' if out else ''), encoding='utf-8')
+PYFLAGFIX
+}
+
+love_v13602_refresh_base64() {
+  local f="/opt/Love/subscribe/all.txt"
+  [[ -s "$f" ]] || return 0
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0 "$f" > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+  else
+    base64 "$f" | tr -d '\n' > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+  fi
+}
+
+love_v13602_apply_flag_files() {
+  local f
+  mkdir -p /opt/Love/subscribe/clients /var/www/love-admin/clients 2>/dev/null || true
+  for f in \
+    /opt/Love/subscribe/all.txt \
+    /opt/Love/subscribe/全部节点.txt \
+    /opt/Love/subscribe/推荐节点.txt \
+    /opt/Love/subscribe/节点清晰版.txt \
+    /opt/Love/subscribe/clients/v2rayn-uri.txt \
+    /opt/Love/subscribe/clients/v2rayng-uri.txt \
+    /opt/Love/subscribe/clients/nekobox-uri.txt \
+    /opt/Love/subscribe/clients/singbox-uri.txt \
+    /opt/Love/subscribe/clients/nodes-clean.txt \
+    /opt/Love/subscribe/clients/experimental.txt \
+    /opt/Love/subscribe/clients/clash-meta.yaml \
+    /opt/Love/subscribe/mihomo.yaml \
+    /opt/Love/subscribe/clash_like.yaml \
+    /var/www/love-admin/all.txt \
+    /var/www/love-admin/node-links.txt \
+    /var/www/love-admin/全部节点.txt \
+    /var/www/love-admin/推荐节点.txt \
+    /var/www/love-admin/节点清晰版.txt \
+    /var/www/love-admin/sub/all.txt \
+    /var/www/love-admin/clients/v2rayn-uri.txt \
+    /var/www/love-admin/clients/v2rayng-uri.txt \
+    /var/www/love-admin/clients/nekobox-uri.txt \
+    /var/www/love-admin/clients/singbox-uri.txt \
+    /var/www/love-admin/clients/clash-meta.yaml; do
+    [[ -s "$f" ]] && love_v13602_apply_flag_to_file "$f" 2>/dev/null || true
+  done
+  love_v13602_refresh_base64
+}
+
+love_v13602_fix_flags_all() {
+  echo "================ Love Flag Icon Fix v13.60.2 ================"
+  love_flag_show13602 || true
+  love_v13602_apply_flag_files
+  # Rebuild QR from the flag-correct all.txt so QR imports also show emoji icons.
+  love_v1354_qr_direct 2>/dev/null || love_v1354_qr_direct >/dev/null 2>&1 || true
+  # Copy corrected subscription files back to Web if Web exists.
+  if [[ -d /var/www/love-admin ]]; then
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/all.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/node-links.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all_base64.txt /var/www/love-admin/sub/all_base64.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/sub/all.txt 2>/dev/null || true
+    cp -a /opt/Love/subscribe/clients/. /var/www/love-admin/clients/ 2>/dev/null || true
+    cp -a /opt/Love/subscribe/qr/. /var/www/love-admin/qr/ 2>/dev/null || true
+  fi
+  echo "[OK] 已把 US/JP/DE 等字母标签统一改为 emoji 国旗图标。"
+  echo "[OK] Flag icons fixed in subscriptions / clients / Web copied files / QR source."
+}
+
+# Save and wrap subscription generator so every rebuild ends with real emoji flags.
+if declare -F love_v1360_generate_client_subs >/dev/null 2>&1 && ! declare -F love_original_v1360_generate_client_subs_before_flag13602 >/dev/null 2>&1; then
+  eval "$(declare -f love_v1360_generate_client_subs | sed '1s/^love_v1360_generate_client_subs/love_original_v1360_generate_client_subs_before_flag13602/')"
+fi
+
+love_v1360_generate_client_subs() {
+  love_original_v1360_generate_client_subs_before_flag13602 "$@" 2>/dev/null || true
+  love_v13602_apply_flag_files
+  love_v1354_qr_direct 2>/dev/null || true
+  echo "[OK] 国旗图标已应用 / Flag icons applied: $(love_v13602_flag_get) $(cat /opt/Love/node-country 2>/dev/null || echo US)"
+}
+
+love_v1360_web() {
+  love_v1360_generate_client_subs >/dev/null 2>&1 || true
+  web_admin_page
+  love_v13602_apply_flag_files
+}
+
+love_v13602_help() {
+  cat <<'EOF'
+Love v13.60.2 flag commands:
+  Love flag          国旗图标设置 / set emoji flag icon
+  Love flag-set      同上 / same as flag
+  Love flag-auto     自动识别国家并转成 emoji 国旗
+  Love flag-show     查看当前国旗
+  Love flag-fix      把订阅里的 US/JP/DE 等字母改成 🇺🇸/🇯🇵/🇩🇪 图标
+
+Main menu entries:
+  45) 国旗图标设置 / Flag icon
+  46) 自动识别国旗 / Auto flag
+  47) 修复国旗字母 / Fix flag letters
+EOF
+}
+
+# Final main override: keep all old commands, add flag commands, and open the color menu by default.
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_flag13602 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_before_flag13602/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.2-flag-icon-final}"
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      if declare -F love_color_menu13601 >/dev/null 2>&1; then
+        love_color_menu13601
+      else
+        love_original_main_before_flag13602 "$@"
+      fi ;;
+    flag|flag-set|set-flag)
+      love_flag_set13602 ;;
+    flag-auto|auto-flag)
+      love_flag_auto13602; love_v13602_fix_flags_all ;;
+    flag-show|show-flag)
+      love_flag_show13602 ;;
+    flag-fix|fix-flag|flag-icon-fix|country-fix)
+      love_v13602_fix_flags_all ;;
+    sub|subscribe|clients|client-export|source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|true-fix|cert-true-fix)
+      love_v1360_generate_client_subs ;;
+    web|web-fix|fix-web)
+      love_v1360_web ;;
+    help13602|flag-help|v13602-help)
+      love_v13602_help ;;
+    *)
+      love_original_main_before_flag13602 "$@" ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.60.3 Flag Icon Source-First Final
+# Purpose:
+#   - Generate real emoji flag remarks at the source/template layer.
+#   - Do NOT depend on post-generation scanning such as flag-fix for normal output.
+#   - Keep legacy flag-fix command only as a safe rebuild alias, not a file scanner.
+#   - Preserve all existing protocols, Green Web, QR, and legacy archive behavior.
+# ==============================================================================
+LOVE_SCRIPT_VERSION="Love v13.60.3-flag-icon-source-first-final"
+
+love_v13603_cc_to_emoji() {
+  local cc
+  cc="$(echo "${1:-US}" | tr '[:lower:]' '[:upper:]' | tr -dc 'A-Z' | head -c 2)"
+  [[ ${#cc} -eq 2 ]] || cc="US"
+  python3 - "$cc" <<'PYFLAG' 2>/dev/null || echo "🇺🇸"
+import sys
+cc=(sys.argv[1] or 'US').upper()[:2]
+if len(cc) != 2 or not cc.isalpha():
+    cc='US'
+print(''.join(chr(0x1F1E6 + ord(c) - ord('A')) for c in cc))
+PYFLAG
+}
+
+love_v13603_detect_country() {
+  local cc
+  cc="$(curl -fsS -4 --max-time 4 https://ipinfo.io/country 2>/dev/null | tr -dc 'A-Za-z' | head -c 2 || true)"
+  [[ -z "$cc" ]] && cc="$(curl -fsS -6 --max-time 4 https://ipinfo.io/country 2>/dev/null | tr -dc 'A-Za-z' | head -c 2 || true)"
+  [[ -z "$cc" ]] && cc="$(curl -fsS --max-time 4 https://ifconfig.co/country-iso 2>/dev/null | tr -dc 'A-Za-z' | head -c 2 || true)"
+  [[ -z "$cc" ]] && cc="US"
+  echo "$(echo "$cc" | tr '[:lower:]' '[:upper:]' | head -c 2)"
+}
+
+love_v13603_flag_get() {
+  mkdir -p /opt/Love
+  local cc raw flag
+  raw="$(cat /opt/Love/node-flag 2>/dev/null || true)"
+  cc="$(cat /opt/Love/node-country 2>/dev/null || true)"
+  cc="$(echo "${cc:-}" | tr '[:lower:]' '[:upper:]' | tr -dc 'A-Z' | head -c 2)"
+
+  if [[ "$raw" =~ ^[A-Za-z]{2}$ ]]; then
+    cc="$(echo "$raw" | tr '[:lower:]' '[:upper:]')"
+    flag="$(love_v13603_cc_to_emoji "$cc")"
+  elif [[ -n "$raw" && ! "$raw" =~ ^[A-Za-z]+$ ]]; then
+    flag="$raw"
+    [[ -n "$cc" ]] || cc="US"
+  else
+    [[ -n "$cc" ]] || cc="$(love_v13603_detect_country)"
+    flag="$(love_v13603_cc_to_emoji "$cc")"
+  fi
+
+  echo "$cc" > /opt/Love/node-country
+  echo "$flag" > /opt/Love/node-flag
+  printf '%s' "$flag"
+}
+
+love_v13603_clean_label() {
+  local x="$*"
+  # Remove existing emoji flag prefixes and common country-letter prefixes.
+  x="$(printf '%s' "$x" | python3 -c 'import sys,re,urllib.parse; s=sys.stdin.read().strip(); s=urllib.parse.unquote(s); s=re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}\s*", "", s); s=re.sub(r"^(US|USA|JP|SG|HK|TW|KR|DE|GB|UK|FR|NL|CA|AU|IN|BR|SE|CH|IT|ES|PL|FI|NO|RU|TR|AE|TH|VN|ID|MY|PH|CN)[\s_\-]+", "", s, flags=re.I); print(s.strip() or "LOVE")' 2>/dev/null || printf '%s' "$x")"
+  printf '%s' "${x:-LOVE}"
+}
+
+love_v13603_label() {
+  local flag name
+  flag="$(love_v13603_flag_get)"
+  name="$(love_v13603_clean_label "$*")"
+  printf '%s %s' "$flag" "$name"
+}
+
+# Source-level compatibility: every old source template that calls these now gets emoji flag icons directly.
+love_v1352_flag_emoji() { love_v13603_flag_get; }
+love_v1352_label() { love_v13603_label "$@"; }
+love_v1354_flag() { love_v13603_flag_get; }
+love_v1354_label() { love_v13603_label "$@"; }
+love_v13602_flag_get() { love_v13603_flag_get; }
+love_flag_show13602() { echo "当前国旗 / Current flag: $(love_v13603_flag_get) $(cat /opt/Love/node-country 2>/dev/null || echo US)"; }
+
+love_flag_set13602() {
+  mkdir -p /opt/Love
+  echo "================ Love Flag Icon Source-First / 国旗图标源头设置 ================"
+  love_flag_show13602 || true
+  echo
+  echo "输入两位国家代码会从源头生成 emoji 国旗，例如：US -> 🇺🇸, DE -> 🇩🇪, JP -> 🇯🇵"
+  read -rp "国家代码或国旗 emoji [US]: " input
+  input="${input:-US}"
+  local cc flag
+  if [[ "$input" =~ ^[A-Za-z]{2}$ ]]; then
+    cc="$(echo "$input" | tr '[:lower:]' '[:upper:]')"
+    flag="$(love_v13603_cc_to_emoji "$cc")"
+  else
+    cc="CUSTOM"
+    flag="$input"
+  fi
+  echo "$cc" > /opt/Love/node-country
+  echo "$flag" > /opt/Love/node-flag
+  echo "[OK] 已设置 / Set: $flag $cc"
+  echo "[INFO] 之后执行 Love sub / Love web，新订阅会从源头生成 $flag 图标标签，不靠后置扫描。"
+}
+
+love_flag_auto13602() {
+  mkdir -p /opt/Love
+  local cc flag
+  cc="$(love_v13603_detect_country)"
+  flag="$(love_v13603_cc_to_emoji "$cc")"
+  echo "$cc" > /opt/Love/node-country
+  echo "$flag" > /opt/Love/node-flag
+  echo "[OK] 自动识别国旗 / Auto flag: $flag $cc"
+}
+
+love_v13603_norm_file() {
+  local file="$1" mode node_sni flag
+  mode="$(love_v1354_cert_mode 2>/dev/null || echo self_signed)"
+  node_sni="$(love_v1355_node_sni 2>/dev/null || echo self.local)"
+  flag="$(love_v13603_flag_get)"
+  [[ -s "$file" ]] || return 0
+  python3 - "$file" "$mode" "$node_sni" "$flag" <<'PY13603NORM'
+from pathlib import Path
+import sys, urllib.parse, re, base64, json
+
+p = Path(sys.argv[1])
+global_mode = (sys.argv[2] or 'self_signed').lower()
+node_sni = sys.argv[3] or 'self.local'
+flag = sys.argv[4] or '🇺🇸'
+flag_re = re.compile(r'^[\U0001F1E6-\U0001F1FF]{2}\s*')
+letter_re = re.compile(r'^(?:US|USA|JP|SG|HK|TW|KR|DE|GB|UK|FR|NL|CA|AU|IN|BR|SE|CH|IT|ES|PL|FI|NO|RU|TR|AE|TH|VN|ID|MY|PH|CN)[\s_\-]+', re.I)
+
+schemes = ('vless://','tuic://','trojan://','hy2://','hysteria2://','anytls://','https://','ss://','vmess://')
+
+def clean_label(x: str) -> str:
+    x = urllib.parse.unquote(x or 'LOVE').strip()
+    x = flag_re.sub('', x).strip()
+    x = letter_re.sub('', x).strip()
+    return x or 'LOVE'
+
+def label(x: str) -> str:
+    return f'{flag} {clean_label(x)}'
+
+def b64decode_any(s: str) -> bytes:
+    pad = '=' * (-len(s) % 4)
+    return base64.urlsafe_b64decode((s + pad).encode())
+
+def b64encode_plain(b: bytes) -> str:
+    return base64.b64encode(b).decode().rstrip('=')
+
+def split_uri(line: str):
+    main, _, frag = line.partition('#')
+    if '?' in main:
+        base, _, query = main.partition('?')
+    else:
+        base, query = main, ''
+    return base, query, frag
+
+def parse_pairs(query: str):
+    return urllib.parse.parse_qsl(query, keep_blank_values=True) if query else []
+
+def get_first(pairs, *names):
+    names={n.lower() for n in names}
+    for k,v in pairs:
+        if k.lower() in names:
+            return v
+    return ''
+
+def remove_keys(pairs, *names):
+    names={n.lower() for n in names}
+    return [(k,v) for k,v in pairs if k.lower() not in names]
+
+def query_of(pairs):
+    return urllib.parse.urlencode(pairs, doseq=True, safe='')
+
+def looks_self_sni(sni: str) -> bool:
+    sni=(sni or '').strip().lower()
+    return (not sni) or sni in ('self.local','localhost','love.local') or sni.endswith('.local')
+
+def tls_self_mode(pairs):
+    sni=get_first(pairs,'sni','host','authority') or node_sni
+    return global_mode != 'public_ca' or looks_self_sni(sni)
+
+def fix_vmess(line: str) -> str:
+    main, _, frag = line.partition('#')
+    payload = main[len('vmess://'):]
+    try:
+        obj = json.loads(b64decode_any(payload).decode('utf-8', errors='ignore'))
+        obj['ps'] = label(str(obj.get('ps') or frag or 'LOVE-VMESS'))
+        enc = b64encode_plain(json.dumps(obj, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+        return 'vmess://' + enc + '#' + obj['ps']
+    except Exception:
+        return main + '#' + label(frag or 'LOVE-VMESS')
+
+out=[]
+for raw in p.read_text(encoding='utf-8', errors='ignore').splitlines():
+    line=raw.strip()
+    if not line or not line.startswith(schemes):
+        out.append(raw)
+        continue
+    low=line.lower()
+    if line.startswith('vmess://'):
+        out.append(fix_vmess(line)); continue
+
+    base, query, frag = split_uri(line)
+    pairs=parse_pairs(query)
+    is_reality=line.startswith('vless://') and 'security=reality' in low
+
+    # Remove duplicated switch params and write them from the current cert mode.
+    pairs=remove_keys(pairs, 'allowInsecure','allow_insecure','insecure','alpn','mode')
+    self_mode=tls_self_mode(pairs)
+
+    if is_reality:
+        if 'type=http' in low:
+            pairs += [('alpn','h2')]
+        elif 'type=grpc' in low:
+            pairs += [('mode','gun'), ('alpn','h2')]
+    elif line.startswith(('hy2://','hysteria2://')):
+        pairs += [('insecure','true' if self_mode else 'false')]
+    elif line.startswith('tuic://'):
+        if self_mode:
+            pairs += [('allow_insecure','true'), ('allowInsecure','true'), ('insecure','true'), ('alpn','h3')]
+        else:
+            pairs += [('alpn','h3')]
+    elif line.startswith('trojan://'):
+        if self_mode:
+            pairs += [('allowInsecure','true'), ('insecure','true'), ('allow_insecure','true')]
+    elif line.startswith('vless://') and 'security=tls' in low:
+        if self_mode:
+            pairs += [('allowInsecure','true'), ('insecure','true'), ('allow_insecure','true')]
+    elif line.startswith('anytls://'):
+        if self_mode:
+            pairs += [('insecure','true')]
+    elif line.startswith('https://'):
+        if self_mode:
+            pairs += [('sni', node_sni), ('insecure','true'), ('allowInsecure','true'), ('allow_insecure','true')]
+
+    q=query_of(pairs)
+    out.append(base + (('?' + q) if q else '') + '#' + label(frag or 'LOVE'))
+
+p.write_text('\n'.join(out) + ('\n' if out else ''), encoding='utf-8')
+PY13603NORM
+}
+
+# Override normalizers: source/export pipeline uses emoji flag at generation time.
+love_v1354_norm_file() { love_v13603_norm_file "$@"; }
+love_v1355_norm_file() { love_v13603_norm_file "$@"; }
+
+# Rebuild v2rayN from already source-labelled all.txt; no flag scanning.
+love_v13603_make_v2rayn_import() {
+  love_v1357_make_v2rayn_import "$@" 2>/dev/null || true
+  love_v13603_norm_file /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+}
+love_v1357_make_v2rayn_import_source_first() { love_v13603_make_v2rayn_import "$@"; }
+
+love_v1355_export_direct() {
+  love_v1354_export_direct
+  local SUBDIR="/opt/Love/subscribe"
+  local CLIENTDIR="${SUBDIR}/clients"
+  mkdir -p "$CLIENTDIR"
+  for f in "$SUBDIR/all.txt" "$SUBDIR/全部节点.txt" "$SUBDIR/推荐节点.txt" "$SUBDIR/节点清晰版.txt" "$CLIENTDIR/nekobox-uri.txt" "$CLIENTDIR/nodes-clean.txt"; do
+    love_v13603_norm_file "$f" 2>/dev/null || true
+  done
+  cp -f "$SUBDIR/all.txt" "$SUBDIR/全部节点.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$SUBDIR/推荐节点.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$SUBDIR/节点清晰版.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$CLIENTDIR/nekobox-uri.txt" 2>/dev/null || true
+  cp -f "$SUBDIR/all.txt" "$CLIENTDIR/nodes-clean.txt" 2>/dev/null || true
+  love_v1357_make_v2rayn_import 2>/dev/null || cp -f "$SUBDIR/all.txt" "$CLIENTDIR/v2rayn-uri.txt" 2>/dev/null || true
+  love_v13603_norm_file "$CLIENTDIR/v2rayn-uri.txt" 2>/dev/null || true
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0 "$SUBDIR/all.txt" > "$SUBDIR/all_base64.txt" 2>/dev/null || true
+  else
+    base64 "$SUBDIR/all.txt" | tr -d '\n' > "$SUBDIR/all_base64.txt" 2>/dev/null || true
+  fi
+  love_v1355_archive_legacy_links 2>/dev/null || true
+}
+
+love_v1360_generate_client_subs() {
+  love_v1360_header "Love Subscriptions v13.60.3 Source-First" 2>/dev/null || echo "================ Love Subscriptions v13.60.3 Source-First ================"
+  love_v1360_mkdirs 2>/dev/null || mkdir -p /opt/Love/subscribe/clients /opt/Love/reports
+  love_v1355_export_direct 2>/dev/null || love_v1354_export_direct 2>/dev/null || true
+  love_v1354_qr_direct 2>/dev/null || true
+  local sub="/opt/Love/subscribe" cli="/opt/Love/subscribe/clients"
+  mkdir -p "$cli"
+  [[ -s "$sub/all.txt" ]] && cp -f "$sub/all.txt" "$cli/nekobox-uri.txt" 2>/dev/null || true
+  [[ -s "$sub/all.txt" ]] && cp -f "$sub/all.txt" "$cli/v2rayng-uri.txt" 2>/dev/null || true
+  [[ -s "$sub/all.txt" ]] && cp -f "$sub/all.txt" "$cli/singbox-uri.txt" 2>/dev/null || true
+  [[ -s "$sub/all.txt" ]] && grep -Ei 'LOVE-H2-REALITY|LOVE-GRPC-REALITY|LOVE-ANYTLS|LOVE-NAIVE|SHADOWTLS' "$sub/all.txt" > "$cli/experimental.txt" 2>/dev/null || true
+  generate_mihomo_yaml >/dev/null 2>&1 || true
+  if [[ -s "$sub/mihomo.yaml" ]]; then
+    cp -f "$sub/mihomo.yaml" "$cli/clash-meta.yaml" 2>/dev/null || true
+    love_v13603_norm_file "$cli/clash-meta.yaml" 2>/dev/null || true
+  elif [[ -s "$sub/clash_like.yaml" ]]; then
+    cp -f "$sub/clash_like.yaml" "$cli/clash-meta.yaml" 2>/dev/null || true
+    love_v13603_norm_file "$cli/clash-meta.yaml" 2>/dev/null || true
+  fi
+  cat > "$cli/v2rayn-notes.txt" <<'EOF'
+Love v2rayN notes:
+1. LOVE-H2-REALITY 属于 VLESS + Reality + HTTP/H2。
+2. v2rayN 使用这条节点时：设置 -> Core 类型设置 -> VLESS -> sing_box。
+3. 如果 VLESS 仍用 Xray，新版 Xray 可能报 HTTP transport removed。
+4. 国旗图标从源头生成：节点名直接是 emoji 国旗 + LOVE 名称，不再依赖后置 flag-fix 扫描。
+EOF
+  echo "[OK] Source-first flag icon: $(love_v13603_flag_get) $(cat /opt/Love/node-country 2>/dev/null || echo US)"
+  echo "[OK] 已生成 / Generated:"
+  for f in "$sub/all.txt" "$sub/all_base64.txt" "$cli/v2rayn-uri.txt" "$cli/v2rayng-uri.txt" "$cli/nekobox-uri.txt" "$cli/singbox-uri.txt" "$cli/clash-meta.yaml" "$cli/experimental.txt" "$cli/v2rayn-notes.txt"; do
+    [[ -s "$f" ]] && echo "  $f"
+  done
+}
+
+love_v1360_web() {
+  love_v1360_generate_client_subs >/dev/null 2>&1 || true
+  web_admin_page
+}
+
+# In v13.60.3 flag-fix is not a normal post-processing scanner anymore.
+# It is kept only as a compatibility alias that regenerates subscriptions from the source template.
+love_v13602_fix_flags_all() {
+  echo "================ Love Flag Source-First v13.60.3 ================"
+  echo "[INFO] 正常流程不再扫描旧订阅改字母；现在直接从源头重新生成 emoji 国旗节点名。"
+  love_v1360_generate_client_subs
+  love_v1354_qr_direct 2>/dev/null || true
+  echo "[OK] 已从源头重建，不使用后置 flag-fix 扫描。"
+}
+
+love_v13603_check() {
+  echo "================ Love v13.60.3 Source-First Flag Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo "Current flag: $(love_v13603_flag_get) $(cat /opt/Love/node-country 2>/dev/null || echo US)"
+  echo
+  echo "[Source functions]"
+  declare -f love_v1352_label | grep -q 'love_v13603_label' && echo "[OK] love_v1352_label -> source emoji" || echo "[WARN] label source override missing"
+  declare -f love_v1354_norm_file | grep -q 'love_v13603_norm_file' && echo "[OK] normalizer uses source flag" || echo "[WARN] normalizer override missing"
+  echo
+  echo "[Subscription labels]"
+  if grep -nE '#[A-Z]{2,3}[ _-]+LOVE|#US[ _-]+LOVE' /opt/Love/subscribe/all.txt 2>/dev/null; then
+    echo "[WARN] 仍有字母标签。执行 Love sub 从源头重建。"
+  else
+    echo "[OK] 未发现 #US LOVE 这类字母标签。"
+  fi
+  grep -nE '#.*LOVE-' /opt/Love/subscribe/all.txt 2>/dev/null | head -20 || true
+}
+
+love_v13603_help() {
+  cat <<'EOF'
+Love v13.60.3 source-first flag commands:
+  Love flag          设置国旗图标源头 / set source emoji flag
+  Love flag-auto     自动识别并保存国旗图标源头
+  Love flag-show     查看当前国旗
+  Love sub           从源头生成带 emoji 国旗图标的订阅
+  Love web           从源头生成订阅后同步绿色 Web
+  Love v13603-check  检查是否还有 #US LOVE 这类字母标签
+
+Note:
+  v13.60.3 不把 flag-fix 当正常流程；flag-fix 仅作为兼容命令，实际执行源头重建。
+EOF
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_flag13603 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_before_flag13603/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.3-flag-icon-source-first-final}"
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      if declare -F love_color_menu13601 >/dev/null 2>&1; then
+        love_color_menu13601
+      else
+        love_original_main_before_flag13603 "$@"
+      fi ;;
+    flag|flag-set|set-flag)
+      love_flag_set13602 ;;
+    flag-auto|auto-flag)
+      love_flag_auto13602 ;;
+    flag-show|show-flag)
+      love_flag_show13602 ;;
+    flag-fix|fix-flag|flag-icon-fix|country-fix)
+      love_v13602_fix_flags_all ;;
+    sub|subscribe|clients|client-export|source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|true-fix|cert-true-fix)
+      love_v1360_generate_client_subs ;;
+    web|web-fix|fix-web)
+      love_v1360_web ;;
+    v13603-check|flag-source-check|source-flag-check)
+      love_v13603_check ;;
+    help13603|flag-help|v13603-help)
+      love_v13603_help ;;
+    *)
+      love_original_main_before_flag13603 "$@" ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.60.4 Manual TRUE Notice Source-Final
+# Purpose:
+#   - Do NOT change working server config.
+#   - Do NOT post-scan URI to change protocol logic.
+#   - Generate a source-time v2rayN manual TRUE reminder report after node export.
+#   - Keep Green Web / QR / legacy links unchanged.
+# ==============================================================================
+LOVE_SCRIPT_VERSION="Love v13.60.4-manual-true-notice-source-final"
+
+love_v13604_line_name() {
+  local line="$1" frag=""
+  frag="${line##*#}"
+  [[ "$frag" == "$line" ]] && frag="LOVE"
+  python3 - <<'PY13604NAME' "$frag" 2>/dev/null || printf '%s' "$frag"
+import sys, urllib.parse
+print(urllib.parse.unquote(sys.argv[1]))
+PY13604NAME
+}
+
+love_v13604_tls_manual_report() {
+  local sub="/opt/Love/subscribe"
+  local cli="/opt/Love/subscribe/clients"
+  local rep="${cli}/v2rayn-manual-true-note.txt"
+  local rep2="/opt/Love/reports/v2rayn-manual-true-note.txt"
+  local info="/opt/Love/client-info/v2rayn-manual-true-note.txt"
+  local all="${sub}/all.txt"
+  local country flag mode sni
+  mkdir -p "$cli" /opt/Love/reports /opt/Love/client-info
+  country="$(cat /opt/Love/node-country 2>/dev/null || echo US)"
+  flag="$(love_v13603_flag_get 2>/dev/null || echo '🇺🇸')"
+  mode="$(cat /opt/Love/cert-mode 2>/dev/null || cat /opt/Love/domain-cert-mode 2>/dev/null || echo unknown)"
+  sni="$(cat /opt/Love/node-sni 2>/dev/null || echo self.local)"
+
+  {
+    echo "Love v13.60.4 v2rayN Manual TRUE Notice / 手动 TRUE 提醒"
+    echo "==============================================================="
+    echo "Flag / 国旗: ${flag} ${country}"
+    echo "Cert mode / 证书模式: ${mode}"
+    echo "TLS SNI / 证书 SNI: ${sni}"
+    echo
+    echo "为什么有这个提醒 / Why this note exists:"
+    echo "- 脚本源头已经给自签/self.local TLS 节点写入 insecure=true / allowInsecure=true。"
+    echo "- 但 v2rayN 某些协议导入后，界面字段可能仍显示 False，尤其是 HY2 / TUIC / Trojan / VLESS-WS-TLS / AnyTLS / Naive。"
+    echo "- 这种情况不是服务端错，而是客户端导入解析没有把 TRUE 写进对应 UI 字段。"
+    echo
+    echo "手动规则 / Manual rule:"
+    echo "- 如果字段叫：跳过证书验证 / Allow insecure / Insecure / Skip certificate verification  → 设为 TRUE / ON。"
+    echo "- 如果字段叫：证书验证 / Verify certificate / Certificate verification              → 设为 FALSE / OFF。"
+    echo "- Reality / H2 Reality / gRPC Reality 不需要设置 insecure=true；H2 Reality 只需要 VLESS Core = sing_box。"
+    echo
+    echo "需要重点检查的节点 / Nodes to check in v2rayN:"
+  } > "$rep"
+
+  local found=0
+  if [[ -s "$all" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      case "$line" in
+        hy2://*|hysteria2://*)
+          if grep -qiE 'insecure=true|sni=self\.local|sni=love\.local|sni=localhost' <<<"$line"; then
+            found=1
+            printf '  [CHECK] %s\n' "$(love_v13604_line_name "$line")" >> "$rep"
+            printf '          v2rayN: HY2 跳过证书验证 / Insecure = TRUE\n' >> "$rep"
+          fi ;;
+        tuic://*)
+          if grep -qiE 'allow_insecure=true|allowInsecure=true|insecure=true|sni=self\.local|sni=love\.local|sni=localhost' <<<"$line"; then
+            found=1
+            printf '  [CHECK] %s\n' "$(love_v13604_line_name "$line")" >> "$rep"
+            printf '          v2rayN: TUIC Allow insecure / Insecure = TRUE\n' >> "$rep"
+          fi ;;
+        trojan://*)
+          if grep -qiE 'allowInsecure=true|allow_insecure=true|insecure=true|sni=self\.local|sni=love\.local|sni=localhost' <<<"$line"; then
+            found=1
+            printf '  [CHECK] %s\n' "$(love_v13604_line_name "$line")" >> "$rep"
+            printf '          v2rayN: Trojan Allow insecure / 跳过证书验证 = TRUE\n' >> "$rep"
+          fi ;;
+        vless://*)
+          if grep -qi 'security=tls' <<<"$line" && grep -qiE 'allowInsecure=true|allow_insecure=true|insecure=true|sni=self\.local|sni=love\.local|sni=localhost' <<<"$line"; then
+            found=1
+            printf '  [CHECK] %s\n' "$(love_v13604_line_name "$line")" >> "$rep"
+            printf '          v2rayN: VLESS WS TLS Allow insecure / 跳过证书验证 = TRUE\n' >> "$rep"
+          elif grep -qi 'security=reality' <<<"$line"; then
+            :
+          fi ;;
+        anytls://*)
+          if grep -qiE 'insecure=true|sni=self\.local|sni=love\.local|sni=localhost' <<<"$line"; then
+            found=1
+            printf '  [CHECK] %s\n' "$(love_v13604_line_name "$line")" >> "$rep"
+            printf '          v2rayN: AnyTLS Insecure = TRUE\n' >> "$rep"
+          fi ;;
+        https://*)
+          if grep -qiE 'allowInsecure=true|allow_insecure=true|insecure=true|sni=self\.local|sni=love\.local|sni=localhost' <<<"$line"; then
+            found=1
+            printf '  [CHECK] %s\n' "$(love_v13604_line_name "$line")" >> "$rep"
+            printf '          v2rayN: Naive Allow insecure / Insecure = TRUE\n' >> "$rep"
+          fi ;;
+      esac
+    done < "$all"
+  fi
+
+  if [[ "$found" != "1" ]]; then
+    {
+      echo "  [OK] 当前订阅没有检测到需要手动 TRUE 的 self.local / 自签 TLS 节点。"
+      echo "       如果你使用正式 CA 证书，通常不需要手动开启 insecure。"
+    } >> "$rep"
+  fi
+
+  {
+    echo
+    echo "不需要手动 TRUE 的节点 / No manual TRUE needed:"
+    echo "  - LOVE-REALITY: Reality TCP，不看证书 TRUE/FALSE。"
+    echo "  - LOVE-H2-REALITY: Reality H2，不看证书 TRUE/FALSE；v2rayN 需 VLESS Core = sing_box。"
+    echo "  - LOVE-GRPC-REALITY: Reality gRPC，不看证书 TRUE/FALSE。"
+    echo "  - LOVE-SS: Shadowsocks，不涉及 TLS 证书。"
+    echo "  - LOVE-VMESS-WS: 非 TLS WS 时不涉及证书。"
+    echo
+    echo "文件位置 / Files:"
+    echo "  ${rep}"
+    echo "  ${rep2}"
+    echo "  ${info}"
+  } >> "$rep"
+
+  cp -f "$rep" "$rep2" 2>/dev/null || true
+  cp -f "$rep" "$info" 2>/dev/null || true
+
+  if [[ -f "${cli}/v2rayn-notes.txt" ]] && ! grep -q 'v2rayn-manual-true-note.txt' "${cli}/v2rayn-notes.txt" 2>/dev/null; then
+    {
+      echo
+      echo "5. 如果自签/self.local 节点在 v2rayN 导入后证书字段仍为 False，请查看："
+      echo "   /opt/Love/subscribe/clients/v2rayn-manual-true-note.txt"
+    } >> "${cli}/v2rayn-notes.txt"
+  fi
+
+  echo
+  echo "================ v2rayN TRUE Manual Notice / 手动 TRUE 提醒 ================"
+  if [[ "$found" == "1" ]]; then
+    echo "[WARN] 检测到自签/self.local TLS 节点。若 v2rayN 导入后仍显示 False，请按提示手动切换。"
+  else
+    echo "[OK] 未检测到必须手动 TRUE 的自签 TLS 节点。"
+  fi
+  echo "[INFO] 查看详情：${rep}"
+  echo "=========================================================================="
+  echo
+}
+
+love_v13604_check() {
+  echo "================ Love v13.60.4 Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  love_v13603_check 2>/dev/null || true
+  love_v13604_tls_manual_report
+}
+
+love_v13604_help() {
+  cat <<'EOF13604HELP'
+Love v13.60.4 commands:
+  Love sub              从源头生成订阅 + 生成 v2rayN TRUE 手动提醒
+  Love web              同步绿色 Web，包含 clients/v2rayn-manual-true-note.txt
+  Love manual-true      查看/生成手动 TRUE 提醒
+  Love true-note        同上
+  Love v13604-check     检查国旗源头 + TRUE 提醒
+
+说明：
+  这版不靠后置扫描改链接，不改已通节点。
+  它只在源头导出后生成提醒文件，告诉你哪些 TLS 自签节点在 v2rayN 里可能需要手动切 TRUE。
+EOF13604HELP
+}
+
+if declare -F love_v1360_generate_client_subs >/dev/null 2>&1 && ! declare -F love_v1360_generate_client_subs_before_v13604 >/dev/null 2>&1; then
+  eval "$(declare -f love_v1360_generate_client_subs | sed '1s/^love_v1360_generate_client_subs/love_v1360_generate_client_subs_before_v13604/')"
+fi
+
+love_v1360_generate_client_subs() {
+  love_v1360_generate_client_subs_before_v13604 "$@"
+  love_v13604_tls_manual_report
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13604 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_before_v13604/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.4-manual-true-notice-source-final}"
+  case "${1:-}" in
+    manual-true|true-note|v2rayn-true|cert-true-note|true-help)
+      love_v13604_tls_manual_report ;;
+    v13604-check|true-check|manual-check)
+      love_v13604_check ;;
+    help13604|v13604-help)
+      love_v13604_help ;;
+    *)
+      love_original_main_before_v13604 "$@" ;;
+  esac
+}
+
+# ==============================================================================
+# Love v13.60.6 Cert Mode Strict + Xray Source-Aware Final
+# Purpose:
+#   - Restore classic aligned two-column menu with one unified color style.
+#   - Add Xray Extended mode without replacing/removing Xray Stable mode.
+#   - Xray Extended supports domain/no-domain/custom cert source choices.
+#   - Do not change Green Web / QR / sing-box working nodes / legacy archive logic.
+# ==============================================================================
+LOVE_SCRIPT_VERSION="Love v13.60.6-cert-mode-strict-xray-source-final"
+
+love_c13605() {
+  case "${1:-}" in
+    reset) printf '\033[0m' ;;
+    bold) printf '\033[1m' ;;
+    dim) printf '\033[2m' ;;
+    blue) printf '\033[0;34m' ;;
+    cyan) printf '\033[0;36m' ;;
+    green) printf '\033[0;32m' ;;
+    yellow) printf '\033[1;33m' ;;
+    red) printf '\033[0;31m' ;;
+    *) printf '' ;;
+  esac
+}
+
+love_pause13605() {
+  echo
+  read -rp "按 Enter 返回主菜单 / Press Enter to return..." _ || true
+}
+
+love_call13605() {
+  local fn="$1"; shift || true
+  if declare -F "$fn" >/dev/null 2>&1; then
+    "$fn" "$@"
+  else
+    echo "[WARN] 功能入口不存在 / Function not found: $fn"
+  fi
+}
+
+love_menu_header13605() {
+  clear 2>/dev/null || true
+  local c r line
+  c="$(love_c13605 cyan)"; r="$(love_c13605 reset)"
+  line="================================================================================"
+  printf "%b%s%b\n" "$c" "$line" "$r"
+  printf "%b  Love Node Server Manager  %s%b\n" "$(love_c13605 bold)$(love_c13605 cyan)" "${LOVE_SCRIPT_VERSION}" "$r"
+  printf "%b  Classic Bilingual Menu / 经典中英双列菜单%b\n" "$c" "$r"
+  printf "%b%s%b\n" "$c" "$line" "$r"
+}
+
+love_menu_row13605() {
+  local left="$1" right="${2:-}"
+  printf "%b│ %-38s │ %-38s │%b\n" "$(love_c13605 cyan)" "$left" "$right" "$(love_c13605 reset)"
+}
+
+love_menu_section13605() {
+  local title="$1"
+  printf "%b├─ %-74s ┤%b\n" "$(love_c13605 cyan)" "$title" "$(love_c13605 reset)"
+}
+
+love_v13605_xray_b64() {
+  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+    base64 -w0
+  else
+    base64 | tr -d '\n'
+  fi
+}
+
+love_v13605_xray_port_free_warn() {
+  local p
+  for p in "$@"; do
+    if ss -tuln 2>/dev/null | awk '{print $5}' | grep -Eq "[:.]${p}$"; then
+      warn "端口 ${p} 似乎已被占用；继续可能导致 Xray 启动失败。"
+    fi
+  done
+}
+
+love_v13605_open_firewall() {
+  local p proto
+  command -v ufw >/dev/null 2>&1 || return 0
+  enable_ufw_ipv6 2>/dev/null || true
+  for item in "$@"; do
+    p="${item%/*}"; proto="${item#*/}"
+    ufw allow "${p}/${proto}" >/dev/null 2>&1 || true
+  done
+  ufw --force enable >/dev/null 2>&1 || true
+}
+
+love_v13605_write_xray_extended_config() {
+  local reality_sni="$1" tls_sni="$2" cert_dir="$3" base_port="$4" enable_hy2="$5"
+  local p="$base_port"
+  XR_EXT_REALITY_PORT="$p"; p=$((p+1))
+  XR_EXT_TROJAN_PORT="$p"; p=$((p+1))
+  XR_EXT_VMESS_WS_PORT="$p"; p=$((p+1))
+  XR_EXT_VLESS_WS_TLS_PORT="$p"; p=$((p+1))
+  XR_EXT_SS_PORT="$p"; p=$((p+1))
+  XR_EXT_HY2_PORT="$p"
+
+  XR_EXT_TROJAN_PASS="$(openssl rand -hex 16)"
+  XR_EXT_SS_PASS="$(openssl rand -base64 16 | tr -d '=+/ ' | cut -c1-16)"
+  [[ -n "${HY2_AUTH:-}" ]] || HY2_AUTH="$(openssl rand -hex 24)"
+
+  local inbound_file="/tmp/love-xray-extended-inbounds.jsonl"
+  : > "$inbound_file"
+
+  cat >> "$inbound_file" <<EOF_XRREALITY
+{"tag":"xray-vless-reality-in","listen":"::","port":${XR_EXT_REALITY_PORT},"protocol":"vless","settings":{"clients":[{"id":"${XR_UUID}","flow":"xtls-rprx-vision","email":"xray-reality"}],"decryption":"none"},"streamSettings":{"network":"tcp","security":"reality","realitySettings":{"show":false,"target":"${reality_sni}:443","serverNames":["${reality_sni}"],"privateKey":"${XR_PRIVATE}","shortIds":["${XR_SHORT_ID}"]}},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"],"routeOnly":true}}
+EOF_XRREALITY
+
+  cat >> "$inbound_file" <<EOF_XRTROJAN
+{"tag":"xray-trojan-tls-in","listen":"::","port":${XR_EXT_TROJAN_PORT},"protocol":"trojan","settings":{"clients":[{"password":"${XR_EXT_TROJAN_PASS}","email":"xray-trojan"}]},"streamSettings":{"network":"tcp","security":"tls","tlsSettings":{"serverName":"${tls_sni}","alpn":["http/1.1"],"certificates":[{"certificateFile":"${cert_dir}/cert.pem","keyFile":"${cert_dir}/key.pem"}]}}}
+EOF_XRTROJAN
+
+  cat >> "$inbound_file" <<EOF_XRVMESS
+{"tag":"xray-vmess-ws-in","listen":"::","port":${XR_EXT_VMESS_WS_PORT},"protocol":"vmess","settings":{"clients":[{"id":"${XR_UUID}","alterId":0,"email":"xray-vmess-ws"}]},"streamSettings":{"network":"ws","security":"none","wsSettings":{"path":"/vmess"}}}
+EOF_XRVMESS
+
+  cat >> "$inbound_file" <<EOF_XRVLESSWS
+{"tag":"xray-vless-ws-tls-in","listen":"::","port":${XR_EXT_VLESS_WS_TLS_PORT},"protocol":"vless","settings":{"clients":[{"id":"${XR_UUID}","email":"xray-vless-ws-tls"}],"decryption":"none"},"streamSettings":{"network":"ws","security":"tls","tlsSettings":{"serverName":"${tls_sni}","alpn":["http/1.1"],"certificates":[{"certificateFile":"${cert_dir}/cert.pem","keyFile":"${cert_dir}/key.pem"}]},"wsSettings":{"path":"/vless"}}}
+EOF_XRVLESSWS
+
+  cat >> "$inbound_file" <<EOF_XRSS
+{"tag":"xray-ss-in","listen":"::","port":${XR_EXT_SS_PORT},"protocol":"shadowsocks","settings":{"method":"aes-128-gcm","password":"${XR_EXT_SS_PASS}","network":"tcp,udp"}}
+EOF_XRSS
+
+  if [[ "$enable_hy2" == "yes" ]]; then
+    cat >> "$inbound_file" <<EOF_XRHY2
+{"tag":"xray-hy2-in","listen":"::","port":${XR_EXT_HY2_PORT},"protocol":"hysteria","settings":{"version":2,"users":[{"auth":"${HY2_AUTH}","level":0,"email":"xray-hy2"}]},"streamSettings":{"network":"hysteria","security":"tls","tlsSettings":{"serverName":"${tls_sni}","alpn":["h3"],"certificates":[{"certificateFile":"${cert_dir}/cert.pem","keyFile":"${cert_dir}/key.pem"}]},"hysteriaSettings":{"version":2,"udpIdleTimeout":60,"masquerade":{"type":"string","content":"<html><body><h1>Welcome</h1></body></html>","headers":{"content-type":"text/html"},"statusCode":200}}}}
+EOF_XRHY2
+  fi
+
+  local inbounds_json
+  inbounds_json="$(jq -s '.' "$inbound_file")"
+  cp "${XRAY_CONF}" "${XRAY_CONF}.bak.extended.$(date +%F-%H%M%S)" 2>/dev/null || true
+
+  jq -n --argjson inbounds "$inbounds_json" '{
+    log:{loglevel:"warning"},
+    routing:{domainStrategy:"IPIfNonMatch", rules:[
+      {type:"field", ip:["geoip:private"], outboundTag:"blocked"},
+      {type:"field", port:"25,465,587", outboundTag:"blocked"},
+      {type:"field", protocol:["bittorrent"], outboundTag:"blocked"}
+    ]},
+    inbounds:$inbounds,
+    outbounds:[
+      {tag:"direct", protocol:"freedom"},
+      {tag:"blocked", protocol:"blackhole", settings:{response:{type:"none"}}}
+    ]
+  }' > "${XRAY_CONF}"
+
+  jq empty "${XRAY_CONF}"
+  chown root:xray "${XRAY_CONF}" 2>/dev/null || true
+  chmod 640 "${XRAY_CONF}" 2>/dev/null || true
+}
+
+love_v13605_save_xray_extended_info() {
+  local client_addr="$1" base_client_port="$2" reality_sni="$3" tls_sni="$4" insecure="$5" enable_hy2="$6"
+  local h; h="$(uri_host "$client_addr")"
+  local rp tp vmp vlp ssp hp
+  rp=$((base_client_port + XR_EXT_REALITY_PORT - XR_EXT_BASE_PORT))
+  tp=$((base_client_port + XR_EXT_TROJAN_PORT - XR_EXT_BASE_PORT))
+  vmp=$((base_client_port + XR_EXT_VMESS_WS_PORT - XR_EXT_BASE_PORT))
+  vlp=$((base_client_port + XR_EXT_VLESS_WS_TLS_PORT - XR_EXT_BASE_PORT))
+  ssp=$((base_client_port + XR_EXT_SS_PORT - XR_EXT_BASE_PORT))
+  hp=$((base_client_port + XR_EXT_HY2_PORT - XR_EXT_BASE_PORT))
+
+  local tls_extra=""
+  if [[ "$insecure" == "true" || "$insecure" == "1" ]]; then
+    tls_extra="allowInsecure=true&insecure=true&allow_insecure=true"
+  fi
+
+  local vmess_json vmess_b64 ss_b64
+  vmess_json="$(jq -nc --arg ps "$(love_v1352_label LOVE-XRAY-VMESS-WS)" --arg add "${client_addr}" --arg port "${vmp}" --arg id "${XR_UUID}" '{v:"2",ps:$ps,add:$add,port:$port,id:$id,aid:"0",scy:"auto",net:"ws",type:"none",host:"",path:"/vmess",tls:"",sni:""}')"
+  vmess_b64="$(printf '%s' "$vmess_json" | love_v13605_xray_b64)"
+  ss_b64="$(printf 'aes-128-gcm:%s' "${XR_EXT_SS_PASS}" | love_v13605_xray_b64)"
+
+  cat > "${XRAY_INFO}" <<EOF_XRINFO
+Love Xray Extended Client Info
+
+Server Mode:
+Xray Extended / Xray 补全模式
+
+Client Address:
+${client_addr}
+
+Base Port:
+${base_client_port}
+
+Reality SNI:
+${reality_sni}
+
+TLS SNI:
+${tls_sni}
+
+TLS Insecure Required:
+${insecure}
+
+VLESS Reality TCP Vision:
+vless://${XR_UUID}@${h}:${rp}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${reality_sni}&fp=chrome&pbk=${XR_PUBLIC}&sid=${XR_SHORT_ID}&type=tcp#$(love_v1352_label LOVE-XRAY-REALITY)
+
+Trojan TLS:
+trojan://${XR_EXT_TROJAN_PASS}@${h}:${tp}?security=tls&sni=${tls_sni}$([[ -n "$tls_extra" ]] && printf '&%s' "$tls_extra")#$(love_v1352_label LOVE-XRAY-TROJAN)
+
+VMess WS:
+vmess://${vmess_b64}#$(love_v1352_label LOVE-XRAY-VMESS-WS)
+
+VLESS WS TLS:
+vless://${XR_UUID}@${h}:${vlp}?encryption=none&security=tls&sni=${tls_sni}&type=ws&path=%2Fvless$([[ -n "$tls_extra" ]] && printf '&%s' "$tls_extra")#$(love_v1352_label LOVE-XRAY-VLESS-WS-TLS)
+
+Shadowsocks:
+ss://${ss_b64}@${h}:${ssp}#$(love_v1352_label LOVE-XRAY-SS)
+EOF_XRINFO
+
+  if [[ "$enable_hy2" == "yes" ]]; then
+    cat >> "${XRAY_INFO}" <<EOF_XRHY2INFO
+
+HY2 / Hysteria2:
+hy2://${HY2_AUTH}@${h}:${hp}/?sni=${tls_sni}&insecure=${insecure}#$(love_v1352_label LOVE-XRAY-HY2)
+hysteria2://${HY2_AUTH}@${h}:${hp}/?sni=${tls_sni}&insecure=${insecure}#$(love_v1352_label LOVE-XRAY-HY2)
+EOF_XRHY2INFO
+  fi
+
+  cat >> "${XRAY_INFO}" <<EOF_XRNOTE
+
+Manual notes:
+1. Reality does not use certificate TRUE/FALSE.
+2. TLS/self.local nodes may need manual TRUE in v2rayN if import does not apply insecure.
+3. Xray Extended is separate from Xray Stable; choosing it rewrites Xray config after backup.
+EOF_XRNOTE
+
+  chmod 600 "${XRAY_INFO}" 2>/dev/null || true
+  cat "${XRAY_INFO}"
+}
+
+
+# v13.60.6: strict certificate trust detection for imported certs.
+# Return value text is intentionally only "true" or "false" for command substitution:
+#   true  = client links must include insecure/allowInsecure parameters
+#   false = client links should verify certificate normally
+love_v13606_domain_match_name() {
+  local domain="$1" name="$2" suffix left
+  name="${name#DNS:}"
+  name="${name//[[:space:]]/}"
+  [[ -n "$domain" && -n "$name" ]] || return 1
+  if [[ "$name" == "$domain" ]]; then
+    return 0
+  fi
+  if [[ "$name" == \*.* ]]; then
+    suffix="${name#*.}"
+    if [[ "$domain" == *."$suffix" ]]; then
+      left="${domain%.$suffix}"
+      [[ "$left" != *.* && -n "$left" ]] && return 0
+    fi
+  fi
+  return 1
+}
+
+love_v13606_cert_insecure_for_domain() {
+  local domain="$1" cert="$2" subj issuer san dns cn matched="no"
+
+  if ! command -v openssl >/dev/null 2>&1; then
+    echo "true"
+    return 0
+  fi
+  if [[ ! -s "$cert" ]]; then
+    echo "true"
+    return 0
+  fi
+  if ! openssl x509 -in "$cert" -noout >/dev/null 2>&1; then
+    echo "true"
+    return 0
+  fi
+  if ! openssl x509 -in "$cert" -checkend 0 -noout >/dev/null 2>&1; then
+    echo "true"
+    return 0
+  fi
+
+  subj="$(openssl x509 -in "$cert" -noout -subject -nameopt RFC2253 2>/dev/null | sed 's/^subject=//')"
+  issuer="$(openssl x509 -in "$cert" -noout -issuer -nameopt RFC2253 2>/dev/null | sed 's/^issuer=//')"
+  if [[ -n "$subj" && -n "$issuer" && "$subj" == "$issuer" ]]; then
+    echo "true"
+    return 0
+  fi
+
+  san="$(openssl x509 -in "$cert" -noout -ext subjectAltName 2>/dev/null || true)"
+  if echo "$san" | grep -q 'DNS:'; then
+    while IFS= read -r dns; do
+      if love_v13606_domain_match_name "$domain" "$dns"; then
+        matched="yes"
+        break
+      fi
+    done < <(echo "$san" | grep -oE 'DNS:[^,[:space:]]+')
+  else
+    cn="$(openssl x509 -in "$cert" -noout -subject -nameopt RFC2253 2>/dev/null | sed -n 's/.*CN=\([^,]*\).*/\1/p' | head -n1)"
+    if love_v13606_domain_match_name "$domain" "$cn"; then
+      matched="yes"
+    fi
+  fi
+
+  if [[ "$matched" == "yes" ]]; then
+    echo "false"
+  else
+    echo "true"
+  fi
+}
+
+love_v13606_cert_mode_explain() {
+  local insecure="$1"
+  if [[ "$insecure" == "true" || "$insecure" == "1" ]]; then
+    echo "不可信/自签/过期/域名不匹配：TLS 类节点输出 insecure=true，需要时在 v2rayN 手动开 Allow Insecure。"
+  else
+    echo "正式可信 CA：TLS 类节点不输出 insecure，客户端正常验证证书。"
+  fi
+}
+
+install_xray_extended() {
+  echo
+  echo "================ Love Xray Extended / Xray 补全模式 ================"
+  warn "该模式会备份并重写 Xray 配置；不会改 sing-box、绿色 Web、二维码。"
+  echo
+  echo "Xray Extended 将生成："
+  echo "  1) VLESS Reality TCP Vision"
+  echo "  2) Trojan TLS"
+  echo "  3) VMess WS"
+  echo "  4) VLESS WS TLS"
+  echo "  5) Shadowsocks"
+  echo "  6) HY2 / Hysteria2 可选"
+  echo
+
+  local cert_choice domain email tls_sni reality_sni node_addr cert_dir enable_hy2 insecure base_port existing_cert existing_key
+  cert_dir="${XRAY_CONF_DIR}"
+  insecure="true"
+
+  cat <<'EOF_CERTMENU'
+证书/域名模式：
+  1) 无域名 + self.local + 自签证书【IP/IPv6 直连，自动 insecure=true】
+  2) 有域名 + Let's Encrypt 正式 CA【HTTP-01 / 80端口，自动 insecure=false】
+  3) 有域名 + 自签/自管证书【自动 insecure=true】
+  4) 有域名 + 导入已有 cert.pem/key.pem【自动检测可信/不可信】
+  5) 有域名 + 导入已有正式 CA 证书【强制 insecure=false】
+  6) 有域名 + 导入已有自签/过期/不匹配证书【强制 insecure=true】
+EOF_CERTMENU
+  read -rp "请选择 [1]: " cert_choice
+  cert_choice="${cert_choice:-1}"
+
+  case "$cert_choice" in
+    2)
+      read -rp "节点域名 / Domain: " domain
+      [[ -n "$domain" ]] || die "域名不能为空。"
+      read -rp "Let's Encrypt 邮箱 / Email: " email
+      [[ -n "$email" ]] || die "邮箱不能为空。"
+      node_addr="$domain"; tls_sni="$domain"; insecure="false" ;;
+    3)
+      read -rp "节点域名 / Domain SNI: " domain
+      [[ -n "$domain" ]] || die "域名不能为空。"
+      node_addr="$domain"; tls_sni="$domain"; insecure="true" ;;
+    4)
+      read -rp "节点域名 / Domain SNI: " domain
+      [[ -n "$domain" ]] || die "域名不能为空。"
+      read -rp "fullchain/cert.pem 路径: " existing_cert
+      read -rp "privkey/key.pem 路径: " existing_key
+      [[ -s "$existing_cert" && -s "$existing_key" ]] || die "证书文件不存在。"
+      node_addr="$domain"; tls_sni="$domain"
+      insecure="$(love_v13606_cert_insecure_for_domain "$domain" "$existing_cert")"
+      info "已有证书自动检测结果：$(love_v13606_cert_mode_explain "$insecure")" ;;
+    5)
+      read -rp "节点域名 / Domain SNI: " domain
+      [[ -n "$domain" ]] || die "域名不能为空。"
+      read -rp "fullchain/cert.pem 路径: " existing_cert
+      read -rp "privkey/key.pem 路径: " existing_key
+      [[ -s "$existing_cert" && -s "$existing_key" ]] || die "证书文件不存在。"
+      node_addr="$domain"; tls_sni="$domain"; insecure="false"
+      info "已按正式 CA 证书处理：TLS 类节点不加 insecure。" ;;
+    6)
+      read -rp "节点域名 / Domain SNI: " domain
+      [[ -n "$domain" ]] || die "域名不能为空。"
+      read -rp "fullchain/cert.pem 路径: " existing_cert
+      read -rp "privkey/key.pem 路径: " existing_key
+      [[ -s "$existing_cert" && -s "$existing_key" ]] || die "证书文件不存在。"
+      node_addr="$domain"; tls_sni="$domain"; insecure="true"
+      info "已按自签/不可信证书处理：TLS 类节点加 insecure=true。" ;;
+    *)
+      read_node_addr_with_default node_addr
+      read -rp "TLS 自签 SNI [self.local]: " tls_sni
+      tls_sni="${tls_sni:-self.local}"
+      insecure="true" ;;
+  esac
+
+  read -rp "Reality SNI [www.cloudflare.com]: " reality_sni
+  reality_sni="${reality_sni:-www.cloudflare.com}"
+  read -rp "Xray Extended 起始端口 [9441]: " base_port
+  base_port="${base_port:-9441}"
+  [[ "$base_port" =~ ^[0-9]+$ ]] || die "起始端口必须是数字。"
+  [[ "$base_port" -ge 1 && "$base_port" -le 65530 ]] || die "起始端口范围不正确。"
+  XR_EXT_BASE_PORT="$base_port"
+
+  read -rp "是否启用 Xray HY2？[Y/n]: " hy2_choice
+  hy2_choice="${hy2_choice:-Y}"
+  [[ "$hy2_choice" =~ ^[Yy]$ ]] && enable_hy2="yes" || enable_hy2="no"
+
+  ask_preferred_endpoint "${node_addr}" "${base_port}"
+  ask_ssh_port
+
+  install_base
+  setup_ufw no no no no
+  love_v13605_open_firewall "${base_port}/tcp" "$((base_port+1))/tcp" "$((base_port+2))/tcp" "$((base_port+3))/tcp" "$((base_port+4))/tcp" "$((base_port+4))/udp"
+  [[ "$enable_hy2" == "yes" ]] && love_v13605_open_firewall "$((base_port+5))/udp"
+  love_v13605_xray_port_free_warn "$base_port" "$((base_port+1))" "$((base_port+2))" "$((base_port+3))" "$((base_port+4))" "$((base_port+5))"
+
+  install_xray_core
+  gen_xray_keys
+  test_reality_sni "$reality_sni"
+
+  mkdir -p "$cert_dir"
+  case "$cert_choice" in
+    2)
+      issue_cert_generic "$domain" "$email" "$cert_dir" "xray"
+      mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+      cat > /etc/letsencrypt/renewal-hooks/deploy/love-xray-extended-copy-cert.sh <<EOF_HOOK
+#!/usr/bin/env bash
+set -e
+DOMAIN="${domain}"
+if echo " \$RENEWED_DOMAINS " | grep -q " \$DOMAIN "; then
+  install -m 640 -o root -g xray "/etc/letsencrypt/live/\$DOMAIN/fullchain.pem" "${cert_dir}/cert.pem"
+  install -m 640 -o root -g xray "/etc/letsencrypt/live/\$DOMAIN/privkey.pem" "${cert_dir}/key.pem"
+  systemctl restart xray || true
+fi
+EOF_HOOK
+      chmod +x /etc/letsencrypt/renewal-hooks/deploy/love-xray-extended-copy-cert.sh ;;
+    4|5|6)
+      install -m 640 -o root -g xray "$existing_cert" "${cert_dir}/cert.pem"
+      install -m 640 -o root -g xray "$existing_key" "${cert_dir}/key.pem" ;;
+    *)
+      make_selfsigned_generic "$tls_sni" "$cert_dir" "xray" ;;
+  esac
+
+  love_v13605_write_xray_extended_config "$reality_sni" "$tls_sni" "$cert_dir" "$base_port" "$enable_hy2"
+  write_xray_service
+  "${XRAY_BIN}" run -test -config "${XRAY_CONF}"
+  systemctl enable xray
+  systemctl restart xray
+  sleep 2
+  systemctl status xray --no-pager || true
+  ss -lntup | grep -E ":(${base_port}|$((base_port+1))|$((base_port+2))|$((base_port+3))|$((base_port+4)))" || true
+  [[ "$enable_hy2" == "yes" ]] && ss -lunp | grep ":$((base_port+5))" || true
+
+  love_v13605_save_xray_extended_info "${CLIENT_ADDR}" "${CLIENT_PORT}" "$reality_sni" "$tls_sni" "$insecure" "$enable_hy2"
+  love_after_node_generated_exports 2>/dev/null || love_v1360_generate_client_subs 2>/dev/null || true
+  log "Xray Extended / Xray 补全模式安装完成。"
+}
+
+love_v13605_classic_menu() {
+  while true; do
+    love_menu_header13605
+    love_menu_section13605 "核心安装 / Core Install"
+    love_menu_row13605 "1) 节点目录 / Node catalog" "26) Xray 补全模式 / Xray Extended"
+    love_menu_row13605 "2) Xray 稳定模式 / Xray Stable" "27) VPS 环境识别 / VPS env"
+    love_menu_row13605 "3) sing-box 全协议 / All protocols" "28) BBR/MTU 优化 / Optimize"
+    love_menu_row13605 "4) Argo 隧道 / Cloudflared" "29) 一键测速诊断 / Speed"
+    love_menu_row13605 "5) UDP 跳跃 / Port hopping" "30) 重建订阅 / Rebuild sub"
+    love_menu_row13605 "6) WARP 出站 / Outbound help" "31) 客户端订阅 / Client sub"
+
+    love_menu_section13605 "导出与客户端 / Export & Clients"
+    love_menu_row13605 "7) 节点信息 / Node info" "32) Clash Meta / Mihomo"
+    love_menu_row13605 "8) 订阅生成 / Build sub" "33) 证书检查 / Cert check"
+    love_menu_row13605 "9) 二维码 / QR codes" "34) HTTP-01 证书 / LE cert"
+    love_menu_row13605 "10) Super Tools / 修复工具" "35) 证书切换 / Cert switch"
+    love_menu_row13605 "11) 绿色 Web / Green Web" "36) CF Token / CF config"
+    love_menu_row13605 "12) 在线更新 / Update" "37) CF DNS 自动解析 / DNS upsert"
+    love_menu_row13605 "13) 客户端导出 / Client export" "38) CF DNS-01 证书 / DNS cert"
+
+    love_menu_section13605 "旧版工具保留 / Legacy Tools Kept"
+    love_menu_row13605 "14) v6 Project Tools" "39) H2 Reality v2rayN help"
+    love_menu_row13605 "15) v7 Stable Tools" "40) 查看旧链接 / Show legacy"
+    love_menu_row13605 "16) v8 Project Panel" "41) 备份旧链接 / Backup legacy"
+    love_menu_row13605 "17) Nginx Reverse Proxy" "42) 清空旧链接 / Clean legacy"
+    love_menu_row13605 "18) HY2/sing-box 修复 / Fix" "43) 帮助 / Help"
+    love_menu_row13605 "19) IPv6-only 出站修复" "44) v13.60 检查 / Final check"
+    love_menu_row13605 "20) WARP Manager / FS-style" "45) 端口/防火墙 / Ports"
+    love_menu_row13605 "21) 运行状态 / Runtime status" "46) 国旗图标设置 / Flag icon"
+    love_menu_row13605 "22) 备份配置 / Backup" "47) 自动识别国旗 / Auto flag"
+    love_menu_row13605 "23) 卸载菜单 / Uninstall" "48) TRUE 手动提醒 / TRUE note"
+    love_menu_row13605 "24) GitHub 发布说明" "49) Xray 补全检查 / Xray ext check"
+    love_menu_row13605 "25) 安装 FS warp 命令" "0) 退出 / Exit"
+
+    echo
+    printf "%b提示:%b 绿色 Web / QR / 已通 sing-box 节点不动；Xray Stable 和 Xray Extended 分开。\n" "$(love_c13605 yellow)" "$(love_c13605 reset)"
+    printf "%bH2 Reality:%b v2rayN 里 VLESS Core 需要 sing_box。\n" "$(love_c13605 yellow)" "$(love_c13605 reset)"
+    echo
+    read -rp "请选择 / Select: " choice
+    case "${choice}" in
+      1) love_call13605 show_all_node_catalog ;;
+      2) love_call13605 install_xray_stable ;;
+      3) love_call13605 install_singbox_native ;;
+      4) love_call13605 argo_helper ;;
+      5) love_call13605 port_hopping_helper ;;
+      6) love_call13605 warp_helper ;;
+      7) love_call13605 show_node_info ;;
+      8) love_v1360_generate_client_subs ;;
+      9) love_call13605 generate_qrcodes ;;
+      10) love_call13605 super_menu ;;
+      11) love_v1360_web ;;
+      12) love_call13605 self_update_love ;;
+      13) love_v1360_generate_client_subs; love_call13605 love_full_client_pack ;;
+      14) love_call13605 v6_super_menu ;;
+      15) love_call13605 v7_stable_menu ;;
+      16) love_call13605 v8_menu ;;
+      17) love_call13605 nginx_rp_menu ;;
+      18) love_call13605 love_fix_hy2_now ;;
+      19) love_call13605 love_ipv6_outbound_menu ;;
+      20) love_call13605 love_warp_manager_menu ;;
+      21) love_call13605 show_status ;;
+      22) love_call13605 backup_configs ;;
+      23) love_call13605 uninstall_menu_v7 ;;
+      24) love_call13605 github_publish_note ;;
+      25) love_call13605 love_install_fs_warp_command ;;
+      26) install_xray_extended ;;
+      27) love_call13605 love_v1360_env_detect ;;
+      28) love_call13605 love_v1360_optimize ;;
+      29) love_call13605 love_v1360_speed ;;
+      30) love_v1360_generate_client_subs ;;
+      31) love_v1360_generate_client_subs ;;
+      32) love_v1360_generate_client_subs; generate_mihomo_yaml 2>/dev/null || true ;;
+      33) love_call13605 love_v1360_cert_check ;;
+      34) love_call13605 love_v1360_cert_http01 ;;
+      35) love_call13605 love_v1354_cert_switch ;;
+      36) love_call13605 love_v1360_cf_config ;;
+      37) love_call13605 love_v1360_cf_dns ;;
+      38) love_call13605 love_v1360_cf_cert_dns01 ;;
+      39) love_call13605 love_h2_v2rayn_help13601 ;;
+      40) love_call13605 love_legacy_show13601 ;;
+      41) love_call13605 love_legacy_backup13601 ;;
+      42) love_call13605 love_legacy_clean13601 ;;
+      43) love_call13605 love_color_menu_help13601 ;;
+      44) love_call13605 love_v1360_env_detect; echo; love_call13605 love_v1360_cert_check; echo; love_call13605 love_v1356_source_check ;;
+      45) love_call13605 love_ports_v1334 ;;
+      46) love_call13605 love_flag_set13602 ;;
+      47) love_call13605 love_flag_auto13602; love_v1360_generate_client_subs ;;
+      48) love_call13605 love_v13604_tls_manual_report ;;
+      49) love_v13605_xray_extended_check ;;
+      0|q|Q|exit) exit 0 ;;
+      *) echo "[WARN] 无效选择 / Invalid choice." ;;
+    esac
+    love_pause13605
+  done
+}
+
+love_v13605_xray_extended_check() {
+  echo "================ Love v13.60.6 Xray Extended / Cert Mode Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  if [[ -f "${XRAY_CONF}" ]]; then
+    jq -r '.inbounds[]? | [.tag, (.protocol//""), (.port|tostring)] | @tsv' "${XRAY_CONF}" 2>/dev/null || true
+  else
+    echo "[WARN] 未找到 Xray 配置：${XRAY_CONF}"
+  fi
+  echo
+  if [[ -f "${XRAY_INFO}" ]]; then
+    grep -E '^(vless|hy2|hysteria2|trojan|vmess|ss)://' "${XRAY_INFO}" || true
+  else
+    echo "[WARN] 未找到 Xray client-info。"
+  fi
+}
+
+love_v13605_help() {
+  cat <<'EOF_V13605HELP'
+Love v13.60.6 commands:
+  Love                         打开经典双列菜单
+  Love xray-extended           安装 Xray 补全模式
+  Love xray-all                同上
+  Love xray-plus               同上
+  Love xray-ext-check          检查 Xray 补全节点
+
+Xray Extended includes:
+  LOVE-XRAY-REALITY
+  LOVE-XRAY-TROJAN
+  LOVE-XRAY-VMESS-WS
+  LOVE-XRAY-VLESS-WS-TLS
+  LOVE-XRAY-SS
+  LOVE-XRAY-HY2 optional
+
+Certificate modes:
+  1. No domain + self.local + self-signed
+  2. Domain + Let's Encrypt HTTP-01
+  3. Domain + self/custom certificate generated by script
+  4. Domain + existing cert.pem/key.pem imported with auto trust detection
+  5. Domain + existing trusted CA cert forced insecure=false
+  6. Domain + existing self-signed/untrusted cert forced insecure=true
+EOF_V13605HELP
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13605 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_before_v13605/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.6-cert-mode-strict-xray-source-final}"
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_v13605_classic_menu ;;
+    xray-extended|xray-all|xray-plus|xray-ext)
+      need_root; prepare_dirs; install_xray_extended ;;
+    xray-ext-check|v13605-check|v13606-check|xray-plus-check)
+      love_v13605_xray_extended_check ;;
+    help13605|v13605-help|help13606|v13606-help)
+      love_v13605_help ;;
+    *)
+      love_original_main_before_v13605 "$@" ;;
   esac
 }
 
