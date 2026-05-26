@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.9-early-main-update-final"
+VERSION="Love v13.60.10-classic-ui-catalog-install-fix-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1000,8 +1000,13 @@ m) ShadowTLS 高级占位说明
 
 EOF
 
-  read -rp "请选择协议 [bcd]: " proto
-  proto="${proto:-bcd}"
+  if [[ -n "${LOVE_SINGBOX_PRESET_PROTO:-}" ]]; then
+    proto="${LOVE_SINGBOX_PRESET_PROTO}"
+    info "预设协议 / Preset protocols: ${proto}"
+  else
+    read -rp "请选择协议 [bcd]: " proto
+    proto="${proto:-bcd}"
+  fi
 
   if [[ "${proto}" == "a" || "${proto}" == "all" ]]; then
     proto="bcdefghijklm"
@@ -21949,7 +21954,7 @@ main() {
 # - Fixes menu item 12 to one-click update without asking URL.
 # - Fixes menu item 23 to a stable classic uninstall menu.
 # ============================================================================== 
-LOVE_SCRIPT_VERSION="Love v13.60.9-early-main-update-final"
+LOVE_SCRIPT_VERSION="Love v13.60.10-classic-ui-catalog-install-fix-final"
 LOVE_RAW_URL_DEFAULT="${LOVE_RAW_URL_DEFAULT:-https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh}"
 
 love_v13607_c() {
@@ -22194,12 +22199,271 @@ love_v13607_classic_menu() {
   done
 }
 
+
+# ===============================================================================
+# Love v13.60.10 Classic UI + Catalog install mapping fix
+# - UI references the original clean catalog style, but uses display-width padding
+#   so Chinese/English columns align better.
+# - Catalog install items call real install functions, not repair functions.
+# ===============================================================================
+
+love_v13610_width_pad() {
+  local text="$1" width="${2:-38}"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$text" "$width" <<'PY'
+import sys, unicodedata
+s=sys.argv[1]
+wanted=int(sys.argv[2])
+def disp_width(x):
+    total=0
+    for ch in x:
+        if unicodedata.combining(ch):
+            continue
+        total += 2 if unicodedata.east_asian_width(ch) in ('W','F') else 1
+    return total
+pad=max(0, wanted-disp_width(s))
+print(s + ' '*pad, end='')
+PY
+  else
+    printf "%-${width}s" "$text"
+  fi
+}
+
+love_v13610_row() {
+  local left="$1" right="${2:-}"
+  printf "  │ "
+  love_v13610_width_pad "$left" 38
+  printf " │ "
+  love_v13610_width_pad "$right" 38
+  printf " │\n"
+}
+
+love_v13610_line() {
+  echo "════════════════════════════════════════════════════════════════════════════════"
+}
+
+love_v13610_title() {
+  love_v13610_line
+  echo "  Love Node Server Manager · 经典主菜单 / Classic Main Menu"
+  echo "  ${LOVE_SCRIPT_VERSION:-Love v13.60.10-classic-ui-catalog-install-fix-final}"
+  love_v13610_line
+}
+
+love_v13610_section() {
+  echo
+  echo "$1"
+}
+
+love_singbox_preset_install() {
+  local proto="$1" title="$2"
+  echo
+  echo "================ ${title} ================"
+  echo "将按预设协议安装 / Preset protocols: ${proto}"
+  LOVE_SINGBOX_PRESET_PROTO="$proto" install_singbox_native
+  unset LOVE_SINGBOX_PRESET_PROTO
+}
+
+love_install_hy2_only() { love_singbox_preset_install "c" "Love Hysteria2 UDP 高速节点"; }
+love_install_reality_hy2_combo() { love_singbox_preset_install "bc" "Love Reality + HY2 组合节点"; }
+love_install_trojan_only() { love_singbox_preset_install "f" "Love Trojan TLS 节点"; }
+love_install_vmess_ws_only() { love_singbox_preset_install "g" "Love VMess WS 节点"; }
+love_install_vless_ws_tls_only() { love_singbox_preset_install "h" "Love VLESS WS TLS 节点"; }
+love_install_grpc_reality_only() { love_singbox_preset_install "j" "Love gRPC Reality 节点"; }
+love_install_tuic_naive() { love_singbox_preset_install "dl" "Love TUIC / NaiveProxy 节点"; }
+love_install_shadow_anytls() { love_singbox_preset_install "km" "Love ShadowTLS / AnyTLS 节点"; }
+
+show_all_node_catalog() {
+  while true; do
+    love_v13610_line
+    echo "  Love 全节点目录 · 精简入口 + 旧版完整目录"
+    love_v13610_line
+
+    love_v13610_section "精简分类入口 / Quick Install"
+    love_v13610_row "1) Xray Reality 稳定模式" "8) Trojan TLS 节点"
+    love_v13610_row "2) sing-box 原生全协议" "9) VMess WS 节点"
+    love_v13610_row "3) Hysteria2 UDP 高速节点" "10) VLESS WS TLS 节点"
+    love_v13610_row "4) Reality + HY2 组合节点" "11) gRPC Reality 节点"
+    love_v13610_row "5) ShadowTLS / AnyTLS" "12) TUIC / NaiveProxy"
+    love_v13610_row "6) Argo / Cloudflared 隧道" "13) Nginx WS/gRPC 反代"
+    love_v13610_row "7) Port Hopping UDP 跳跃" "14) 多用户订阅管理"
+
+    love_v13610_section "客户端导出 / Client Export"
+    love_v13610_row "15) Raw URI 订阅" "20) sing-box client JSON"
+    love_v13610_row "16) Base64 订阅" "21) Shadowrocket"
+    love_v13610_row "17) Mihomo / Clash YAML" "22) NekoBox"
+    love_v13610_row "18) V2RayN 链接" "23) SFI / SFA / SFM"
+    love_v13610_row "19) 二维码 QR" "24) 完整客户端包"
+
+    love_v13610_section "常用维护 / Maintenance"
+    love_v13610_row "25) 查看当前节点 Love -n" "30) WARP Auto Fix"
+    love_v13610_row "26) 重新生成订阅 Love sub" "31) Web 管理页 Love web"
+    love_v13610_row "27) 重新生成二维码 Love qr" "32) 备份配置"
+    love_v13610_row "28) 完整诊断 Love doctor" "33) 查看运行状态"
+    love_v13610_row "29) 客户端导出" "34) 旧版完整目录 1-97"
+
+    love_v13610_section "优选 / 测速快捷入口"
+    love_v13610_row "35) CFIP 优选 IP 菜单" "38) 修改导出地址"
+    love_v13610_row "36) 自动查找 CF 优选 IP" "39) 查看 CFIP 列表"
+    love_v13610_row "37) speed 连接测速" "40) 客户端侧测速说明"
+    love_v13610_row "0) 返回" ""
+
+    echo
+    echo "说明：3/8/9/10/11/12 现在是安装入口，不再调用修复函数。"
+    echo "旧版未精简完整目录选 34；优选 IP 选 35 或旧版目录 7/67。"
+    echo
+    read -rp "请选择 / Select: " n
+    case "$n" in
+      1) install_xray_stable ;;
+      2) install_singbox_native ;;
+      3) love_install_hy2_only ;;
+      4) love_install_reality_hy2_combo ;;
+      5) love_install_shadow_anytls ;;
+      6) argo_helper ;;
+      7) port_hopping_helper ;;
+      8) love_install_trojan_only ;;
+      9) love_install_vmess_ws_only ;;
+      10) love_install_vless_ws_tls_only ;;
+      11) love_install_grpc_reality_only ;;
+      12) love_install_tuic_naive ;;
+      13) nginx_rp_menu ;;
+      14) users_menu_v7 ;;
+      15|16) export_subscription ;;
+      17) generate_mihomo_yaml ;;
+      18) love_v2rayn ;;
+      19) generate_qrcodes ;;
+      20) love_singbox_json ;;
+      21) love_shadowrocket ;;
+      22) love_nekobox ;;
+      23) love_sfi_sfa_sfm ;;
+      24) love_full_client_pack ;;
+      25) show_node_info ;;
+      26) export_subscription ;;
+      27) generate_qrcodes ;;
+      28) doctor_check ;;
+      29) love_full_client_pack ;;
+      30) love_warp_auto_fix_v12 ;;
+      31) web_admin_page ;;
+      32) backup_configs ;;
+      33) show_status ;;
+      34) show_all_node_catalog_full ;;
+      35) cfip_helper ;;
+      36) love_safe_call love_cfip_auto_find ;;
+      37) speed_test ;;
+      38) change_preferred_info_only ;;
+      39) love_safe_call love_cfip_view ;;
+      40) love_safe_call love_cfip_client_side_guide ;;
+      0|q|Q|back) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+  done
+}
+
+love_v13610_classic_menu() {
+  while true; do
+    love_v13610_title
+    love_v13610_section "系统状态 / Status"
+    printf "  OS:        %s\n" "$(. /etc/os-release 2>/dev/null; echo ${PRETTY_NAME:-unknown})"
+    printf "  Arch:      %s\n" "$(uname -m 2>/dev/null || echo unknown)"
+    printf "  sing-box:  %s\n" "$(systemctl is-active sing-box 2>/dev/null || echo not active)"
+    printf "  xray:      %s\n" "$(systemctl is-active xray 2>/dev/null || echo not active)"
+    printf "  nginx web: %s\n" "$(systemctl is-active nginx 2>/dev/null || echo not active)"
+
+    love_v13610_section "核心安装 / Core Install"
+    love_v13610_row "1) 节点目录 / Node catalog" "26) Xray 补全 / Xray Extended"
+    love_v13610_row "2) Xray 稳定 / Xray Stable" "27) VPS 环境 / VPS env"
+    love_v13610_row "3) sing-box 全协议 / All" "28) BBR/MTU 优化 / Optimize"
+    love_v13610_row "4) Argo 隧道 / Cloudflared" "29) 一键测速 / Speed"
+    love_v13610_row "5) UDP 跳跃 / Port hopping" "30) 重建订阅 / Rebuild sub"
+    love_v13610_row "6) WARP 出站 / WARP help" "31) 客户端订阅 / Client sub"
+
+    love_v13610_section "导出与客户端 / Export & Clients"
+    love_v13610_row "7) 节点信息 / Node info" "32) Clash/Mihomo YAML"
+    love_v13610_row "8) 订阅生成 / Build sub" "33) 证书检查 / Cert check"
+    love_v13610_row "9) 二维码 / QR codes" "34) HTTP-01 证书 / LE cert"
+    love_v13610_row "10) Super Tools / 修复" "35) 证书切换 / Cert switch"
+    love_v13610_row "11) 绿色 Web / Green Web" "36) CF Token / CF config"
+    love_v13610_row "12) 一键更新 / One-click update" "37) CF DNS / DNS upsert"
+    love_v13610_row "13) 客户端导出 / Client export" "38) CF DNS-01 证书 / DNS cert"
+
+    love_v13610_section "旧版工具保留 / Legacy Tools Kept"
+    love_v13610_row "14) v6 Project Tools" "39) H2 Reality v2rayN help"
+    love_v13610_row "15) v7 Stable Tools" "40) 查看旧链接 / Show legacy"
+    love_v13610_row "16) v8 Project Panel" "41) 备份旧链接 / Backup legacy"
+    love_v13610_row "17) Nginx Reverse Proxy" "42) 清空旧链接 / Clean legacy"
+    love_v13610_row "18) HY2/sing-box 修复" "43) 帮助 / Help"
+    love_v13610_row "19) IPv6-only 修复" "44) v13.60 检查 / Final check"
+    love_v13610_row "20) WARP Manager" "45) 端口/防火墙 / Ports"
+    love_v13610_row "21) 运行状态 / Status" "46) 国旗图标 / Flag icon"
+    love_v13610_row "22) 备份配置 / Backup" "47) 自动识别国旗 / Auto flag"
+    love_v13610_row "23) 卸载菜单 / Uninstall" "48) TRUE 手动提醒 / TRUE note"
+    love_v13610_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
+    love_v13610_row "25) 安装 FS warp 命令" "0) 退出 / Exit"
+
+    echo
+    echo "提示: 菜单统一经典样式；节点目录安装入口已恢复为真实安装，不再误进修复。"
+    read -rp "请选择 / Select: " choice
+    case "${choice}" in
+      1) show_all_node_catalog ;;
+      2) love_call13605 install_xray_stable ;;
+      3) love_call13605 install_singbox_native ;;
+      4) love_call13605 argo_helper ;;
+      5) love_call13605 port_hopping_helper ;;
+      6) love_call13605 warp_helper ;;
+      7) love_call13605 show_node_info ;;
+      8) love_v1360_generate_client_subs ;;
+      9) love_call13605 generate_qrcodes ;;
+      10) love_call13605 super_menu ;;
+      11) love_v1360_web ;;
+      12) love_v13607_oneclick_update ;;
+      13) love_v1360_generate_client_subs; love_call13605 love_full_client_pack ;;
+      14) love_call13605 v6_super_menu ;;
+      15) love_call13605 v7_stable_menu ;;
+      16) love_call13605 v8_menu ;;
+      17) love_call13605 nginx_rp_menu ;;
+      18) love_call13605 love_fix_hy2_now ;;
+      19) love_call13605 love_ipv6_outbound_menu ;;
+      20) love_call13605 love_warp_manager_menu ;;
+      21) love_call13605 show_status ;;
+      22) love_call13605 backup_configs ;;
+      23) love_v13607_uninstall_menu ;;
+      24) love_call13605 github_publish_note ;;
+      25) love_call13605 love_install_fs_warp_command ;;
+      26) install_xray_extended ;;
+      27) love_call13605 love_v1360_env_detect ;;
+      28) love_call13605 love_v1360_optimize ;;
+      29) love_call13605 love_v1360_speed ;;
+      30|31) love_v1360_generate_client_subs ;;
+      32) love_v1360_generate_client_subs; generate_mihomo_yaml 2>/dev/null || true ;;
+      33) love_call13605 love_v1360_cert_check ;;
+      34) love_call13605 love_v1360_cert_http01 ;;
+      35) love_call13605 love_v1354_cert_switch ;;
+      36) love_call13605 love_v1360_cf_config ;;
+      37) love_call13605 love_v1360_cf_dns ;;
+      38) love_call13605 love_v1360_cf_cert_dns01 ;;
+      39) love_call13605 love_h2_v2rayn_help13601 ;;
+      40) love_call13605 love_legacy_show13601 ;;
+      41) love_call13605 love_legacy_backup13601 ;;
+      42) love_call13605 love_legacy_clean13601 ;;
+      43) love_call13605 love_color_menu_help13601 ;;
+      44) love_call13605 love_v1360_env_detect; echo; love_call13605 love_v1360_cert_check; echo; love_call13605 love_v1356_source_check ;;
+      45) love_call13605 love_ports_v1334 ;;
+      46) love_call13605 love_flag_set13602 ;;
+      47) love_call13605 love_flag_auto13602; love_v1360_generate_client_subs ;;
+      48) love_call13605 love_v13604_tls_manual_report ;;
+      49) love_v13605_xray_extended_check ;;
+      0|q|Q|exit) exit 0 ;;
+      *) warn "无效选择 / Invalid choice." ;;
+    esac
+    love_v13607_pause
+  done
+}
+
 if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13607 >/dev/null 2>&1; then
   eval "$(declare -f main | sed '1s/^main/love_original_main_before_v13607/')"
 fi
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.9-early-main-update-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.10-classic-ui-catalog-install-fix-final}"
   case "${1:-}" in
     ""|menu|main|m)
       need_root 2>/dev/null || true
@@ -22207,7 +22471,7 @@ main() {
       fix_hostname 2>/dev/null || true
       check_os_soft 2>/dev/null || true
       install_shortcut 2>/dev/null || true
-      love_v13607_classic_menu ;;
+      love_v13610_classic_menu ;;
     update|self-update|online-update)
       love_v13607_oneclick_update ;;
     uninstall|uninstall-menu)
