@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.21-json-port-export-fix-final"
+VERSION="Love v13.60.23-clean-install-export-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -22508,7 +22508,7 @@ main() {
 #       * Web files missing after clean chain
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.60.21-json-port-export-fix-final"
+LOVE_SCRIPT_VERSION="Love v13.60.23-clean-install-export-final"
 VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13619_prepare_dirs() {
@@ -23094,7 +23094,7 @@ love_v13619_final_export() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.21 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.23 final exporter；旧导出链不再参与最终写入。"
 }
 
 extract_raw_links() {
@@ -23253,9 +23253,9 @@ love_v13619_menu() {
     love_v13619_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
     love_v13619_row "25) 安装 FS warp 命令" "50) Xray 26.5.9 更新"
     love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
-    love_v13619_row "53) v13.60.21 检查" "0) 退出 / Exit"
+    love_v13619_row "53) v13.60.23 检查" "0) 退出 / Exit"
     echo
-    echo "提示: 最终导出只走 v13.60.21；旧导出链不再写 all.txt/Web/QR。"
+    echo "提示: 最终导出只走 v13.60.23；旧导出链不再写 all.txt/Web/QR。"
     read -rp "请选择 / Select: " c
     case "$c" in
       1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
@@ -23329,5 +23329,402 @@ main() {
     *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
   esac
 }
+
+# ===============================================================================
+# Love v13.60.22 Stable Final Driver
+# Fixes after v13.60.21:
+#   - Uppercase protocol selection (A/B/C...) is normalized.
+#   - Empty sing-box config caused by uppercase A is prevented.
+#   - Final exporter exports active sing-box only, active Xray only.
+#   - Inactive/stale Xray config no longer pollutes sing-box-only installs.
+#   - Old v13.51 post-install matrix no longer runs after install.
+#   - Final check is clean and checks real final files only.
+# ===============================================================================
+LOVE_SCRIPT_VERSION="Love v13.60.23-clean-install-export-final"
+VERSION="${LOVE_SCRIPT_VERSION}"
+
+love_v13622_any_protocol_selected() {
+  [[ "${INSTALL_REALITY:-no}" == "yes" || "${INSTALL_HY2:-no}" == "yes" || "${INSTALL_TUIC:-no}" == "yes" || \
+     "${INSTALL_SS:-no}" == "yes" || "${INSTALL_TROJAN:-no}" == "yes" || "${INSTALL_VMESS_WS:-no}" == "yes" || \
+     "${INSTALL_VLESS_WS_TLS:-no}" == "yes" || "${INSTALL_H2_REALITY:-no}" == "yes" || "${INSTALL_GRPC_REALITY:-no}" == "yes" || \
+     "${INSTALL_ANYTLS:-no}" == "yes" || "${INSTALL_NAIVE:-no}" == "yes" || "${INSTALL_SHADOWTLS:-no}" == "yes" ]]
+}
+
+choose_singbox_protocols() {
+  cat <<'EOF2'
+
+================ Love sing-box 节点选择 ================
+
+a) all 全部
+b) VLESS Reality
+c) Hysteria2
+d) TUIC
+e) Shadowsocks
+f) Trojan
+g) VMess WS
+h) VLESS WS TLS
+i) H2 Reality
+j) gRPC Reality
+k) AnyTLS
+l) Naive
+m) ShadowTLS 高级占位说明
+
+示例：
+  a / A   = 全部
+  bcd     = Reality + HY2 + TUIC
+  bcfg    = Reality + HY2 + Trojan + VMess WS
+
+=========================================================
+
+EOF2
+
+  if [[ -n "${LOVE_SINGBOX_PRESET_PROTO:-}" ]]; then
+    proto="${LOVE_SINGBOX_PRESET_PROTO}"
+    info "预设协议 / Preset protocols: ${proto}"
+  else
+    read -rp "请选择协议 [bcd]: " proto
+    proto="${proto:-bcd}"
+  fi
+
+  proto="$(printf '%s' "$proto" | tr '[:upper:]' '[:lower:]' | tr -d ' ,;')"
+  if [[ "$proto" == "a" || "$proto" == "all" ]]; then
+    proto="bcdefghijklm"
+  fi
+
+  INSTALL_REALITY="no"
+  INSTALL_HY2="no"
+  INSTALL_TUIC="no"
+  INSTALL_SS="no"
+  INSTALL_TROJAN="no"
+  INSTALL_VMESS_WS="no"
+  INSTALL_VLESS_WS_TLS="no"
+  INSTALL_H2_REALITY="no"
+  INSTALL_GRPC_REALITY="no"
+  INSTALL_ANYTLS="no"
+  INSTALL_NAIVE="no"
+  INSTALL_SHADOWTLS="no"
+
+  [[ "$proto" == *b* ]] && INSTALL_REALITY="yes" || true
+  [[ "$proto" == *c* ]] && INSTALL_HY2="yes" || true
+  [[ "$proto" == *d* ]] && INSTALL_TUIC="yes" || true
+  [[ "$proto" == *e* ]] && INSTALL_SS="yes" || true
+  [[ "$proto" == *f* ]] && INSTALL_TROJAN="yes" || true
+  [[ "$proto" == *g* ]] && INSTALL_VMESS_WS="yes" || true
+  [[ "$proto" == *h* ]] && INSTALL_VLESS_WS_TLS="yes" || true
+  [[ "$proto" == *i* ]] && INSTALL_H2_REALITY="yes" || true
+  [[ "$proto" == *j* ]] && INSTALL_GRPC_REALITY="yes" || true
+  [[ "$proto" == *k* ]] && INSTALL_ANYTLS="yes" || true
+  [[ "$proto" == *l* ]] && INSTALL_NAIVE="yes" || true
+  [[ "$proto" == *m* ]] && INSTALL_SHADOWTLS="yes" || true
+
+  if ! love_v13622_any_protocol_selected; then
+    warn "未识别协议选择：${proto}。为避免空配置，自动使用 all 全部协议。"
+    INSTALL_REALITY="yes"; INSTALL_HY2="yes"; INSTALL_TUIC="yes"; INSTALL_SS="yes"; INSTALL_TROJAN="yes"; INSTALL_VMESS_WS="yes"
+    INSTALL_VLESS_WS_TLS="yes"; INSTALL_H2_REALITY="yes"; INSTALL_GRPC_REALITY="yes"; INSTALL_ANYTLS="yes"; INSTALL_NAIVE="yes"; INSTALL_SHADOWTLS="yes"
+  fi
+}
+
+love_v13622_service_active() {
+  local svc="$1"
+  systemctl is-active --quiet "$svc" 2>/dev/null
+}
+
+love_v13622_has_process_listen() {
+  local name="$1"
+  ss -tulpn 2>/dev/null | grep -q "users:((\"${name}\""
+}
+
+love_v13622_export_from_configs() {
+  love_v13619_prepare_dirs
+  love_v13619_patch_singbox_runtime_config
+
+  local flag client_raw h tls_sni reality_sni all
+  flag="$(love_v13619_flag)"
+  client_raw="$(love_v13619_client_host)"
+  h="$(love_v13619_uri_host "$(love_v13619_strip_brackets "$client_raw")")"
+  tls_sni="$(love_v13619_tls_sni)"
+  reality_sni="$(love_v13619_reality_sni)"
+  all="/opt/Love/subscribe/all.txt"
+  : > "$all"
+
+  [[ -s /opt/Love/state/singbox.env ]] && source /opt/Love/state/singbox.env || true
+  [[ -s /opt/Love/state/xray.env ]] && source /opt/Love/state/xray.env || true
+
+  # Export sing-box only when service/listener is active, avoiding stale/empty configs.
+  if [[ -s /etc/sing-box/config.json ]] && (love_v13622_service_active sing-box || love_v13622_has_process_listen sing-box); then
+    local conf="/etc/sing-box/config.json"
+    local sb_uuid sb_public sb_sid
+    sb_uuid="${SB_UUID:-$(jq -r '.inbounds[]? | select(.tag=="vless-reality-in" or .tag=="vless-ws-tls-in" or .tag=="vmess-ws-in") | (.users[0].uuid // empty)' "$conf" 2>/dev/null | head -n1)}"
+    sb_public="${SB_PUBLIC:-$(love_v13619_get_singbox_public_from_old_links)}"
+    sb_sid="${SB_REALITY_SHORT:-$(jq -r '.inbounds[]? | select(.tag=="vless-reality-in") | (.tls.reality.short_id[0] // empty)' "$conf" 2>/dev/null | head -n1)}"
+    reality_sni="$(jq -r '.inbounds[]? | select(.tag=="vless-reality-in") | (.tls.server_name // empty)' "$conf" 2>/dev/null | head -n1 || true)"
+    [[ -n "$reality_sni" && "$reality_sni" != "null" ]] || reality_sni="$(love_v13619_reality_sni)"
+    tls_sni="$(jq -r '.inbounds[]? | select(.tag=="hy2-in" or .tag=="tuic-in" or .tag=="trojan-in" or .tag=="vless-ws-tls-in" or .tag=="naive-in" or .tag=="anytls-in") | (.tls.server_name // empty)' "$conf" 2>/dev/null | head -n1 || true)"
+    [[ -n "$tls_sni" && "$tls_sni" != "null" ]] || tls_sni="$(love_v13619_tls_sni)"
+
+    local p hy2pass tuicpass ssmethod sspass ssb64 trojanpass pathv pathh svc anypass nuser npass vmj
+
+    p="$(love_v13619_read_port_by_tag "$conf" "vless-reality-in")"
+    if [[ -n "$p" && -n "$sb_uuid" && -n "$sb_public" ]]; then
+      echo "vless://${sb_uuid}@${h}:${p}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${reality_sni}&fp=chrome&pbk=${sb_public}&sid=${sb_sid}&type=tcp#${flag} LOVE-REALITY" >> "$all"
+    fi
+
+    p="$(love_v13619_read_port_by_tag "$conf" "hy2-in")"
+    hy2pass="$(jq -r '.inbounds[]? | select(.tag=="hy2-in") | (.users[0].password // empty)' "$conf" 2>/dev/null | head -n1)"
+    [[ -n "$p" && -n "$hy2pass" ]] && echo "hy2://${hy2pass}@${h}:${p}?$(love_v13619_hy2_query "$tls_sni")#${flag} LOVE-HY2" >> "$all"
+
+    p="$(love_v13619_read_port_by_tag "$conf" "tuic-in")"
+    tuicpass="$(jq -r '.inbounds[]? | select(.tag=="tuic-in") | (.users[0].password // empty)' "$conf" 2>/dev/null | head -n1)"
+    if [[ -n "$p" && -n "$tuicpass" && -n "$sb_uuid" ]]; then
+      echo "tuic://${sb_uuid}:${tuicpass}@${h}:${p}?sni=${tls_sni}&congestion_control=bbr&udp_relay_mode=native&$(love_v13619_tls_query)&alpn=h3#${flag} LOVE-TUIC" >> "$all"
+    fi
+
+    p="$(love_v13619_read_port_by_tag "$conf" "ss-in")"
+    ssmethod="$(jq -r '.inbounds[]? | select(.tag=="ss-in") | (.method // empty)' "$conf" 2>/dev/null | head -n1)"
+    sspass="$(jq -r '.inbounds[]? | select(.tag=="ss-in") | (.password // empty)' "$conf" 2>/dev/null | head -n1)"
+    if [[ -n "$p" && -n "$ssmethod" && -n "$sspass" ]]; then
+      ssb64="$(printf '%s:%s' "$ssmethod" "$sspass" | base64 -w0)"
+      echo "ss://${ssb64}@${h}:${p}#${flag} LOVE-SS" >> "$all"
+    fi
+
+    p="$(love_v13619_read_port_by_tag "$conf" "trojan-in")"
+    trojanpass="$(jq -r '.inbounds[]? | select(.tag=="trojan-in") | (.users[0].password // empty)' "$conf" 2>/dev/null | head -n1)"
+    [[ -n "$p" && -n "$trojanpass" ]] && echo "trojan://${trojanpass}@${h}:${p}?$(love_v13619_tls_node_query "$tls_sni")#${flag} LOVE-TROJAN" >> "$all"
+
+    p="$(love_v13619_read_port_by_tag "$conf" "vmess-ws-in")"
+    if [[ -n "$p" && -n "$sb_uuid" ]]; then
+      vmj="$(jq -nc --arg ps "${flag} LOVE-VMESS-WS" --arg add "$(love_v13619_strip_brackets "$client_raw")" --arg port "$p" --arg id "$sb_uuid" '{v:"2",ps:$ps,add:$add,port:$port,id:$id,aid:"0",scy:"auto",net:"ws",type:"none",host:"",path:"/vmess",tls:"",sni:""}')"
+      echo "vmess://$(printf '%s' "$vmj" | base64 -w0)#${flag} LOVE-VMESS-WS" >> "$all"
+    fi
+
+    p="$(love_v13619_read_port_by_tag "$conf" "vless-ws-tls-in")"
+    pathv="$(jq -r '.inbounds[]? | select(.tag=="vless-ws-tls-in") | (.transport.path // "/vless")' "$conf" 2>/dev/null | head -n1)"
+    [[ -n "$p" && -n "$sb_uuid" ]] && echo "vless://${sb_uuid}@${h}:${p}?encryption=none&security=tls&sni=${tls_sni}&type=ws&path=$(love_v13619_encode_path "$pathv")&$(love_v13619_tls_query)#${flag} LOVE-VLESS-WS-TLS" >> "$all"
+
+    p="$(love_v13619_read_port_by_tag "$conf" "h2-reality-in")"
+    pathh="$(jq -r '.inbounds[]? | select(.tag=="h2-reality-in") | (.transport.path // "/h2")' "$conf" 2>/dev/null | head -n1)"
+    if [[ -n "$p" && -n "$sb_uuid" && -n "$sb_public" ]]; then
+      echo "vless://${sb_uuid}@${h}:${p}?encryption=none&security=reality&sni=${reality_sni}&fp=chrome&pbk=${sb_public}&sid=${sb_sid}&type=http&path=$(love_v13619_encode_path "$pathh")&host=${reality_sni}&alpn=h2#${flag} LOVE-H2-REALITY" >> "$all"
+    fi
+
+    p="$(love_v13619_read_port_by_tag "$conf" "grpc-reality-in")"
+    svc="$(jq -r '.inbounds[]? | select(.tag=="grpc-reality-in") | (.transport.service_name // "lovegrpc")' "$conf" 2>/dev/null | head -n1)"
+    if [[ -n "$p" && -n "$sb_uuid" && -n "$sb_public" ]]; then
+      echo "vless://${sb_uuid}@${h}:${p}?encryption=none&security=reality&sni=${reality_sni}&fp=chrome&pbk=${sb_public}&sid=${sb_sid}&type=grpc&serviceName=${svc}&authority=${reality_sni}&mode=gun&alpn=h2#${flag} LOVE-GRPC-REALITY" >> "$all"
+    fi
+
+    p="$(love_v13619_read_port_by_tag "$conf" "anytls-in")"
+    anypass="$(jq -r '.inbounds[]? | select(.tag=="anytls-in") | (.users[0].password // empty)' "$conf" 2>/dev/null | head -n1)"
+    [[ -n "$p" && -n "$anypass" ]] && echo "anytls://${anypass}@${h}:${p}?sni=${tls_sni}&$(love_v13619_tls_query)#${flag} LOVE-ANYTLS" >> "$all"
+
+    p="$(love_v13619_read_port_by_tag "$conf" "naive-in")"
+    nuser="$(jq -r '.inbounds[]? | select(.tag=="naive-in") | (.users[0].username // "love")' "$conf" 2>/dev/null | head -n1)"
+    npass="$(jq -r '.inbounds[]? | select(.tag=="naive-in") | (.users[0].password // empty)' "$conf" 2>/dev/null | head -n1)"
+    [[ -n "$p" && -n "$npass" ]] && echo "https://${nuser}:${npass}@${h}:${p}?sni=${tls_sni}&$(love_v13619_tls_query)#${flag} LOVE-NAIVE" >> "$all"
+  fi
+
+  # Export Xray only when xray is actually active/listening, avoiding stale Xray config pollution.
+  if [[ -s /usr/local/etc/xray/config.json ]] && (love_v13622_service_active xray || love_v13622_has_process_listen xray || [[ "${LOVE_EXPORT_INACTIVE_XRAY:-0}" == "1" ]]); then
+    [[ -s /opt/Love/state/xray.env ]] && source /opt/Love/state/xray.env || true
+    local xconf="/usr/local/etc/xray/config.json"
+    local xr_uuid xr_pbk xr_sid xr_sni xp xhy2 xhy2sni
+    xr_uuid="${XR_UUID:-$(jq -r '.inbounds[]? | select(.tag=="vless-reality-in") | (.settings.clients[0].id // empty)' "$xconf" 2>/dev/null | head -n1)}"
+    xr_pbk="${XR_PUBLIC:-$(love_v13619_get_xray_public_from_old_links)}"
+    xr_sid="${XR_SHORT_ID:-$(jq -r '.inbounds[]? | select(.tag=="vless-reality-in") | (.streamSettings.realitySettings.shortIds[0] // empty)' "$xconf" 2>/dev/null | head -n1)}"
+    xr_sni="${REALITY_SNI:-$(jq -r '.inbounds[]? | select(.tag=="vless-reality-in") | (.streamSettings.realitySettings.serverNames[0] // "www.cloudflare.com")' "$xconf" 2>/dev/null | head -n1)}"
+    xp="$(jq -r '.inbounds[]? | select(.tag=="vless-reality-in") | (.port // empty)' "$xconf" 2>/dev/null | head -n1)"
+    [[ -n "$xp" && -n "$xr_uuid" && -n "$xr_pbk" ]] && echo "vless://${xr_uuid}@${h}:${xp}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${xr_sni}&fp=chrome&pbk=${xr_pbk}&sid=${xr_sid}&type=tcp#${flag} LOVE-XRAY-REALITY" >> "$all"
+
+    xp="$(jq -r '.inbounds[]? | select(.tag=="hy2-in") | (.port // empty)' "$xconf" 2>/dev/null | head -n1)"
+    xhy2="${HY2_AUTH:-$(jq -r '.inbounds[]? | select(.tag=="hy2-in") | (.settings.users[0].auth // empty)' "$xconf" 2>/dev/null | head -n1)}"
+    xhy2sni="${HY2_SNI:-$(jq -r '.inbounds[]? | select(.tag=="hy2-in") | (.streamSettings.tlsSettings.serverName // "self.local")' "$xconf" 2>/dev/null | head -n1)}"
+    [[ -n "$xp" && -n "$xhy2" ]] && echo "hy2://${xhy2}@${h}:${xp}?$(love_v13619_hy2_query "$xhy2sni")#${flag} LOVE-XRAY-HY2" >> "$all"
+  fi
+
+  awk 'NF && !seen[$0]++' "$all" > "${all}.tmp" && mv "${all}.tmp" "$all"
+
+  cp -f "$all" /opt/Love/subscribe/clients/v2rayn-uri.txt
+  cp -f "$all" /opt/Love/subscribe/clients/nekobox-uri.txt
+  cp -f "$all" /opt/Love/subscribe/clients/singbox-uri.txt
+  grep -E '^(hy2|hysteria2|tuic|ss|trojan|vmess|vless)://' "$all" | grep -Ev 'AnyTLS|NAIVE' > /opt/Love/subscribe/clients/shadowrocket-uri.txt || true
+  grep -E 'anytls|https://' "$all" > /opt/Love/subscribe/clients/shadowrocket-experimental.txt || true
+  base64 -w0 "$all" > /opt/Love/subscribe/all_base64.txt 2>/dev/null || true
+
+  love_v13619_generate_singbox_client_json
+  love_v13619_generate_mihomo_yaml
+  love_v13619_generate_qr
+  love_v13619_web_sync
+
+  local count
+  count="$(grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$all" 2>/dev/null || echo 0)"
+  echo "[OK] v13.60.23 final export generated ${count} URI nodes."
+}
+
+love_v13619_export_from_configs() {
+  love_v13622_export_from_configs
+}
+
+love_v13619_final_export() {
+  echo "================ Love Final Export v13.60.23 ================"
+  love_v13622_export_from_configs
+  echo
+  echo "================ 最终节点 / Final Links v13.60.23 ================"
+  cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
+}
+
+love_v13622_check_duplicate_sni() {
+  local f="/opt/Love/subscribe/clients/v2rayn-uri.txt"
+  [[ -s "$f" ]] || return 1
+  awk '{n=gsub(/sni=/,"sni="); if(n>1){bad=1; print}} END{exit bad?0:1}' "$f"
+}
+
+love_v13619_check() {
+  echo "================ Love v13.60.23 Clean Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Services]"
+  echo -n "sing-box: "; systemctl is-active sing-box 2>/dev/null || true
+  echo -n "xray: "; systemctl is-active xray 2>/dev/null || true
+  echo -n "nginx: "; systemctl is-active nginx 2>/dev/null || true
+  echo
+  echo "[Final all.txt count]"
+  grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
+  echo
+  echo "[v2rayN HY2 / Xray-HY2 / Naive]"
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "[Bad patterns]"
+  if love_v13622_check_duplicate_sni >/tmp/love-dup-sni.$$ 2>/dev/null; then
+    echo "[BAD] duplicate sni found:"
+    cat /tmp/love-dup-sni.$$ 2>/dev/null || true
+  else
+    echo "[OK] no duplicate sni"
+  fi
+  rm -f /tmp/love-dup-sni.$$ 2>/dev/null || true
+  if grep -qE 'path=%252F' /opt/Love/subscribe/all.txt 2>/dev/null; then echo "[BAD] double encoded path found"; else echo "[OK] no double encoded path"; fi
+  if grep -qE 'hy2://[^?]+\?sni=[^&]+&insecure=true($|#)' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null; then echo "[BAD] old HY2 minimal format found"; else echo "[OK] old HY2 minimal format not found"; fi
+  if grep -q 'alpn=h3' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null; then echo "[OK] HY2 alpn=h3 exists"; else echo "[WARN] HY2 alpn=h3 missing"; fi
+  echo
+  echo "[Client files]"
+  for f in /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/clients/nekobox-uri.txt /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/mihomo.yaml /opt/Love/subscribe/clients/clash-meta.yaml /opt/Love/subscribe/clients/shadowrocket-uri.txt; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  echo
+  echo "[Web files]"
+  for f in /var/www/love-admin/all.txt /var/www/love-admin/node-links.txt /var/www/love-admin/sub/all.txt /var/www/love-admin/qr/index.html; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+}
+
+love_v1351_matrix_check() { love_v13619_check; }
+love_v1351_post_install_guard() {
+  echo "================ Love Post-Install Guard v13.60.23 ================"
+  love_v1351_open_ports_from_current_configs 2>/dev/null || true
+  love_v13619_final_export
+  love_v13619_check
+}
+
+love_after_node_generated_exports() {
+  love_v13619_final_export
+  echo "[OK] 安装完成后只走 v13.60.23 final exporter；旧导出链不再参与最终写入。"
+}
+
+export_subscription() { love_v13619_final_export; }
+love_sub_safe_v1341() { love_v13619_final_export; }
+web_admin_page() { love_v13622_export_from_configs >/dev/null; love_v13619_web_sync; echo "[OK] Love Web Green Panel 已生成：http://[你的IP]:8099/"; }
+generate_qrcodes() { love_v13622_export_from_configs >/dev/null; love_v13619_generate_qr; echo "[OK] QR 已生成：/opt/Love/subscribe/qr/index.html"; }
+generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
+
+
+# ===============================================================================
+# v13.60.23 Clean Install + Export Final
+# Purpose:
+#   Keep the proven install core, but remove old post-install export/check chains
+#   from the execution path. The final output is generated once from live configs.
+# ===============================================================================
+LOVE_SCRIPT_VERSION="Love v13.60.23-clean-install-export-final"
+VERSION="$LOVE_SCRIPT_VERSION"
+
+love_v13623_final_export() {
+  echo "================ Love Final Export v13.60.23 ================"
+  love_v13622_export_from_configs
+  echo
+  echo "================ 最终节点 / Final Links v13.60.23 ================"
+  cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
+}
+
+love_v13623_check() {
+  echo "================ Love v13.60.23 Clean Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Services]"
+  echo -n "sing-box: "; systemctl is-active sing-box 2>/dev/null || true
+  echo -n "xray: "; systemctl is-active xray 2>/dev/null || true
+  echo -n "nginx: "; systemctl is-active nginx 2>/dev/null || true
+  echo
+  echo "[Final all.txt count]"
+  grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
+  echo
+  echo "[v2rayN HY2 / Xray-HY2 / Naive]"
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "[Bad patterns]"
+  if awk '{n=gsub(/sni=/,"sni="); if(n>1){bad=1; print}} END{exit bad?0:1}' /opt/Love/subscribe/clients/v2rayn-uri.txt >/tmp/love-dup-sni.$$ 2>/dev/null; then
+    echo "[BAD] duplicate sni found:"
+    cat /tmp/love-dup-sni.$$ 2>/dev/null || true
+  else
+    echo "[OK] no duplicate sni"
+  fi
+  rm -f /tmp/love-dup-sni.$$ 2>/dev/null || true
+  if grep -qE 'path=%252F' /opt/Love/subscribe/all.txt 2>/dev/null; then echo "[BAD] double encoded path found"; else echo "[OK] no double encoded path"; fi
+  if grep -qE 'hy2://[^?]+\?sni=[^&]+&insecure=true($|#)' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null; then echo "[BAD] old HY2 minimal format found"; else echo "[OK] old HY2 minimal format not found"; fi
+  if grep -q 'alpn=h3' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null; then echo "[OK] HY2 alpn=h3 exists"; else echo "[WARN] HY2 alpn=h3 missing"; fi
+  echo
+  echo "[Client files]"
+  for f in /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/clients/nekobox-uri.txt /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/mihomo.yaml /opt/Love/subscribe/clients/clash-meta.yaml /opt/Love/subscribe/clients/shadowrocket-uri.txt; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  echo
+  echo "[Web files]"
+  for f in /var/www/love-admin/all.txt /var/www/love-admin/node-links.txt /var/www/love-admin/sub/all.txt /var/www/love-admin/qr/index.html; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+}
+
+# Disable old export/check/print chains completely. They must not decide final files.
+love_v1351_post_install_guard() { :; }
+love_v1351_matrix_check() { love_v13623_check; }
+love_after_node_generated_exports() { love_v13623_final_export; echo "[OK] 安装完成后只走 v13.60.23 final exporter；旧导出/检查链已禁用。"; }
+export_subscription() { love_v13623_final_export; }
+love_sub_safe_v1341() { love_v13623_final_export; }
+extract_raw_links() { love_v13623_final_export >/dev/null; echo /opt/Love/subscribe/all.txt; }
+generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
+generate_qrcodes() { love_v13622_export_from_configs >/dev/null; love_v13619_generate_qr; echo "[OK] QR 已生成：/opt/Love/subscribe/qr/index.html"; }
+web_admin_page() { love_v13622_export_from_configs >/dev/null; love_v13619_web_sync; echo "[OK] Love Web Green Panel 已生成：http://[你的IP]:8099/"; }
+
+# Bypass the old v13.51 install wrappers that append legacy matrix checks.
+# Use the preserved pre-wrapper install cores, then run only the clean final export/check.
+if declare -F love_original_install_singbox_native_v1351 >/dev/null 2>&1; then
+  install_singbox_native() {
+    love_original_install_singbox_native_v1351 "$@"
+    love_v13623_final_export
+    love_v13623_check
+    log "sing-box 全协议安装完成：最终导出已统一为 v13.60.23。"
+  }
+fi
+
+if declare -F love_original_install_xray_stable_v1351 >/dev/null 2>&1; then
+  install_xray_stable() {
+    love_original_install_xray_stable_v1351 "$@"
+    love_v13623_final_export
+    love_v13623_check
+    log "Xray 稳定模式安装完成：最终导出已统一为 v13.60.23。"
+  }
+fi
+
+# Make common CLI aliases use the clean exporter/check.
+love_v13619_final_export() { love_v13623_final_export; }
+love_v13619_check() { love_v13623_check; }
+
 
 main "$@"
