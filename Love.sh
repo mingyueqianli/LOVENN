@@ -52,7 +52,8 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.24-oneclick-update-clean-final"
+VERSION="Love v13.60.25-version-variable-clean-final"
+LOVE_SCRIPT_VERSION="$VERSION"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -8574,7 +8575,7 @@ love_warp_final_menu_v12() {
 #   - Add bilingual Chinese/English labels so users can find features quickly.
 #   - Keep legacy links hidden from normal subscriptions; provide show/backup/clean tools.
 # ===============================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.1-color-bilingual-main-menu-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.1-color-bilingual-main-menu-final"
 
 love_c13601() {
   case "${1:-reset}" in
@@ -11409,7 +11410,7 @@ install_xray_stable() {
 # and repair /usr/local/bin/Love + /usr/local/bin/love symlinks.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.56.1-source-first-export-hotfix"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.56.1-source-first-export-hotfix"
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
 
 love_version_line_v1312() {
@@ -12172,7 +12173,7 @@ EOF
 # 3) Add commands: Love sing-fix / Love sing-debug / Love clean-names
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.19.0-singbox-name-clean-port-fix-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.19.0-singbox-name-clean-port-fix-final"
 
 love_clean_singbox_node_names_v1319() {
   local roots f
@@ -12379,7 +12380,7 @@ main() {
 # Fix duplicate LOVE-LOVE names.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.20.0-singbox-client-link-fix-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.20.0-singbox-client-link-fix-final"
 
 love_fix_client_links_v1320() {
   local roots f
@@ -12554,7 +12555,7 @@ main() {
 # This cleaner remains as a safety guard only; users do NOT need to run it manually.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.21.0-singbox-no-sb-source-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.21.0-singbox-no-sb-source-final"
 
 love_no_sb_final_clean_v1321() {
   local roots f
@@ -12649,7 +12650,7 @@ main() {
 # Prevent /opt/Love/subscribe from growing to GB.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.28.0-disk-guard-stable-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.28.0-disk-guard-stable-final"
 
 love_avail_mb_v1328() { df -Pm / 2>/dev/null | awk 'NR==2{print $4+0}'; }
 love_dir_mb_v1328() { du -sm "$1" 2>/dev/null | awk '{print $1+0}'; }
@@ -12929,7 +12930,7 @@ main() {
 #   - No auto sub/qr/txt generation from Love web, no recursion.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.29.0-web-qr-theme-gallery-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.29.0-web-qr-theme-gallery-final"
 
 love_web_theme_css_v1329() {
 cat <<'EOF'
@@ -13206,7 +13207,7 @@ main() {
 #   VLESS WS TLS 50006 had no allowInsecure/insecure.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.30.0-tuic-wstls-linkfix-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.30.0-tuic-wstls-linkfix-final"
 
 love_linkfix_line_v1330() {
   local line="$1"
@@ -13325,7 +13326,7 @@ main() {
 #   Use exact query parameter detection: ?key= or &key=.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.31.0-source-correct-links-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.31.0-source-correct-links-final"
 
 love_has_param_v1331() {
   local line="$1" key="$2"
@@ -13626,7 +13627,7 @@ main() {
 # config.json is source; client-info is cache; subscribe is output only.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.32.0-final-unified-stable"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.32.0-final-unified-stable"
 
 love_host_uri_v1332() {
   local old ip6 ip4
@@ -13842,7 +13843,7 @@ main() {
 #   Old main menu status panel had external checks and set -e sensitive calls.
 #   On minimal VPS this could exit before drawing menu.
 # ==============================================================================
-LOVE_SCRIPT_VERSION="Love v13.33.0-start-menu-safe-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.33.0-start-menu-safe-final"
 
 love_service_state_v1333() {
   local svc="$1"
@@ -13934,7 +13935,7 @@ main() {
 #   Generate correct links at source; no post-delete / no generated-file recursion.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.34.0-dual-stack-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.34.0-dual-stack-final"
 
 love_uri_has_param_v1334() {
   local line="$1" key="$2"
@@ -14159,7 +14160,7 @@ main() {
 #   - Generate correct insecure/allowInsecure/allow_insecure at source.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.35.0-hard-menu-dual-stack-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.35.0-hard-menu-dual-stack-final"
 
 love_call_if_exists_v1335() {
   local fn="$1"; shift || true
@@ -14332,7 +14333,7 @@ main() {
 #   - Adds domain-check / cert-fix / sync / ports / count.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.36.0-domain-aware-dual-stack-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.36.0-domain-aware-dual-stack-final"
 
 love_uri_get_param_v1336() {
   local line="$1" key="$2" q
@@ -14697,7 +14698,7 @@ main() {
 #   3) real domain + self-signed/custom certificate -> domain SNI kept, insecure required
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.37.0-domain-selfsigned-aware-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.37.0-domain-selfsigned-aware-final"
 LOVE_CERT_MODE_FILE="/opt/Love/domain-cert-mode"
 
 love_cert_mode_v1337() {
@@ -14980,7 +14981,7 @@ main() {
 #   If mode was "public", self.local links could lose insecure flags.
 #   For no-domain/self.local, insecure must ALWAYS be kept regardless of mode file.
 # ==============================================================================
-LOVE_SCRIPT_VERSION="Love v13.38.0-nodomain-hardfix-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.38.0-nodomain-hardfix-final"
 
 love_tls_requires_insecure_v1338() {
   local sni="${1:-}" port="${2:-}" cert mode
@@ -15191,7 +15192,7 @@ main() {
 #   - Xray HY2 domain + self-signed and domain + public cert post-set commands.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.39.0-all-mode-server-hardfix-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.39.0-all-mode-server-hardfix-final"
 
 love_server_hardfix_v1339() {
   local cfg="/etc/sing-box/config.json"
@@ -15404,7 +15405,7 @@ main() {
 #   - Add auto country flag labels; failure falls back to US.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.41.0-safe-main-xray-sub-flag-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.41.0-safe-main-xray-sub-flag-final"
 
 # ------------------------------
 # Safe update guard: never overwrite with empty/broken script.
@@ -15783,7 +15784,7 @@ main() {
 #   - Keep v13.41 zero-byte update guard, old Xray HY2 subscription format, auto flag.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.42.0-latest-xray-auto-web-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.42.0-latest-xray-auto-web-final"
 XRAY_INSTALL_POLICY="latest"
 
 # Force Xray install/update to latest release.
@@ -15966,7 +15967,7 @@ main() {
 #   - Keeps sing-box logic untouched.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.43.0-color-menu-clean-uninstall-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.43.0-color-menu-clean-uninstall-final"
 
 # ------------------------------
 # Color helpers
@@ -16301,7 +16302,7 @@ main() {
 #   4) sing-box logic untouched.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.44.0-reload-after-update-xrayinfo-fix-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.44.0-reload-after-update-xrayinfo-fix-final"
 
 love_prepare_core_dirs_v1344() {
   mkdir -p /opt/Love
@@ -16443,7 +16444,7 @@ main() {
 #   - Keeps v13.44 reload/directory fix, v13.43 colored menu, v13.42 latest Xray/auto Web.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.45.0-warp-manager-restore-xray-ipv4-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.45.0-warp-manager-restore-xray-ipv4-final"
 
 love_socks_health_gate_v1345() {
   local port="${1:-40000}"
@@ -16769,7 +16770,7 @@ main() {
 #   - Keeps Xray latest / auto Web / xray-info dir fix / sing-box untouched.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.46.0-web-qr-warp-final-restore"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.46.0-web-qr-warp-final-restore"
 
 love_web_css_final_v1346() {
   cat <<'EOF'
@@ -17107,7 +17108,7 @@ main() {
 #   - Does not touch sing-box server config.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.47.0-vless-ws-tls-insecure-restore-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.47.0-vless-ws-tls-insecure-restore-final"
 
 love_fix_vless_ws_tls_line_v1347() {
   local line="$1"
@@ -17259,7 +17260,7 @@ main() {
 # 边界：不写 xray/sing-box 服务端 config，不重启服务，不换 UUID/key/auth/cert。
 # 只统一生成客户端输出：client-info / all.txt / clients / QR / Web。
 # ==============================================================================
-LOVE_SCRIPT_VERSION="Love v13.48.0-source-correct-cert-flag-all-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.48.0-source-correct-cert-flag-all-final"
 
 love_v1348_mkdirs() {
   mkdir -p /opt/Love/client-info /opt/Love/subscribe/clients /opt/Love/subscribe/qr /opt/Love/subscribe/sing-box
@@ -17554,7 +17555,7 @@ main() {
 #   - Love sub / source-correct 仍然只重建客户端输出，不改服务端 config。
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.49.0-install-source-output-source-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.49.0-install-source-output-source-final"
 
 love_v1349_cert_menu() {
   echo
@@ -17869,7 +17870,7 @@ main() {
 #   - Xray service/core/key/auth untouched by this fix.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.50.0-tuic-alpn-v2rayn-import-source-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.50.0-tuic-alpn-v2rayn-import-source-final"
 
 love_v1350_fix_singbox_tuic_alpn_config() {
   [[ -s /etc/sing-box/config.json ]] || { echo "[WARN] /etc/sing-box/config.json 不存在。"; return 0; }
@@ -18148,7 +18149,7 @@ main() {
 #   - Xray core/key/auth/cert files are untouched by this final guard.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.51.0-full-matrix-guard-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.51.0-full-matrix-guard-final"
 
 love_v1351_open_ports_from_current_configs() {
   echo "================ Love 自动放行当前配置端口 v13.51 ================"
@@ -18367,7 +18368,7 @@ main() {
 # Old repair commands remain only for legacy VPS repair; new installs do not rely on them.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.52.0-source-template-body-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.52.0-source-template-body-final"
 
 love_v1352_flag_emoji() {
   local flag cc
@@ -18758,7 +18759,7 @@ main() {
 #   8. Cert mode switch is provided for link/output generation; new installs still use install cert menu.
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.56.1-source-first-export-hotfix"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.56.1-source-first-export-hotfix"
 
 love_v1354_cert_mode() {
   local m
@@ -19170,7 +19171,7 @@ main() {
 #   - Archive legacy/raw links instead of deleting them.
 # ================================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.55.0-safe-enhance-no-delete-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.55.0-safe-enhance-no-delete-final"
 
 love_v1355_node_sni() {
   local sni
@@ -19580,7 +19581,7 @@ main() {
 #   - No existing feature is removed.
 # ================================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.57.0-v2rayn-import-true-source-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.57.0-v2rayn-import-true-source-final"
 
 love_v1356_bool_true() {
   case "${1:-1}" in
@@ -19979,7 +19980,7 @@ main() {
 #   - Existing VPS operations below are non-destructive unless the user explicitly confirms.
 # ================================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.60.0-network-cf-cert-sub-speed-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.0-network-cf-cert-sub-speed-final"
 
 love_v1360_mkdirs() {
   mkdir -p /opt/Love /opt/Love/reports /opt/Love/secrets /opt/Love/subscribe /opt/Love/subscribe/clients /var/www/love-admin 2>/dev/null || true
@@ -20438,7 +20439,7 @@ main() {
 #     Web copied text files, and QR source links.
 #   - Add menu/command entries without deleting any existing feature.
 # ================================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.2-flag-icon-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.2-flag-icon-final"
 
 love_v13602_cc_to_emoji() {
   local cc
@@ -20752,7 +20753,7 @@ main() {
 #   - Keep legacy flag-fix command only as a safe rebuild alias, not a file scanner.
 #   - Preserve all existing protocols, Green Web, QR, and legacy archive behavior.
 # ==============================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.3-flag-icon-source-first-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.3-flag-icon-source-first-final"
 
 love_v13603_cc_to_emoji() {
   local cc
@@ -21145,7 +21146,7 @@ main() {
 #   - Generate a source-time v2rayN manual TRUE reminder report after node export.
 #   - Keep Green Web / QR / legacy links unchanged.
 # ==============================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.4-manual-true-notice-source-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.4-manual-true-notice-source-final"
 
 love_v13604_line_name() {
   local line="$1" frag=""
@@ -21340,7 +21341,7 @@ main() {
 #   - Xray Extended supports domain/no-domain/custom cert source choices.
 #   - Do not change Green Web / QR / sing-box working nodes / legacy archive logic.
 # ==============================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.6-cert-mode-strict-xray-source-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.6-cert-mode-strict-xray-source-final"
 
 love_c13605() {
   case "${1:-}" in
@@ -21954,7 +21955,7 @@ main() {
 # - Fixes menu item 12 to one-click update without asking URL.
 # - Fixes menu item 23 to a stable classic uninstall menu.
 # ============================================================================== 
-LOVE_SCRIPT_VERSION="Love v13.60.10-classic-ui-catalog-install-fix-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.10-classic-ui-catalog-install-fix-final"
 LOVE_RAW_URL_DEFAULT="${LOVE_RAW_URL_DEFAULT:-https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh}"
 
 love_v13607_c() {
@@ -22508,8 +22509,8 @@ main() {
 #       * Web files missing after clean chain
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.60.24-oneclick-update-clean-final"
-VERSION="${LOVE_SCRIPT_VERSION}"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.25-version-variable-clean-final"
+# disabled duplicate legacy VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13619_prepare_dirs() {
   mkdir -p /opt/Love /opt/Love/state /opt/Love/client-info /opt/Love/subscribe \
@@ -23094,7 +23095,7 @@ love_v13619_final_export() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.24 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.25 final exporter；旧导出链不再参与最终写入。"
 }
 
 extract_raw_links() {
@@ -23253,9 +23254,9 @@ love_v13619_menu() {
     love_v13619_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
     love_v13619_row "25) 安装 FS warp 命令" "50) Xray 26.5.9 更新"
     love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
-    love_v13619_row "53) v13.60.24 检查" "0) 退出 / Exit"
+    love_v13619_row "53) v13.60.25 检查" "0) 退出 / Exit"
     echo
-    echo "提示: 最终导出只走 v13.60.24；旧导出链不再写 all.txt/Web/QR。"
+    echo "提示: 最终导出只走 v13.60.25；旧导出链不再写 all.txt/Web/QR。"
     read -rp "请选择 / Select: " c
     case "$c" in
       1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
@@ -23340,8 +23341,8 @@ main() {
 #   - Old v13.51 post-install matrix no longer runs after install.
 #   - Final check is clean and checks real final files only.
 # ===============================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.24-oneclick-update-clean-final"
-VERSION="${LOVE_SCRIPT_VERSION}"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.25-version-variable-clean-final"
+# disabled duplicate legacy VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13622_any_protocol_selected() {
   [[ "${INSTALL_REALITY:-no}" == "yes" || "${INSTALL_HY2:-no}" == "yes" || "${INSTALL_TUIC:-no}" == "yes" || \
@@ -23557,7 +23558,7 @@ love_v13622_export_from_configs() {
 
   local count
   count="$(grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$all" 2>/dev/null || echo 0)"
-  echo "[OK] v13.60.24 final export generated ${count} URI nodes."
+  echo "[OK] v13.60.25 final export generated ${count} URI nodes."
 }
 
 love_v13619_export_from_configs() {
@@ -23565,10 +23566,10 @@ love_v13619_export_from_configs() {
 }
 
 love_v13619_final_export() {
-  echo "================ Love Final Export v13.60.24 ================"
+  echo "================ Love Final Export v13.60.25 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.24 ================"
+  echo "================ 最终节点 / Final Links v13.60.25 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
@@ -23579,7 +23580,7 @@ love_v13622_check_duplicate_sni() {
 }
 
 love_v13619_check() {
-  echo "================ Love v13.60.24 Clean Check ================"
+  echo "================ Love v13.60.25 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23618,7 +23619,7 @@ love_v13619_check() {
 
 love_v1351_matrix_check() { love_v13619_check; }
 love_v1351_post_install_guard() {
-  echo "================ Love Post-Install Guard v13.60.24 ================"
+  echo "================ Love Post-Install Guard v13.60.25 ================"
   love_v1351_open_ports_from_current_configs 2>/dev/null || true
   love_v13619_final_export
   love_v13619_check
@@ -23626,7 +23627,7 @@ love_v1351_post_install_guard() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.24 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.25 final exporter；旧导出链不再参与最终写入。"
 }
 
 export_subscription() { love_v13619_final_export; }
@@ -23637,24 +23638,24 @@ generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; echo "[OK] 
 
 
 # ===============================================================================
-# v13.60.24 Clean Install + Export Final
+# v13.60.25 Clean Install + Export Final
 # Purpose:
 #   Keep the proven install core, but remove old post-install export/check chains
 #   from the execution path. The final output is generated once from live configs.
 # ===============================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.24-oneclick-update-clean-final"
-VERSION="$LOVE_SCRIPT_VERSION"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.25-version-variable-clean-final"
+# disabled duplicate legacy VERSION="$LOVE_SCRIPT_VERSION"
 
 love_v13624_final_export() {
-  echo "================ Love Final Export v13.60.24 ================"
+  echo "================ Love Final Export v13.60.25 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.24 ================"
+  echo "================ 最终节点 / Final Links v13.60.25 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
 love_v13624_check() {
-  echo "================ Love v13.60.24 Clean Check ================"
+  echo "================ Love v13.60.25 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23694,7 +23695,7 @@ love_v13624_check() {
 # Disable old export/check/print chains completely. They must not decide final files.
 love_v1351_post_install_guard() { :; }
 love_v1351_matrix_check() { love_v13624_check; }
-love_after_node_generated_exports() { love_v13624_final_export; echo "[OK] 安装完成后只走 v13.60.24 final exporter；旧导出/检查链已禁用。"; }
+love_after_node_generated_exports() { love_v13624_final_export; echo "[OK] 安装完成后只走 v13.60.25 final exporter；旧导出/检查链已禁用。"; }
 export_subscription() { love_v13624_final_export; }
 love_sub_safe_v1341() { love_v13624_final_export; }
 extract_raw_links() { love_v13624_final_export >/dev/null; echo /opt/Love/subscribe/all.txt; }
@@ -23709,7 +23710,7 @@ if declare -F love_original_install_singbox_native_v1351 >/dev/null 2>&1; then
     love_original_install_singbox_native_v1351 "$@"
     love_v13624_final_export
     love_v13624_check
-    log "sing-box 全协议安装完成：最终导出已统一为 v13.60.24。"
+    log "sing-box 全协议安装完成：最终导出已统一为 v13.60.25。"
   }
 fi
 
@@ -23718,7 +23719,7 @@ if declare -F love_original_install_xray_stable_v1351 >/dev/null 2>&1; then
     love_original_install_xray_stable_v1351 "$@"
     love_v13624_final_export
     love_v13624_check
-    log "Xray 稳定模式安装完成：最终导出已统一为 v13.60.24。"
+    log "Xray 稳定模式安装完成：最终导出已统一为 v13.60.25。"
   }
 fi
 
@@ -23728,14 +23729,14 @@ love_v13619_check() { love_v13624_check; }
 
 
 # ===============================================================================
-# v13.60.24 One-click Update Clean Final
+# v13.60.25 One-click Update Clean Final
 # Fix:
 #   - old updater printed "Unknown command: v13607-version" after successful update.
 #   - keep compatibility aliases v13607-version/v136xx-check.
 #   - do not run legacy version command after self update; just read VERSION from target.
 # ===============================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.24-oneclick-update-clean-final"
-VERSION="$LOVE_SCRIPT_VERSION"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.25-version-variable-clean-final"
+# disabled duplicate legacy VERSION="$LOVE_SCRIPT_VERSION"
 
 love_v13624_oneclick_update() {
   need_root 2>/dev/null || true
