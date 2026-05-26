@@ -23791,7 +23791,7 @@ main() {
 #   URI source, and runs after older export layers so old v13.xx copy logic cannot
 #   leave stale client files behind.
 # ============================================================================== 
-LOVE_SCRIPT_VERSION="Love v13.60.14-client-export-real-final"
+LOVE_SCRIPT_VERSION="Love v13.60.17-final-hook-hard-fix"
 
 love_v13614_client_export_real_final() {
   prepare_dirs 2>/dev/null || true
@@ -24152,7 +24152,7 @@ if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13
   eval "$(declare -f main | sed '1s/^main/love_original_main_before_v13614/')"
 fi
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.14-client-export-real-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.17-final-hook-hard-fix}"
   case "${1:-}" in
     sub|subscribe|clients|client-export|source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|true-fix|cert-true-fix|client-export-strict|client-export-real)
       love_original_main_before_v13614 "$@" 2>/dev/null || true
@@ -24313,7 +24313,7 @@ main() {
 #   - Do not change QR style.
 #   - Do not change menu mapping.
 # ============================================================================== 
-LOVE_SCRIPT_VERSION="Love v13.60.16-config-source-export-final"
+LOVE_SCRIPT_VERSION="Love v13.60.17-final-hook-hard-fix"
 VERSION="$LOVE_SCRIPT_VERSION"
 
 love_v13616_client_export_from_configs() {
@@ -24688,7 +24688,7 @@ if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13
   eval "$(declare -f main | sed '1s/^main/love_original_main_before_v13616/')"
 fi
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.16-config-source-export-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.17-final-hook-hard-fix}"
   case "${1:-}" in
     sub|subscribe|clients|client-export|source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|true-fix|cert-true-fix|client-export-strict|client-export-real|clean-export)
       love_v13615_export_final_only ;;
@@ -24700,6 +24700,346 @@ main() {
       echo "${LOVE_SCRIPT_VERSION}" ;;
     *)
       love_original_main_before_v13616 "$@" ;;
+  esac
+}
+
+# ==============================================================================
+# Love v13.60.17 Final Hook Hard Fix
+# Purpose:
+#   1) Keep install logic/server configs intact.
+#   2) Disable old exporters from being the final writer.
+#   3) After any install/export action, rebuild client links directly from live configs.
+#   4) Ensure final all.txt / v2rayN / NekoBox / sing-box JSON / Mihomo / Web / QR are same source.
+# ==============================================================================
+LOVE_SCRIPT_VERSION="Love v13.60.17-final-hook-hard-fix"
+VERSION="Love v13.60.17-final-hook-hard-fix"
+
+love_v13617_final_export() {
+  echo "================ Love Final Config-Source Export v13.60.17 ================"
+  if declare -F love_v13616_client_export_from_configs >/dev/null 2>&1; then
+    love_v13616_client_export_from_configs || return 1
+  else
+    echo "[ERROR] live-config exporter missing: love_v13616_client_export_from_configs"
+    return 1
+  fi
+
+  # Ensure Web common files are aligned with final all.txt, without changing green style.
+  mkdir -p /var/www/love-admin/sub /var/www/love-admin/clients /var/www/love-admin/qr 2>/dev/null || true
+  if [[ -s /opt/Love/subscribe/all.txt ]]; then
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/all.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/node-links.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/全部节点.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/推荐节点.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/节点清晰版.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/sub/all.txt 2>/dev/null || true
+  fi
+  cp -a /opt/Love/subscribe/clients/. /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -a /opt/Love/subscribe/qr/. /var/www/love-admin/qr/ 2>/dev/null || true
+
+  echo "[OK] Final export written from live configs only."
+}
+
+love_v13617_print_final_links() {
+  echo
+  echo "================ 最终节点 / Final Links v13.60.17 ================"
+  if [[ -s /opt/Love/subscribe/all.txt ]]; then
+    cat /opt/Love/subscribe/all.txt
+  else
+    echo "[WARN] /opt/Love/subscribe/all.txt still missing. Check /etc/sing-box/config.json or /usr/local/etc/xray/config.json."
+  fi
+}
+
+love_v13617_check() {
+  echo "================ Love v13.60.17 Final Export Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Services]"
+  systemctl is-active --quiet sing-box && echo "sing-box: active" || echo "sing-box: inactive"
+  systemctl is-active --quiet xray && echo "xray: active" || echo "xray: inactive"
+  systemctl is-active --quiet nginx && echo "nginx: active" || echo "nginx: inactive"
+  echo
+  echo "[Final all.txt count]"
+  grep -Ec '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
+  echo
+  echo "[v2rayN HY2 / Xray-HY2 / Naive]"
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "[Old bad patterns]"
+  local bad=0
+  if grep -Rqs 'sni=self.local&sni=self.local' /opt/Love/subscribe /var/www/love-admin 2>/dev/null; then echo "[BAD] duplicate sni found"; bad=1; else echo "[OK] duplicate sni not found"; fi
+  if grep -RhsE 'LOVE-(XRAY-)?HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null | grep -qE '/\?sni=|insecure=1|allowInsecure=1'; then echo "[BAD] old HY2 format found"; bad=1; else echo "[OK] old HY2 format not found"; fi
+  if grep -RhsE 'LOVE-(XRAY-)?HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null | grep -q 'alpn=h3'; then echo "[OK] HY2 contains alpn=h3"; else echo "[WARN] HY2 alpn=h3 missing"; bad=1; fi
+  if grep -RhsE 'LOVE-(XRAY-)?HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null | grep -q 'allowInsecure=true'; then echo "[OK] HY2 contains allowInsecure=true"; else echo "[WARN] HY2 allowInsecure=true missing"; bad=1; fi
+  echo
+  echo "[Client files]"
+  for f in /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/clients/nekobox-uri.txt /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/mihomo.yaml /opt/Love/subscribe/clients/clash-meta.yaml; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  echo
+  echo "[Web files]"
+  for f in /var/www/love-admin/all.txt /var/www/love-admin/node-links.txt /var/www/love-admin/clients/v2rayn-uri.txt /var/www/love-admin/sub/all.txt /var/www/love-admin/qr/index.html; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  return $bad
+}
+
+love_v13617_after_install() {
+  # Open ports if old helper exists, but do not let old exporters write final output.
+  if declare -F love_v1351_open_ports_from_current_configs >/dev/null 2>&1; then
+    love_v1351_open_ports_from_current_configs >/dev/null 2>&1 || true
+  fi
+  love_v13617_final_export || true
+  love_v13617_print_final_links || true
+  love_v13617_check || true
+}
+
+# Hard override old export writers: keep their commands, but final writer is v13.60.17 only.
+love_v1348_source_correct_outputs() { love_v13617_final_export; }
+love_v1351_regen_qr_web_after_uri() { love_v13617_final_export; }
+love_v1360_generate_client_subs() { love_v13617_final_export; }
+love_v13613_export_clients_strict() { love_v13617_final_export; }
+love_v13614_client_export_real_final() { love_v13617_final_export; }
+love_v13615_export_final_only() { love_v13617_final_export; }
+love_v13616_client_export_final() { love_v13617_final_export; }
+love_after_node_generated_exports() { love_v13617_after_install; }
+love_v1351_matrix_check() { love_v13617_check; }
+love_v1351_post_install_guard() { love_v13617_after_install; }
+
+# Re-wrap install entry points to force a final live-config export after old installer returns.
+if declare -F love_original_install_singbox_native_v1351 >/dev/null 2>&1; then
+  install_singbox_native() {
+    love_original_install_singbox_native_v1351 "$@"
+    love_v13617_after_install
+  }
+fi
+if declare -F love_original_install_xray_stable_v1351 >/dev/null 2>&1; then
+  install_xray_stable() {
+    love_original_install_xray_stable_v1351 "$@"
+    love_v13617_after_install
+  }
+fi
+if declare -F love_original_install_xray_extended_v13605 >/dev/null 2>&1; then
+  install_xray_extended() {
+    love_original_install_xray_extended_v13605 "$@"
+    love_v13617_after_install
+  }
+fi
+
+# Final main override for direct commands; interactive menu is preserved but version is fixed above.
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13617 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_before_v13617/')"
+fi
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION}"
+  case "${1:-}" in
+    sub|subscribe|clients|client-export|source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|true-fix|cert-true-fix|client-export-strict|client-export-real|clean-export|config-export)
+      love_v13617_final_export ;;
+    web|qr|qrcode|qr-fix)
+      love_v13617_final_export ;;
+    v13617-check|final-check|v13616-check|config-source-check|export-live-check)
+      love_v13617_check ;;
+    version|v13617-version)
+      echo "${LOVE_SCRIPT_VERSION}" ;;
+    *)
+      love_original_main_before_v13617 "$@" ;;
+  esac
+}
+
+
+# ==============================================================================
+# Love v13.60.18 - Clean Old Export Chain Final
+# Purpose:
+#   Stop old v13.51/v13.55/v13.57/v13.60.13 exporters from printing or writing
+#   final node files. Installers may still write service configs, but final
+#   client output is generated only from live configs by the v13.60.16 exporter.
+# ============================================================================== 
+LOVE_SCRIPT_VERSION="Love v13.60.18-clean-old-chain-final"
+VERSION="$LOVE_SCRIPT_VERSION"
+
+love_v13618_meta_write() {
+  mkdir -p /opt/Love /opt/Love/client-info /opt/Love/subscribe /opt/Love/subscribe/clients /var/www/love-admin 2>/dev/null || true
+}
+
+# Replace old noisy client-info writers. They no longer generate final URI files.
+# Final URI files are generated from /etc/sing-box/config.json and /usr/local/etc/xray/config.json.
+save_singbox_info() {
+  local client_addr="${1:-}" client_port_base="${2:-8881}" reality_sni="${3:-www.cloudflare.com}" tls_sni="${4:-self.local}" insecure="${5:-1}"
+  love_v13618_meta_write
+  printf '%s\n' "${client_addr}" > /opt/Love/client-address 2>/dev/null || true
+  printf '%s\n' "${client_port_base}" > /opt/Love/client-port 2>/dev/null || true
+  printf '%s\n' "${tls_sni}" > /opt/Love/node-sni 2>/dev/null || true
+  [[ "${insecure}" == "1" || "${insecure}" == "true" ]] && printf 'self_signed\n' > /opt/Love/cert-mode 2>/dev/null || true
+  cat > /opt/Love/client-info/sing-box-client-info.txt <<EOF13618SB
+Love sing-box Client Info
+
+Final client links are generated from live config only.
+Run: Love sub
+Files:
+  /opt/Love/subscribe/all.txt
+  /opt/Love/subscribe/clients/v2rayn-uri.txt
+  /opt/Love/subscribe/clients/nekobox-uri.txt
+  /opt/Love/subscribe/clients/sing-box-client.json
+EOF13618SB
+}
+
+save_xray_info() {
+  local node_addr="${1:-}" reality_sni="${2:-www.cloudflare.com}" enable_hy2="${3:-no}" hy2_sni="${4:-self.local}" insecure="${5:-1}" client_addr="${6:-$node_addr}" client_port="${7:-443}"
+  love_v13618_meta_write
+  [[ -n "${client_addr}" ]] && printf '%s\n' "${client_addr}" > /opt/Love/client-address 2>/dev/null || true
+  printf '%s\n' "${client_port}" > /opt/Love/client-port 2>/dev/null || true
+  printf '%s\n' "${hy2_sni}" > /opt/Love/node-sni 2>/dev/null || true
+  [[ "${insecure}" == "1" || "${insecure}" == "true" ]] && printf 'self_signed\n' > /opt/Love/cert-mode 2>/dev/null || true
+  cat > /opt/Love/client-info/xray-client-info.txt <<EOF13618XR
+Love Xray Client Info
+
+Final client links are generated from live config only.
+Run: Love sub
+Files:
+  /opt/Love/subscribe/all.txt
+  /opt/Love/subscribe/clients/v2rayn-uri.txt
+  /opt/Love/subscribe/clients/nekobox-uri.txt
+  /opt/Love/subscribe/clients/sing-box-client.json
+EOF13618XR
+}
+
+love_v13618_shadowrocket_export() {
+  mkdir -p /opt/Love/subscribe/clients /var/www/love-admin/clients 2>/dev/null || true
+  local src="/opt/Love/subscribe/all.txt" out="/opt/Love/subscribe/clients/shadowrocket-uri.txt" exp="/opt/Love/subscribe/clients/shadowrocket-experimental.txt"
+  : > "$out"; : > "$exp"
+  [[ -s "$src" ]] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      *LOVE-HY2*|*LOVE-TUIC*|*LOVE-TROJAN*|*LOVE-SS*|*LOVE-VMESS-WS*|*LOVE-VLESS-WS-TLS*) echo "$line" >> "$out" ;;
+      *LOVE-REALITY*|*LOVE-H2-REALITY*|*LOVE-GRPC-REALITY*|*LOVE-ANYTLS*|*LOVE-NAIVE*|*LOVE-SHADOWTLS*) echo "$line" >> "$exp" ;;
+    esac
+  done < "$src"
+  cp -f "$out" /var/www/love-admin/clients/shadowrocket-uri.txt 2>/dev/null || true
+  cp -f "$exp" /var/www/love-admin/clients/shadowrocket-experimental.txt 2>/dev/null || true
+}
+
+love_v13618_final_export() {
+  echo "================ Love Final Export v13.60.18 ================"
+  mkdir -p /opt/Love/subscribe /opt/Love/subscribe/clients /opt/Love/reports /var/www/love-admin/sub /var/www/love-admin/clients /var/www/love-admin/qr 2>/dev/null || true
+  if declare -F love_v13616_client_export_from_configs >/dev/null 2>&1; then
+    love_v13616_client_export_from_configs || return 1
+  else
+    echo "[ERROR] live config exporter missing."
+    return 1
+  fi
+  love_v13618_shadowrocket_export || true
+  # One last deterministic sync; do not call old web/qr writers.
+  if [[ -s /opt/Love/subscribe/all.txt ]]; then
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/all.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/node-links.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/全部节点.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/推荐节点.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/节点清晰版.txt 2>/dev/null || true
+    cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/sub/all.txt 2>/dev/null || true
+  fi
+  cp -a /opt/Love/subscribe/clients/. /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -a /opt/Love/subscribe/qr/. /var/www/love-admin/qr/ 2>/dev/null || true
+  chown -R www-data:www-data /var/www/love-admin 2>/dev/null || true
+  echo "[OK] 旧导出链已从最终写入路径移除；最终节点只从 live config 生成。"
+}
+
+love_v13618_print_final_links() {
+  echo
+  echo "================ 最终节点 / Final Links v13.60.18 ================"
+  if [[ -s /opt/Love/subscribe/all.txt ]]; then
+    cat /opt/Love/subscribe/all.txt
+  else
+    echo "[WARN] 未生成节点：请检查 /etc/sing-box/config.json 或 /usr/local/etc/xray/config.json 是否存在。"
+  fi
+}
+
+love_v13618_check() {
+  echo "================ Love v13.60.18 Clean Chain Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Service]"
+  systemctl is-active --quiet sing-box && echo "sing-box: active" || echo "sing-box: inactive"
+  systemctl is-active --quiet xray && echo "xray: active" || echo "xray: inactive"
+  systemctl is-active --quiet nginx && echo "nginx: active" || echo "nginx: inactive"
+  echo
+  echo "[Final all.txt count]"
+  grep -Ec '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
+  echo
+  echo "[v2rayN HY2 / Xray-HY2 / Naive]"
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  local bad=0
+  if grep -Rqs 'sni=self.local&sni=self.local' /opt/Love/subscribe /var/www/love-admin 2>/dev/null; then echo "[BAD] duplicate sni found"; bad=1; else echo "[OK] duplicate sni not found"; fi
+  if grep -RhsE 'LOVE-(XRAY-)?HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null | grep -qE '/\?sni=|insecure=1|allowInsecure=1'; then echo "[BAD] old HY2 format found"; bad=1; else echo "[OK] old HY2 format not found"; fi
+  if grep -RhsE 'LOVE-(XRAY-)?HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null | grep -q 'allowInsecure=true'; then echo "[OK] HY2 allowInsecure=true"; else echo "[WARN] HY2 allowInsecure=true missing"; bad=1; fi
+  if grep -RhsE 'LOVE-(XRAY-)?HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null | grep -q 'alpn=h3'; then echo "[OK] HY2 alpn=h3"; else echo "[WARN] HY2 alpn=h3 missing"; bad=1; fi
+  echo
+  echo "[Client files]"
+  for f in \
+    /opt/Love/subscribe/clients/v2rayn-uri.txt \
+    /opt/Love/subscribe/clients/nekobox-uri.txt \
+    /opt/Love/subscribe/clients/sing-box-client.json \
+    /opt/Love/subscribe/clients/mihomo.yaml \
+    /opt/Love/subscribe/clients/clash-meta.yaml \
+    /opt/Love/subscribe/clients/shadowrocket-uri.txt; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  return $bad
+}
+
+love_v13618_after_install() {
+  # Ports only; final client files are generated by v13.60.18.
+  if declare -F love_v1351_open_ports_from_current_configs >/dev/null 2>&1; then
+    love_v1351_open_ports_from_current_configs >/dev/null 2>&1 || true
+  fi
+  love_v13618_final_export || true
+  love_v13618_print_final_links || true
+  love_v13618_check || true
+}
+
+# Disable old final writers. These names may still be called by older installers,
+# but they now point to the clean v13.60.18 final exporter.
+love_v1348_source_correct_outputs() { love_v13618_final_export; }
+love_v1351_regen_qr_web_after_uri() { love_v13618_final_export; }
+love_v1360_generate_client_subs() { love_v13618_final_export; }
+love_v13613_export_clients_strict() { love_v13618_final_export; }
+love_v13614_client_export_real_final() { love_v13618_final_export; }
+love_v13615_export_final_only() { love_v13618_final_export; }
+love_v13616_client_export_final() { love_v13618_final_export; }
+love_v13617_final_export() { love_v13618_final_export; }
+love_after_node_generated_exports() { love_v13618_after_install; }
+love_v1351_post_install_guard() { love_v13618_after_install; }
+love_v1351_matrix_check() { love_v13618_check; }
+
+# Capture current installers after all old definitions, then wrap them once.
+if declare -F install_singbox_native >/dev/null 2>&1 && ! declare -F love_v13618_install_singbox_inner >/dev/null 2>&1; then
+  eval "$(declare -f install_singbox_native | sed '1s/^install_singbox_native/love_v13618_install_singbox_inner/')"
+  install_singbox_native() { love_v13618_install_singbox_inner "$@"; love_v13618_after_install; }
+fi
+if declare -F install_xray_stable >/dev/null 2>&1 && ! declare -F love_v13618_install_xray_inner >/dev/null 2>&1; then
+  eval "$(declare -f install_xray_stable | sed '1s/^install_xray_stable/love_v13618_install_xray_inner/')"
+  install_xray_stable() { love_v13618_install_xray_inner "$@"; love_v13618_after_install; }
+fi
+if declare -F install_xray_extended >/dev/null 2>&1 && ! declare -F love_v13618_install_xray_ext_inner >/dev/null 2>&1; then
+  eval "$(declare -f install_xray_extended | sed '1s/^install_xray_extended/love_v13618_install_xray_ext_inner/')"
+  install_xray_extended() { love_v13618_install_xray_ext_inner "$@"; love_v13618_after_install; }
+fi
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_v13618_main_inner >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_v13618_main_inner/')"
+fi
+main() {
+  VERSION="$LOVE_SCRIPT_VERSION"
+  case "${1:-}" in
+    sub|subscribe|clients|client-export|source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|true-fix|cert-true-fix|client-export-strict|client-export-real|clean-export|config-export)
+      love_v13618_final_export ;;
+    web|qr|qrcode|qr-fix)
+      love_v13618_final_export ;;
+    v13618-check|clean-chain-check|final-check|v13617-check|v13616-check|config-source-check|export-live-check)
+      love_v13618_check ;;
+    version|v13618-version)
+      echo "$LOVE_SCRIPT_VERSION" ;;
+    *)
+      love_v13618_main_inner "$@" ;;
   esac
 }
 
