@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.55.0-safe-enhance-no-delete-final"
+VERSION="Love v13.60.0-network-cf-cert-sub-speed-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -8558,7 +8558,320 @@ love_warp_final_menu_v12() {
 
 # ==============================================================================
 # Love v12.9 Force Color Two-Column UI + Update Link Final
-# This override is placed immediately before main "$@" so it wins.
+# This override is placed immediately before 
+
+# ==============================================================================
+# Love v13.60.1 Color Bilingual Main Menu Final
+# Purpose:
+#   - Do NOT delete old functions.
+#   - Do NOT change Green Web UI.
+#   - Add all v13.58/v13.59/v13.60 commands into the visible main menu.
+#   - Add bilingual Chinese/English labels so users can find features quickly.
+#   - Keep legacy links hidden from normal subscriptions; provide show/backup/clean tools.
+# ===============================================================================
+LOVE_SCRIPT_VERSION="Love v13.60.1-color-bilingual-main-menu-final"
+
+love_c13601() {
+  case "${1:-reset}" in
+    red) printf '\033[0;31m' ;;
+    green) printf '\033[0;32m' ;;
+    yellow) printf '\033[1;33m' ;;
+    blue) printf '\033[0;34m' ;;
+    magenta) printf '\033[0;35m' ;;
+    cyan) printf '\033[0;36m' ;;
+    white) printf '\033[1;37m' ;;
+    gray) printf '\033[0;90m' ;;
+    bold) printf '\033[1m' ;;
+    reset|*) printf '\033[0m' ;;
+  esac
+}
+
+love_pause13601() {
+  echo
+  read -rp "$(printf '%b按 Enter 返回主菜单 / Press Enter to return...%b' "$(love_c13601 gray)" "$(love_c13601 reset)")" _ || true
+}
+
+love_hr13601() {
+  printf "%b%s%b\n" "$(love_c13601 cyan)" "════════════════════════════════════════════════════════════════════════════════" "$(love_c13601 reset)"
+}
+
+love_header13601() {
+  clear 2>/dev/null || true
+  love_hr13601
+  printf "%b%-78s%b\n" "$(love_c13601 magenta)" "  Love Node Server Manager · 全彩中英主菜单 / Color Bilingual Main Menu" "$(love_c13601 reset)"
+  printf "%b%-78s%b\n" "$(love_c13601 yellow)" "  ${LOVE_SCRIPT_VERSION}" "$(love_c13601 reset)"
+  love_hr13601
+}
+
+love_status13601() {
+  if declare -F love_safe_status_v1335 >/dev/null 2>&1; then
+    love_safe_status_v1335 || true
+    return 0
+  fi
+  local os arch sb xr ng sub_count
+  os="$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}" || echo unknown)"
+  arch="$(uname -m 2>/dev/null || echo unknown)"
+  systemctl is-active --quiet sing-box 2>/dev/null && sb="active" || sb="not active"
+  systemctl is-active --quiet xray 2>/dev/null && xr="active" || xr="not active"
+  systemctl is-active --quiet nginx 2>/dev/null && ng="active" || ng="not active"
+  sub_count="$(grep -cE '^(vless|hysteria2|hy2|tuic|ss|trojan|vmess|anytls|https|shadowtls)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0)"
+  printf "%b系统状态 / Status%b\n" "$(love_c13601 green)" "$(love_c13601 reset)"
+  printf "  %-24s %s\n" "OS:" "$os"
+  printf "  %-24s %s\n" "Arch:" "$arch"
+  printf "  %-24s %s\n" "Nodes:" "$sub_count"
+  printf "  %-24s %s\n" "sing-box:" "$sb"
+  printf "  %-24s %s\n" "xray:" "$xr"
+  printf "  %-24s %s\n" "nginx web:" "$ng"
+  echo
+}
+
+love_row13601() {
+  local l="$1" r="$2" lc="${3:-white}" rc="${4:-white}"
+  printf "  %b%-42s%b  %b%-42s%b\n" "$(love_c13601 "$lc")" "$l" "$(love_c13601 reset)" "$(love_c13601 "$rc")" "$r" "$(love_c13601 reset)"
+}
+
+love_section13601() {
+  printf "\n%b▶ %s%b\n" "$(love_c13601 cyan)" "$1" "$(love_c13601 reset)"
+}
+
+love_call13601() {
+  local fn="$1"; shift || true
+  if declare -F "$fn" >/dev/null 2>&1; then
+    "$fn" "$@"
+  else
+    printf "%b[WARN]%b 函数不存在 / Missing function: %s\n" "$(love_c13601 yellow)" "$(love_c13601 reset)" "$fn"
+  fi
+}
+
+love_h2_v2rayn_help13601() {
+  love_header13601
+  printf "%bLOVE-H2-REALITY · v2rayN 使用说明 / Usage Notes%b\n\n" "$(love_c13601 green)" "$(love_c13601 reset)"
+  cat <<'EOF'
+中文：
+  LOVE-H2-REALITY = VLESS + Reality + HTTP/H2。
+  在 v2rayN 里必须设置：设置 -> Core 类型设置 -> VLESS -> sing_box。
+  如果 VLESS 仍使用 Xray，新版 Xray 会报：HTTP transport has been removed。
+
+English:
+  LOVE-H2-REALITY is VLESS + Reality + HTTP/H2.
+  In v2rayN, set: Settings -> Core Type Settings -> VLESS -> sing_box.
+  If VLESS still uses Xray, newer Xray may fail with: HTTP transport has been removed.
+
+正确链接关键参数 / Required URI fields:
+  security=reality
+  type=http
+  path=/h2
+  host=Reality SNI, e.g. www.cloudflare.com
+  alpn=h2
+  flow must be empty; do NOT use xtls-rprx-vision for H2 Reality.
+EOF
+}
+
+love_legacy_file13601() {
+  echo "/opt/Love/subscribe/clients/legacy-raw-links.txt"
+}
+
+love_legacy_show13601() {
+  love_header13601
+  local f; f="$(love_legacy_file13601)"
+  printf "%bLegacy links / 旧链接归档%b\n" "$(love_c13601 green)" "$(love_c13601 reset)"
+  echo "File: $f"
+  echo
+  if [[ -s "$f" ]]; then
+    cat "$f"
+  else
+    echo "[INFO] 没有 legacy 旧链接归档，或文件为空。"
+  fi
+}
+
+love_legacy_backup13601() {
+  love_header13601
+  local f b
+  f="$(love_legacy_file13601)"
+  mkdir -p /opt/Love/backup
+  b="/opt/Love/backup/legacy-raw-links.$(date +%F-%H%M%S).txt"
+  if [[ -s "$f" ]]; then
+    cp -f "$f" "$b"
+    chmod 600 "$b" 2>/dev/null || true
+    echo "[OK] 已备份 legacy 旧链接到：$b"
+  else
+    echo "[INFO] legacy 文件不存在或为空，无需备份。"
+  fi
+}
+
+love_legacy_clean13601() {
+  love_header13601
+  local f b ok
+  f="$(love_legacy_file13601)"
+  if [[ ! -s "$f" ]]; then
+    echo "[INFO] legacy 文件不存在或为空，无需清理。"
+    return 0
+  fi
+  echo "这不会删除正式订阅，只会把 legacy 旧链接先备份再清空。"
+  echo "This will NOT delete active subscriptions. It backs up and empties legacy links only."
+  read -rp "确认清理 legacy 旧链接？[y/N]: " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || { echo "[INFO] 已取消。"; return 0; }
+  mkdir -p /opt/Love/backup
+  b="/opt/Love/backup/legacy-raw-links.cleaned.$(date +%F-%H%M%S).txt"
+  cp -f "$f" "$b"
+  : > "$f"
+  chmod 600 "$f" "$b" 2>/dev/null || true
+  echo "[OK] 已备份到：$b"
+  echo "[OK] 已清空 legacy 旧链接文件：$f"
+}
+
+love_color_menu_help13601() {
+  cat <<'EOF'
+Love v13.60.1 menu commands / 菜单命令：
+  Love menu          打开全彩中英主菜单
+  Love help1360      查看 v13.60 新增命令
+  Love env           VPS 环境识别
+  Love optimize      BBR / MTU / sysctl 优化
+  Love speed         一键诊断
+  Love sub           自动生成订阅
+  Love web           绿色 Web 管理页
+  Love cert-check    证书检查
+  Love cert-ca       HTTP-01 Let's Encrypt 证书
+  Love cf-config     Cloudflare Token 配置
+  Love cf-dns        Cloudflare DNS 自动解析
+  Love cf-cert       Cloudflare DNS-01 证书
+  Love legacy-show   查看旧链接归档
+  Love legacy-backup 备份旧链接归档
+  Love legacy-clean  备份后清空旧链接归档
+EOF
+}
+
+love_color_menu13601() {
+  while true; do
+    love_header13601
+    love_status13601
+
+    love_section13601 "核心安装 / Core Install"
+    love_row13601 "1) 节点目录 / Node catalog" "2) Xray Reality + HY2" green green
+    love_row13601 "3) sing-box 全协议 / All protocols" "4) Argo 隧道 / Cloudflared" green blue
+    love_row13601 "5) UDP 跳跃 / Port hopping" "6) WARP 出站 / Outbound help" blue blue
+
+    love_section13601 "导出与客户端 / Export & Clients"
+    love_row13601 "7) 节点信息 / Node info" "8) 订阅生成 / Build subscriptions" yellow yellow
+    love_row13601 "9) 二维码 / QR codes" "10) Super Tools / 修复工具" yellow magenta
+    love_row13601 "11) 绿色 Web / Green Web panel" "12) 在线更新 / Online update" green blue
+    love_row13601 "13) 客户端导出 / Client export" "30) 专用订阅 / Client-specific sub" yellow yellow
+    love_row13601 "31) Clash Meta / Mihomo YAML" "38) H2 Reality v2rayN help" cyan cyan
+
+    love_section13601 "旧版工具保留 / Legacy Tools Kept"
+    love_row13601 "14) v6 Project Tools" "15) v7 Stable Tools" white white
+    love_row13601 "16) v8 Project Panel" "17) Nginx Reverse Proxy" white white
+    love_row13601 "18) HY2/sing-box 修复 / Fix" "19) IPv6-only 出站修复" white white
+    love_row13601 "20) WARP Manager / FS-style" "21) 运行状态 / Runtime status" white white
+    love_row13601 "22) 备份配置 / Backup" "23) 卸载菜单 / Uninstall" white red
+    love_row13601 "24) GitHub 发布说明" "25) 安装 FS warp 命令" white white
+
+    love_section13601 "v13.60 新增 / New Automation"
+    love_row13601 "26) VPS 环境识别 / VPS env" "27) BBR/MTU 优化 / Optimize" cyan cyan
+    love_row13601 "28) 一键测速诊断 / Speed diagnose" "29) 重建订阅 / Rebuild sub" cyan yellow
+    love_row13601 "32) 证书检查 / Cert check" "33) HTTP-01 证书 / LE cert" green green
+    love_row13601 "34) 证书模式切换 / Cert switch" "35) CF Token 配置 / CF config" green magenta
+    love_row13601 "36) CF DNS 自动解析 / DNS upsert" "37) CF DNS-01 证书 / DNS cert" magenta magenta
+    love_row13601 "43) v13.60 检查 / Final check" "44) 端口/防火墙 / Ports" cyan cyan
+
+    love_section13601 "旧链接归档 / Legacy Link Archive"
+    love_row13601 "39) 查看旧链接 / Show legacy" "40) 备份旧链接 / Backup legacy" gray gray
+    love_row13601 "41) 清空旧链接 / Clean legacy" "42) 帮助 / Help" red cyan
+    love_row13601 "0) 退出 / Exit" "" red white
+
+    echo
+    printf "%b提示 / Tips:%b 绿色 Web 不改样式；旧链接不进入正式订阅，只用于回滚和排错。\n" "$(love_c13601 yellow)" "$(love_c13601 reset)"
+    printf "%bLOVE-H2-REALITY:%b v2rayN 里 VLESS Core 要改成 sing_box。\n" "$(love_c13601 yellow)" "$(love_c13601 reset)"
+    echo
+    read -rp "请选择 / Select: " choice
+
+    case "${choice}" in
+      1) love_call13601 show_all_node_catalog ;;
+      2) love_call13601 install_xray_stable ;;
+      3) love_call13601 install_singbox_native ;;
+      4) love_call13601 argo_helper ;;
+      5) love_call13601 port_hopping_helper ;;
+      6) love_call13601 warp_helper ;;
+      7) love_call13601 show_node_info ;;
+      8) love_v1360_generate_client_subs ;;
+      9) love_call13601 generate_qrcodes ;;
+      10) love_call13601 super_menu ;;
+      11) love_v1360_web ;;
+      12) love_call13601 self_update_love ;;
+      13) love_v1360_generate_client_subs ; love_call13601 love_full_client_pack ;;
+      14) love_call13601 v6_super_menu ;;
+      15) love_call13601 v7_stable_menu ;;
+      16) love_call13601 v8_menu ;;
+      17) love_call13601 nginx_rp_menu ;;
+      18) love_call13601 love_fix_hy2_now ;;
+      19) love_call13601 love_ipv6_outbound_menu ;;
+      20) love_call13601 love_warp_manager_menu ;;
+      21) love_call13601 show_status ;;
+      22) love_call13601 backup_configs ;;
+      23) love_call13601 uninstall_menu_v7 ;;
+      24) love_call13601 github_publish_note ;;
+      25) love_call13601 love_install_fs_warp_command ;;
+      26) love_v1360_env_detect ;;
+      27) love_v1360_optimize ;;
+      28) love_v1360_speed ;;
+      29) love_v1360_generate_client_subs ;;
+      30) love_v1360_generate_client_subs ;;
+      31) love_v1360_generate_client_subs; generate_mihomo_yaml 2>/dev/null || true ;;
+      32) love_v1360_cert_check ;;
+      33) love_v1360_cert_http01 ;;
+      34) love_call13601 love_v1354_cert_switch ;;
+      35) love_v1360_cf_config ;;
+      36) love_v1360_cf_dns ;;
+      37) love_v1360_cf_cert_dns01 ;;
+      38) love_h2_v2rayn_help13601 ;;
+      39) love_legacy_show13601 ;;
+      40) love_legacy_backup13601 ;;
+      41) love_legacy_clean13601 ;;
+      42) love_color_menu_help13601 ;;
+      43) love_v1360_env_detect; echo; love_v1360_cert_check; echo; love_v1356_source_check 2>/dev/null || true ;;
+      44) love_call13601 love_ports_v1334 ;;
+      0|q|Q|exit) exit 0 ;;
+      *) printf "%b[WARN]%b 无效选择 / Invalid choice.\n" "$(love_c13601 yellow)" "$(love_c13601 reset)" ;;
+    esac
+    love_pause13601
+  done
+}
+
+# Preserve v13.60 main and then expose the new color menu.
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1360_before_color_menu >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1360_before_color_menu/')"
+fi
+
+main_menu() {
+  love_color_menu13601
+}
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.1-color-bilingual-main-menu-final}"
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_color_menu13601 ;;
+    legacy|legacy-show)
+      love_legacy_show13601 ;;
+    legacy-backup)
+      love_legacy_backup13601 ;;
+    legacy-clean|legacy-clear)
+      love_legacy_clean13601 ;;
+    h2-help|v2rayn-h2|h2-v2rayn)
+      love_h2_v2rayn_help13601 ;;
+    help-menu|color-help|menu-help)
+      love_color_menu_help13601 ;;
+    *)
+      love_original_main_v1360_before_color_menu "$@" ;;
+  esac
+}
+
+main "$@" so it wins.
 # ==============================================================================
 
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
@@ -19004,6 +19317,106 @@ love_v1355_archive_legacy_links() {
   chmod 600 "$out" 2>/dev/null || true
 }
 
+
+# V13.57: v2rayN has its own URI importer behavior.
+# Generic links keep true/false style for NekoBox/sing-box compatibility.
+# v2rayn-uri.txt is generated separately using v2rayN-preferred numeric bools (1)
+# because some v2rayN builds ignore insecure=true but accept insecure=1/allowInsecure=1.
+love_v1357_make_v2rayn_import() {
+  local SUBDIR="/opt/Love/subscribe"
+  local CLIENTDIR="${SUBDIR}/clients"
+  local src="${SUBDIR}/all.txt"
+  local out="${CLIENTDIR}/v2rayn-uri.txt"
+  mkdir -p "$CLIENTDIR"
+  [[ -s "$src" ]] || return 0
+
+  python3 - "$src" "$out" <<'INNERPY1357'
+from pathlib import Path
+import sys, urllib.parse
+
+src = Path(sys.argv[1])
+out = Path(sys.argv[2])
+
+def split_uri(line: str):
+    main, sep, frag = line.partition('#')
+    base, qsep, query = main.partition('?')
+    return base, query if qsep else '', frag
+
+def parse_pairs(query: str):
+    return urllib.parse.parse_qsl(query, keep_blank_values=True) if query else []
+
+def remove_keys(pairs, *names):
+    names = {n.lower() for n in names}
+    return [(k, v) for k, v in pairs if k.lower() not in names]
+
+def get_first(pairs, *names):
+    names = {n.lower() for n in names}
+    for k, v in pairs:
+        if k.lower() in names:
+            return v
+    return ''
+
+def query_of(pairs):
+    return urllib.parse.urlencode(pairs, doseq=True, safe='')
+
+def has_self_tls(line_lower: str, pairs):
+    sni = (get_first(pairs, 'sni', 'host', 'authority') or '').lower()
+    return ('self.local' in sni) or ('self.local' in line_lower) or any(tag in line_lower for tag in (
+        'love-hy2','love-tuic','love-trojan','love-vless-ws-tls','love-anytls','love-naive'
+    ))
+
+out_lines = []
+for raw in src.read_text(encoding='utf-8', errors='ignore').splitlines():
+    line = raw.strip()
+    if not line:
+        continue
+    low = line.lower()
+    if not line.startswith(('vless://','hy2://','hysteria2://','tuic://','trojan://','anytls://','https://','ss://','vmess://')):
+        continue
+    if line.startswith(('ss://','vmess://')):
+        out_lines.append(line)
+        continue
+
+    base, query, frag = split_uri(line)
+    pairs = parse_pairs(query)
+    is_reality = line.startswith('vless://') and 'security=reality' in low
+
+    # Reality does not use normal TLS cert verification switches.
+    if is_reality:
+        out_lines.append(line)
+        continue
+
+    pairs = remove_keys(pairs, 'allowInsecure', 'allow_insecure', 'insecure')
+
+    if line.startswith(('hy2://','hysteria2://')):
+        if has_self_tls(low, pairs):
+            pairs += [('insecure','1')]
+    elif line.startswith('tuic://'):
+        pairs = remove_keys(pairs, 'alpn')
+        if has_self_tls(low, pairs):
+            pairs += [('allow_insecure','1'), ('allowInsecure','1'), ('insecure','1'), ('alpn','h3')]
+        else:
+            pairs += [('alpn','h3')]
+    elif line.startswith('trojan://'):
+        if has_self_tls(low, pairs):
+            pairs += [('allowInsecure','1'), ('insecure','1'), ('allow_insecure','1')]
+    elif line.startswith('vless://') and 'security=tls' in low:
+        if has_self_tls(low, pairs):
+            pairs += [('allowInsecure','1'), ('insecure','1'), ('allow_insecure','1')]
+    elif line.startswith('anytls://'):
+        if has_self_tls(low, pairs):
+            pairs += [('insecure','1'), ('allowInsecure','1'), ('allow_insecure','1')]
+    elif line.startswith('https://'):
+        if has_self_tls(low, pairs):
+            pairs += [('insecure','1'), ('allowInsecure','1'), ('allow_insecure','1')]
+
+    q = query_of(pairs)
+    out_lines.append(base + (('?' + q) if q else '') + '#' + (frag or 'LOVE'))
+
+out.write_text('\n'.join(out_lines) + '\n', encoding='utf-8')
+INNERPY1357
+}
+
 love_v1355_export_direct() {
   love_v1354_export_direct
   local SUBDIR="/opt/Love/subscribe"
@@ -19014,9 +19427,10 @@ love_v1355_export_direct() {
   cp -f "$SUBDIR/all.txt" "$SUBDIR/全部节点.txt" 2>/dev/null || true
   cp -f "$SUBDIR/all.txt" "$SUBDIR/推荐节点.txt" 2>/dev/null || true
   cp -f "$SUBDIR/all.txt" "$SUBDIR/节点清晰版.txt" 2>/dev/null || true
-  cp -f "$SUBDIR/all.txt" "$CLIENTDIR/v2rayn-uri.txt" 2>/dev/null || true
+  # Generic clients keep all.txt true/false style. v2rayN gets a dedicated compatibility file.
   cp -f "$SUBDIR/all.txt" "$CLIENTDIR/nekobox-uri.txt" 2>/dev/null || true
   cp -f "$SUBDIR/all.txt" "$CLIENTDIR/nodes-clean.txt" 2>/dev/null || true
+  love_v1357_make_v2rayn_import 2>/dev/null || cp -f "$SUBDIR/all.txt" "$CLIENTDIR/v2rayn-uri.txt" 2>/dev/null || true
   if base64 --help 2>/dev/null | grep -q -- '-w'; then
     base64 -w0 "$SUBDIR/all.txt" > "$SUBDIR/all_base64.txt" 2>/dev/null || true
   else
@@ -19154,7 +19568,7 @@ main() {
 #   - No existing feature is removed.
 # ================================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.56.0-source-first-h2-reality-final"
+LOVE_SCRIPT_VERSION="Love v13.57.0-v2rayn-import-true-source-final"
 
 love_v1356_bool_true() {
   case "${1:-1}" in
@@ -19463,7 +19877,7 @@ save_singbox_info() {
 }
 
 love_v1356_source_check() {
-  echo "================ Love v13.56 Source-First 检查 ================"
+  echo "================ Love v13.57 Source-First + V2RayN 检查 ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[1] 源头服务端模板："
@@ -19484,19 +19898,31 @@ love_v1356_source_check() {
   else
     echo "[OK] 当前导出未发现旧式 1/0。"
   fi
+
+  echo
+  echo "[4] v2rayN 专用导入检查："
+  if [[ -s /opt/Love/subscribe/clients/v2rayn-uri.txt ]]; then
+    if grep -nE 'insecure=1|allowInsecure=1|allow_insecure=1' /opt/Love/subscribe/clients/v2rayn-uri.txt >/dev/null 2>&1; then
+      echo "[OK] v2rayN 专用文件使用 1 格式，避免部分 v2rayN 导入后仍显示 False。"
+    else
+      echo "[WARN] v2rayN 专用文件未发现 1 格式，执行 Love v2rayn-fix。"
+    fi
+  else
+    echo "[WARN] v2rayN 专用文件不存在，执行 Love source-correct。"
+  fi
 }
 
 love_after_node_generated_exports() {
   echo
-  echo "================ Love Source-First Export v13.56 ================"
+  echo "================ Love Source-First Export v13.57 ================"
   love_v1355_export_direct
   love_v1354_qr_direct
-  echo "[OK] 新安装节点已从模板源头生成正确服务端配置和客户端链接。h2-fix 仅保留给旧 VPS 维修。"
+  echo "[OK] 新安装节点已从模板源头生成正确服务端配置和客户端链接。h2-fix 仅保留给旧 VPS 维修；v2rayN 专用导入已单独生成。"
   web_admin_page
 }
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.56.0-source-first-h2-reality-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.57.0-v2rayn-import-true-source-final}"
   case "${1:-}" in
     h2-fix|grpc-fix|reality-h2-fix|tuic-fix|legacy-h2-fix)
       echo "[INFO] 这是旧 VPS 遗留配置修复入口；新安装已经从 write_singbox_config 源头生成正确 H2/gRPC Reality。"
@@ -19526,6 +19952,468 @@ main() {
     *)
       love_original_main_v1354 "$@"
       ;;
+  esac
+}
+
+
+
+# ================================================================================
+# Love v13.60 Network + CF API + Cert + Sub + Speed Final
+#
+# Upgrade policy:
+#   - Do NOT remove any existing function, protocol, green web page, QR page, or legacy archive.
+#   - Only add safe entry points and wrappers.
+#   - New VPS installs still use source-first generation from earlier v13.56/v13.57 logic.
+#   - Existing VPS operations below are non-destructive unless the user explicitly confirms.
+# ================================================================================
+
+LOVE_SCRIPT_VERSION="Love v13.60.0-network-cf-cert-sub-speed-final"
+
+love_v1360_mkdirs() {
+  mkdir -p /opt/Love /opt/Love/reports /opt/Love/secrets /opt/Love/subscribe /opt/Love/subscribe/clients /var/www/love-admin 2>/dev/null || true
+  chmod 700 /opt/Love/secrets 2>/dev/null || true
+}
+
+love_v1360_header() {
+  echo
+  echo "================ $* ================"
+}
+
+love_v1360_cmd_exists() { command -v "$1" >/dev/null 2>&1; }
+
+love_v1360_public_ip() {
+  local fam="$1" ip=""
+  if [[ "$fam" == "4" ]]; then
+    ip="$(curl -4 -s --max-time 6 https://ifconfig.co 2>/dev/null | tr -d '\r\n ' || true)"
+  else
+    ip="$(curl -6 -s --max-time 6 https://ifconfig.co 2>/dev/null | tr -d '\r\n ' || true)"
+  fi
+  [[ -n "$ip" ]] && echo "$ip"
+}
+
+love_v1360_env_detect() {
+  love_v1360_mkdirs
+  local report="/opt/Love/reports/env-report.txt"
+  local arch os pretty virt ipv4 ipv6 provider="unknown" cpu model ports
+  arch="$(uname -m 2>/dev/null || echo unknown)"
+  os="unknown"; pretty="unknown"
+  if [[ -f /etc/os-release ]]; then
+    . /etc/os-release
+    os="${ID:-unknown}"; pretty="${PRETTY_NAME:-$os}"
+  fi
+  virt="$(systemd-detect-virt 2>/dev/null || echo unknown)"
+  cpu="$(nproc 2>/dev/null || echo unknown)"
+  model="$(awk -F: '/model name|Hardware|Processor/ {gsub(/^[ \t]+/,"",$2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)"
+  ipv4="$(love_v1360_public_ip 4 || true)"
+  ipv6="$(love_v1360_public_ip 6 || true)"
+  if grep -qi oracle /sys/class/dmi/id/product_name /sys/class/dmi/id/sys_vendor 2>/dev/null; then provider="Oracle/OCI possible"; fi
+  if hostname 2>/dev/null | grep -Eqi 'hax|hax\.co|haxvps'; then provider="Hax possible"; fi
+  ports="$(ss -lntup 2>/dev/null | awk 'NR==1 || /:8881|:8882|:8883|:8884|:8885|:8886|:8887|:8888|:8889|:8890|:8891|:443|:80/' || true)"
+
+  {
+    echo "Love v13.60 VPS Environment Report"
+    echo "Generated: $(date '+%F %T')"
+    echo
+    echo "OS: $pretty"
+    echo "Arch: $arch"
+    echo "CPU cores: $cpu"
+    echo "CPU model: ${model:-unknown}"
+    echo "Virtualization: $virt"
+    echo "Provider hint: $provider"
+    echo
+    echo "IPv4 outbound: ${ipv4:-NO}"
+    echo "IPv6 outbound: ${ipv6:-NO}"
+    echo
+    if [[ -z "$ipv4" && -n "$ipv6" ]]; then
+      echo "Network mode: IPv6-only / IPv6-first"
+      echo "Advice: HY2/Reality/TUIC can work over IPv6. Some IPv4-only websites may need WARP/NAT64 or an IPv4 VPS."
+    elif [[ -n "$ipv4" && -n "$ipv6" ]]; then
+      echo "Network mode: dual-stack"
+    elif [[ -n "$ipv4" && -z "$ipv6" ]]; then
+      echo "Network mode: IPv4-only"
+    else
+      echo "Network mode: no public outbound detected by curl"
+    fi
+    echo
+    echo "Listening ports snapshot:"
+    echo "$ports"
+    echo
+    echo "Oracle/OCI note: UFW rules are not enough by themselves. Also open TCP/UDP ports in OCI Security List or Network Security Group."
+    echo "Hax/free VPS note: IPv6-only is common; client network must support IPv6 unless you use tunnel/NAT64/WARP outbound."
+  } | tee "$report"
+  echo
+  echo "[OK] 环境报告：$report"
+}
+
+love_v1360_optimize() {
+  love_v1360_header "Love Optimize v13.60"
+  need_root 2>/dev/null || true
+  love_v1360_mkdirs
+  local conf="/etc/sysctl.d/99-love-network.conf"
+  cp -f "$conf" "$conf.bak.$(date +%F-%H%M%S)" 2>/dev/null || true
+  cat > "$conf" <<'EOF'
+# Love network optimization. Safe TCP defaults for proxy nodes.
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+net.ipv4.tcp_fastopen=3
+net.ipv4.ip_forward=0
+net.ipv6.conf.all.forwarding=0
+EOF
+  sysctl --system >/dev/null 2>&1 || true
+  echo "[INFO] BBR status:"
+  sysctl net.ipv4.tcp_congestion_control 2>/dev/null || true
+  sysctl net.core.default_qdisc 2>/dev/null || true
+  lsmod | grep -i bbr || true
+  echo
+  echo "[INFO] MTU 建议："
+  echo "  Hax / IPv6-only / HY2 / TUIC：1350"
+  echo "  Oracle AMD/ARM 双栈：1350~1400"
+  echo "  如果 UDP 丢包或握手慢：降到 1300"
+  echo
+  echo "[OK] 已写入 $conf。没有强制改网卡 MTU，避免断 SSH。"
+}
+
+love_v1360_cert_paths() {
+  local engine="${1:-sing-box}"
+  case "$engine" in
+    xray|Xray) echo "/usr/local/etc/xray cert.pem key.pem xray" ;;
+    *) echo "/etc/sing-box/cert cert.pem key.pem root" ;;
+  esac
+}
+
+love_v1360_cert_check() {
+  love_v1360_header "Love Cert Check v13.60"
+  love_v1360_mkdirs
+  local mode sni addr files=(/etc/sing-box/cert/cert.pem /etc/sing-box/cert/key.pem /usr/local/etc/xray/cert.pem /usr/local/etc/xray/key.pem /etc/letsencrypt/live/*/fullchain.pem)
+  mode="$(cat /opt/Love/cert-mode 2>/dev/null || cat /opt/Love/install-cert-case 2>/dev/null || echo unknown)"
+  sni="$(cat /opt/Love/node-sni 2>/dev/null || echo unknown)"
+  addr="$(cat /opt/Love/client-address 2>/dev/null || echo unknown)"
+  echo "cert-mode: $mode"
+  echo "node-sni:   $sni"
+  echo "client-address: $addr"
+  echo
+  for f in "${files[@]}"; do
+    for real in $f; do
+      [[ -f "$real" ]] || continue
+      echo "--- $real"
+      if [[ "$real" == *.pem ]] && openssl x509 -in "$real" -noout >/dev/null 2>&1; then
+        openssl x509 -in "$real" -noout -subject -issuer -dates 2>/dev/null || true
+        openssl x509 -in "$real" -noout -ext subjectAltName 2>/dev/null | sed 's/^/SAN: /' || true
+        if [[ "$sni" != "unknown" ]]; then
+          if openssl x509 -in "$real" -noout -checkhost "$sni" >/dev/null 2>&1; then
+            echo "[OK] 证书匹配 SNI：$sni"
+          else
+            echo "[WARN] 证书不匹配 SNI：$sni。若这是 self.local/自签/过期/错域名模式，客户端应输出 insecure=true。"
+          fi
+        fi
+      else
+        echo "[INFO] 非 x509 证书或 key 文件。"
+      fi
+      echo
+    done
+  done
+  echo "[TIP] HTTP-01：Love cert-ca；Cloudflare DNS-01：Love cf-cert；切换客户端证书模式：Love cert-switch。"
+}
+
+love_v1360_cert_http01() {
+  love_v1360_header "Love HTTP-01 Let's Encrypt Cert"
+  need_root 2>/dev/null || true
+  local domain email engine outdir certfile keyfile group occupied stopok
+  read -rp "域名，例如 node.example.com: " domain
+  [[ -n "$domain" ]] || { echo "[ERROR] 域名不能为空。"; return 1; }
+  read -rp "Let's Encrypt 邮箱: " email
+  [[ -n "$email" ]] || { echo "[ERROR] 邮箱不能为空。"; return 1; }
+  read -rp "证书用于哪个核心？[sing-box/xray, 默认 sing-box]: " engine
+  engine="${engine:-sing-box}"
+  read -r outdir certfile keyfile group < <(love_v1360_cert_paths "$engine")
+  mkdir -p "$outdir"
+  if ss -lntp 2>/dev/null | awk '{print $4}' | grep -Eq '(^|:|\])80$'; then
+    echo "[WARN] 80 端口被占用："
+    ss -lntp | grep ':80' || true
+    read -rp "是否临时停止 nginx/apache2/caddy 申请证书？[y/N]: " stopok
+    [[ "$stopok" =~ ^[Yy]$ ]] || { echo "[ERROR] 已取消。"; return 1; }
+    systemctl stop nginx apache2 caddy 2>/dev/null || true
+  fi
+  if ! love_v1360_cmd_exists certbot; then
+    echo "[INFO] 安装 certbot..."
+    install_base 2>/dev/null || true
+  fi
+  certbot certonly --standalone --preferred-challenges http -d "$domain" --agree-tos -m "$email" --non-interactive --keep-until-expiring || return 1
+  install -m 640 -o root -g "$group" "/etc/letsencrypt/live/$domain/fullchain.pem" "$outdir/$certfile"
+  install -m 640 -o root -g "$group" "/etc/letsencrypt/live/$domain/privkey.pem" "$outdir/$keyfile"
+  mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+  cat > "/etc/letsencrypt/renewal-hooks/deploy/love-copy-${engine}.sh" <<EOF
+#!/usr/bin/env bash
+set -e
+DOMAIN="$domain"
+if echo " \${RENEWED_DOMAINS:-} " | grep -q " $domain "; then
+  install -m 640 -o root -g "$group" "/etc/letsencrypt/live/$domain/fullchain.pem" "$outdir/$certfile"
+  install -m 640 -o root -g "$group" "/etc/letsencrypt/live/$domain/privkey.pem" "$outdir/$keyfile"
+  systemctl restart "$engine" 2>/dev/null || true
+fi
+EOF
+  chmod +x "/etc/letsencrypt/renewal-hooks/deploy/love-copy-${engine}.sh"
+  echo public_ca > /opt/Love/cert-mode
+  echo "$domain" > /opt/Love/node-sni
+  echo "[OK] 证书已安装到 $outdir，并写入 cert-mode=public_ca。"
+  systemctl restart "$engine" 2>/dev/null || true
+  love_v1355_export_direct 2>/dev/null || true
+}
+
+love_v1360_cf_secret_file() { echo "/opt/Love/secrets/cloudflare.env"; }
+
+love_v1360_cf_load() {
+  local f; f="$(love_v1360_cf_secret_file)"
+  [[ -f "$f" ]] && . "$f"
+  [[ -n "${CF_API_TOKEN:-}" ]]
+}
+
+love_v1360_cf_config() {
+  love_v1360_header "Love Cloudflare API Config"
+  love_v1360_mkdirs
+  local token f
+  f="$(love_v1360_cf_secret_file)"
+  read -rsp "Cloudflare API Token（需要 Zone:DNS Edit 权限）: " token; echo
+  [[ -n "$token" ]] || { echo "[ERROR] Token 不能为空。"; return 1; }
+  umask 077
+  cat > "$f" <<EOF
+export CF_API_TOKEN='$token'
+EOF
+  chmod 600 "$f"
+  echo "[OK] 已保存到 $f（权限 600，不会写入 Web/订阅/client-info）。"
+}
+
+love_v1360_cf_api() {
+  local method="$1" url="$2" data="${3:-}"
+  love_v1360_cf_load || { echo "[ERROR] 未配置 Cloudflare Token。先执行 Love cf-config。" >&2; return 1; }
+  if [[ -n "$data" ]]; then
+    curl -sS -X "$method" "https://api.cloudflare.com/client/v4/$url" \
+      -H "Authorization: Bearer ${CF_API_TOKEN}" -H "Content-Type: application/json" --data "$data"
+  else
+    curl -sS -X "$method" "https://api.cloudflare.com/client/v4/$url" \
+      -H "Authorization: Bearer ${CF_API_TOKEN}" -H "Content-Type: application/json"
+  fi
+}
+
+love_v1360_cf_zone_id() {
+  local zone="$1"
+  love_v1360_cf_api GET "zones?name=${zone}&status=active" | jq -r '.result[0].id // empty'
+}
+
+love_v1360_cf_dns() {
+  love_v1360_header "Love Cloudflare DNS Upsert"
+  love_v1360_mkdirs
+  love_v1360_cf_load || love_v1360_cf_config || return 1
+  local zone name typ content proxied zid rid payload res ipv4 ipv6
+  read -rp "根域名 Zone，例如 example.com: " zone
+  [[ -n "$zone" ]] || { echo "[ERROR] Zone 不能为空。"; return 1; }
+  read -rp "记录名，例如 node.example.com: " name
+  [[ -n "$name" ]] || { echo "[ERROR] 记录名不能为空。"; return 1; }
+  read -rp "记录类型 [A/AAAA，默认 AAAA]: " typ
+  typ="${typ:-AAAA}"; typ="${typ^^}"
+  if [[ "$typ" == "A" ]]; then content="$(love_v1360_public_ip 4 || true)"; else content="$(love_v1360_public_ip 6 || true)"; fi
+  read -rp "记录值 [$content]: " tmp_content
+  content="${tmp_content:-$content}"
+  [[ -n "$content" ]] || { echo "[ERROR] 没检测到记录值，请手动输入。"; return 1; }
+  read -rp "是否橙云 Proxied？Reality/HY2/TUIC 推荐 N，WS/Trojan 可 Y [y/N]: " proxied
+  [[ "$proxied" =~ ^[Yy]$ ]] && proxied=true || proxied=false
+  zid="$(love_v1360_cf_zone_id "$zone")"
+  [[ -n "$zid" ]] || { echo "[ERROR] 找不到 Zone ID。检查 Token 或 Zone 名。"; return 1; }
+  rid="$(love_v1360_cf_api GET "zones/$zid/dns_records?type=$typ&name=$name" | jq -r '.result[0].id // empty')"
+  payload="$(jq -nc --arg type "$typ" --arg name "$name" --arg content "$content" --argjson proxied "$proxied" '{type:$type,name:$name,content:$content,ttl:1,proxied:$proxied}')"
+  if [[ -n "$rid" ]]; then
+    res="$(love_v1360_cf_api PUT "zones/$zid/dns_records/$rid" "$payload")"
+  else
+    res="$(love_v1360_cf_api POST "zones/$zid/dns_records" "$payload")"
+  fi
+  echo "$res" | jq .
+  if echo "$res" | jq -e '.success==true' >/dev/null 2>&1; then
+    echo "$name" > /opt/Love/node-sni
+    echo "$name" > /opt/Love/client-address
+    echo "[OK] DNS 已更新。Reality/HY2/TUIC 通常用 DNS only；Trojan/WS TLS 可橙云。"
+  else
+    echo "[ERROR] Cloudflare DNS 更新失败。"
+    return 1
+  fi
+}
+
+love_v1360_cf_cert_dns01() {
+  love_v1360_header "Love Cloudflare DNS-01 Cert"
+  need_root 2>/dev/null || true
+  love_v1360_mkdirs
+  love_v1360_cf_load || love_v1360_cf_config || return 1
+  local domain engine outdir certfile keyfile group acme email
+  read -rp "申请证书域名，例如 node.example.com 或 *.example.com: " domain
+  [[ -n "$domain" ]] || { echo "[ERROR] 域名不能为空。"; return 1; }
+  read -rp "证书用于哪个核心？[sing-box/xray, 默认 sing-box]: " engine
+  engine="${engine:-sing-box}"
+  read -r outdir certfile keyfile group < <(love_v1360_cert_paths "$engine")
+  mkdir -p "$outdir"
+  acme="$HOME/.acme.sh/acme.sh"
+  if [[ ! -x "$acme" ]]; then
+    echo "[INFO] 安装 acme.sh..."
+    curl https://get.acme.sh | sh -s email="$(whoami)@$(hostname -f 2>/dev/null || hostname).local" || return 1
+  fi
+  export CF_Token="$CF_API_TOKEN"
+  "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
+  "$acme" --issue --dns dns_cf -d "$domain" --keylength ec-256 || return 1
+  "$acme" --install-cert -d "$domain" --ecc \
+    --fullchain-file "$outdir/$certfile" \
+    --key-file "$outdir/$keyfile" \
+    --reloadcmd "systemctl restart $engine 2>/dev/null || true" || return 1
+  chown root:"$group" "$outdir/$certfile" "$outdir/$keyfile" 2>/dev/null || true
+  chmod 640 "$outdir/$certfile" "$outdir/$keyfile" 2>/dev/null || true
+  echo public_ca > /opt/Love/cert-mode
+  echo "$domain" | sed 's/^\*\.//' > /opt/Love/node-sni
+  echo "[OK] DNS-01 证书已安装到 $outdir。"
+  systemctl restart "$engine" 2>/dev/null || true
+  love_v1355_export_direct 2>/dev/null || true
+}
+
+love_v1360_generate_client_subs() {
+  love_v1360_header "Love Subscriptions v13.60"
+  love_v1360_mkdirs
+  love_v1355_export_direct 2>/dev/null || love_v1354_export_direct 2>/dev/null || true
+  love_v1354_qr_direct 2>/dev/null || true
+  local sub="/opt/Love/subscribe" cli="/opt/Love/subscribe/clients"
+  mkdir -p "$cli"
+  [[ -s "$sub/all.txt" ]] && cp -f "$sub/all.txt" "$cli/nekobox-uri.txt" 2>/dev/null || true
+  [[ -s "$sub/all.txt" ]] && cp -f "$sub/all.txt" "$cli/v2rayng-uri.txt" 2>/dev/null || true
+  [[ -s "$sub/all.txt" ]] && cp -f "$sub/all.txt" "$cli/singbox-uri.txt" 2>/dev/null || true
+  [[ -s "$sub/all.txt" ]] && grep -Ei 'LOVE-H2-REALITY|LOVE-GRPC-REALITY|LOVE-ANYTLS|LOVE-NAIVE|SHADOWTLS' "$sub/all.txt" > "$cli/experimental.txt" 2>/dev/null || true
+  generate_mihomo_yaml >/dev/null 2>&1 || true
+  if [[ -s "$sub/mihomo.yaml" ]]; then
+    cp -f "$sub/mihomo.yaml" "$cli/clash-meta.yaml" 2>/dev/null || true
+  elif [[ -s "$sub/clash_like.yaml" ]]; then
+    cp -f "$sub/clash_like.yaml" "$cli/clash-meta.yaml" 2>/dev/null || true
+  fi
+  cat > "$cli/v2rayn-notes.txt" <<'EOF'
+Love v2rayN notes:
+1. LOVE-H2-REALITY 属于 VLESS + Reality + HTTP/H2。
+2. v2rayN 使用这条节点时：设置 -> Core 类型设置 -> VLESS -> sing_box。
+3. 如果 VLESS 仍用 Xray，新版 Xray 可能报 HTTP transport removed。
+4. HY2/TUIC/Trojan/VLESS-WS-TLS 自签证书节点若显示“证书验证 False”，请确认节点参数里存在 insecure/allowInsecure。某些版本 v2rayN 更吃 insecure=1，所以本脚本单独生成 v2rayn-uri.txt。
+EOF
+  chmod 600 "$cli/legacy-raw-links.txt" 2>/dev/null || true
+  echo "[OK] 已生成："
+  for f in "$sub/all.txt" "$sub/all_base64.txt" "$cli/v2rayn-uri.txt" "$cli/v2rayng-uri.txt" "$cli/nekobox-uri.txt" "$cli/singbox-uri.txt" "$cli/clash-meta.yaml" "$cli/experimental.txt" "$cli/v2rayn-notes.txt"; do
+    [[ -s "$f" ]] && echo "  $f"
+  done
+}
+
+love_v1360_speed() {
+  love_v1360_header "Love Speed / Diagnose v13.60"
+  love_v1360_mkdirs
+  local report="/opt/Love/reports/diagnose-report.txt" ipv4 ipv6
+  ipv4="$(love_v1360_public_ip 4 || true)"
+  ipv6="$(love_v1360_public_ip 6 || true)"
+  {
+    echo "Love diagnose report"
+    echo "Generated: $(date '+%F %T')"
+    echo
+    echo "[Network]"
+    echo "IPv4 outbound: ${ipv4:-NO}"
+    echo "IPv6 outbound: ${ipv6:-NO}"
+    echo
+    echo "[Ping]"
+    ping -4 -c 3 -W 2 1.1.1.1 2>/dev/null || echo "IPv4 ping failed"
+    ping -6 -c 3 -W 2 2606:4700:4700::1111 2>/dev/null || echo "IPv6 ping failed"
+    echo
+    echo "[HTTP reachability]"
+    curl -4 -I --max-time 8 https://www.google.com 2>/dev/null | head -5 || echo "curl -4 google failed"
+    curl -6 -I --max-time 8 https://www.google.com 2>/dev/null | head -5 || echo "curl -6 google failed"
+    echo
+    echo "[Listening ports]"
+    ss -lntup 2>/dev/null | awk 'NR==1 || /:80|:443|:8881|:8882|:8883|:8884|:8885|:8886|:8887|:8888|:8889|:8890|:8891/' || true
+    echo
+    echo "[UFW]"
+    ufw status 2>/dev/null || echo "ufw unavailable"
+    echo
+    echo "[sing-box]"
+    systemctl is-active sing-box 2>/dev/null || true
+    sing-box check -c /etc/sing-box/config.json 2>&1 || true
+    echo
+    echo "[xray]"
+    systemctl is-active xray 2>/dev/null || true
+    xray run -test -config /usr/local/etc/xray/config.json 2>&1 || true
+    echo
+    echo "[Subscriptions/Web]"
+    for f in /opt/Love/subscribe/all.txt /opt/Love/subscribe/all_base64.txt /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/clients/clash-meta.yaml /var/www/love-admin/index.html /var/www/love-admin/qr/index.html; do
+      [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+    done
+    echo
+    echo "[Cert]"
+    for f in /etc/sing-box/cert/cert.pem /usr/local/etc/xray/cert.pem; do
+      [[ -s "$f" ]] && openssl x509 -in "$f" -noout -subject -issuer -dates 2>/dev/null || true
+    done
+  } | tee "$report"
+  echo
+  echo "[OK] 诊断报告：$report"
+}
+
+love_v1360_web() {
+  love_v1360_generate_client_subs >/dev/null 2>&1 || true
+  web_admin_page
+}
+
+love_v1360_help() {
+  cat <<'EOF'
+Love v13.60 added commands:
+  Love env          VPS 环境识别：Hax/Oracle/AMD/ARM/IPv4/IPv6/端口
+  Love optimize     BBR + 安全 sysctl；MTU 1350 建议，不强改网卡
+  Love speed        一键诊断：IPv4/IPv6/DNS/端口/服务/订阅/Web/证书
+  Love sub          重新生成所有订阅与客户端专用导出
+  Love clients      同 Love sub
+  Love clash        生成/刷新 clash-meta.yaml / mihomo.yaml
+  Love cert-check   检查证书、SNI、过期、cert-mode
+  Love cert-ca      HTTP-01 Let's Encrypt 证书申请
+  Love cf-config    保存 Cloudflare API Token（600 权限）
+  Love cf-dns       Cloudflare 自动添加/更新 A/AAAA
+  Love cf-cert      Cloudflare DNS-01 申请证书
+
+Kept from older versions:
+  Love source-correct / web / qr / cert-switch / h2-fix / v2rayn-fix
+
+Important:
+  LOVE-H2-REALITY in v2rayN needs: Core type settings -> VLESS -> sing_box.
+EOF
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1357 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_v1357/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.0-network-cf-cert-sub-speed-final}"
+  case "${1:-}" in
+    env|detect|vps|network)
+      love_v1360_env_detect ;;
+    optimize|bbr|mtu|sysctl)
+      love_v1360_optimize ;;
+    speed|diagnose|diag|test)
+      love_v1360_speed ;;
+    sub|subscribe|clients|client-export|source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|true-fix|cert-true-fix)
+      love_v1360_generate_client_subs ;;
+    clash|mihomo|clash-meta)
+      love_v1360_generate_client_subs; generate_mihomo_yaml ;;
+    web|web-fix|fix-web)
+      love_v1360_web ;;
+    cert|cert-check|ssl-check)
+      love_v1360_cert_check ;;
+    cert-ca|cert-http|letsencrypt|le-cert)
+      love_v1360_cert_http01 ;;
+    cf|cloudflare|cf-config)
+      love_v1360_cf_config ;;
+    cf-dns|cloudflare-dns)
+      love_v1360_cf_dns ;;
+    cf-cert|cert-dns|dns-cert|dns01|dns-01)
+      love_v1360_cf_cert_dns01 ;;
+    v1360-check|v1358-check|v1359-check|check-final|final-check)
+      love_v1360_env_detect; echo; love_v1360_cert_check; echo; love_v1356_source_check 2>/dev/null || true ;;
+    help1360|v1360-help)
+      love_v1360_help ;;
+    *)
+      love_original_main_v1357 "$@" ;;
   esac
 }
 
