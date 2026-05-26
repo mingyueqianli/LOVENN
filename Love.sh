@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.23-clean-install-export-final"
+VERSION="Love v13.60.24-oneclick-update-clean-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -22508,7 +22508,7 @@ main() {
 #       * Web files missing after clean chain
 # ==============================================================================
 
-LOVE_SCRIPT_VERSION="Love v13.60.23-clean-install-export-final"
+LOVE_SCRIPT_VERSION="Love v13.60.24-oneclick-update-clean-final"
 VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13619_prepare_dirs() {
@@ -23094,7 +23094,7 @@ love_v13619_final_export() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.23 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.24 final exporter；旧导出链不再参与最终写入。"
 }
 
 extract_raw_links() {
@@ -23253,9 +23253,9 @@ love_v13619_menu() {
     love_v13619_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
     love_v13619_row "25) 安装 FS warp 命令" "50) Xray 26.5.9 更新"
     love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
-    love_v13619_row "53) v13.60.23 检查" "0) 退出 / Exit"
+    love_v13619_row "53) v13.60.24 检查" "0) 退出 / Exit"
     echo
-    echo "提示: 最终导出只走 v13.60.23；旧导出链不再写 all.txt/Web/QR。"
+    echo "提示: 最终导出只走 v13.60.24；旧导出链不再写 all.txt/Web/QR。"
     read -rp "请选择 / Select: " c
     case "$c" in
       1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
@@ -23340,7 +23340,7 @@ main() {
 #   - Old v13.51 post-install matrix no longer runs after install.
 #   - Final check is clean and checks real final files only.
 # ===============================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.23-clean-install-export-final"
+LOVE_SCRIPT_VERSION="Love v13.60.24-oneclick-update-clean-final"
 VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13622_any_protocol_selected() {
@@ -23557,7 +23557,7 @@ love_v13622_export_from_configs() {
 
   local count
   count="$(grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$all" 2>/dev/null || echo 0)"
-  echo "[OK] v13.60.23 final export generated ${count} URI nodes."
+  echo "[OK] v13.60.24 final export generated ${count} URI nodes."
 }
 
 love_v13619_export_from_configs() {
@@ -23565,10 +23565,10 @@ love_v13619_export_from_configs() {
 }
 
 love_v13619_final_export() {
-  echo "================ Love Final Export v13.60.23 ================"
+  echo "================ Love Final Export v13.60.24 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.23 ================"
+  echo "================ 最终节点 / Final Links v13.60.24 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
@@ -23579,7 +23579,7 @@ love_v13622_check_duplicate_sni() {
 }
 
 love_v13619_check() {
-  echo "================ Love v13.60.23 Clean Check ================"
+  echo "================ Love v13.60.24 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23618,7 +23618,7 @@ love_v13619_check() {
 
 love_v1351_matrix_check() { love_v13619_check; }
 love_v1351_post_install_guard() {
-  echo "================ Love Post-Install Guard v13.60.23 ================"
+  echo "================ Love Post-Install Guard v13.60.24 ================"
   love_v1351_open_ports_from_current_configs 2>/dev/null || true
   love_v13619_final_export
   love_v13619_check
@@ -23626,7 +23626,7 @@ love_v1351_post_install_guard() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.23 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.24 final exporter；旧导出链不再参与最终写入。"
 }
 
 export_subscription() { love_v13619_final_export; }
@@ -23637,24 +23637,24 @@ generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; echo "[OK] 
 
 
 # ===============================================================================
-# v13.60.23 Clean Install + Export Final
+# v13.60.24 Clean Install + Export Final
 # Purpose:
 #   Keep the proven install core, but remove old post-install export/check chains
 #   from the execution path. The final output is generated once from live configs.
 # ===============================================================================
-LOVE_SCRIPT_VERSION="Love v13.60.23-clean-install-export-final"
+LOVE_SCRIPT_VERSION="Love v13.60.24-oneclick-update-clean-final"
 VERSION="$LOVE_SCRIPT_VERSION"
 
-love_v13623_final_export() {
-  echo "================ Love Final Export v13.60.23 ================"
+love_v13624_final_export() {
+  echo "================ Love Final Export v13.60.24 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.23 ================"
+  echo "================ 最终节点 / Final Links v13.60.24 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
-love_v13623_check() {
-  echo "================ Love v13.60.23 Clean Check ================"
+love_v13624_check() {
+  echo "================ Love v13.60.24 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23693,11 +23693,11 @@ love_v13623_check() {
 
 # Disable old export/check/print chains completely. They must not decide final files.
 love_v1351_post_install_guard() { :; }
-love_v1351_matrix_check() { love_v13623_check; }
-love_after_node_generated_exports() { love_v13623_final_export; echo "[OK] 安装完成后只走 v13.60.23 final exporter；旧导出/检查链已禁用。"; }
-export_subscription() { love_v13623_final_export; }
-love_sub_safe_v1341() { love_v13623_final_export; }
-extract_raw_links() { love_v13623_final_export >/dev/null; echo /opt/Love/subscribe/all.txt; }
+love_v1351_matrix_check() { love_v13624_check; }
+love_after_node_generated_exports() { love_v13624_final_export; echo "[OK] 安装完成后只走 v13.60.24 final exporter；旧导出/检查链已禁用。"; }
+export_subscription() { love_v13624_final_export; }
+love_sub_safe_v1341() { love_v13624_final_export; }
+extract_raw_links() { love_v13624_final_export >/dev/null; echo /opt/Love/subscribe/all.txt; }
 generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
 generate_qrcodes() { love_v13622_export_from_configs >/dev/null; love_v13619_generate_qr; echo "[OK] QR 已生成：/opt/Love/subscribe/qr/index.html"; }
 web_admin_page() { love_v13622_export_from_configs >/dev/null; love_v13619_web_sync; echo "[OK] Love Web Green Panel 已生成：http://[你的IP]:8099/"; }
@@ -23707,24 +23707,117 @@ web_admin_page() { love_v13622_export_from_configs >/dev/null; love_v13619_web_s
 if declare -F love_original_install_singbox_native_v1351 >/dev/null 2>&1; then
   install_singbox_native() {
     love_original_install_singbox_native_v1351 "$@"
-    love_v13623_final_export
-    love_v13623_check
-    log "sing-box 全协议安装完成：最终导出已统一为 v13.60.23。"
+    love_v13624_final_export
+    love_v13624_check
+    log "sing-box 全协议安装完成：最终导出已统一为 v13.60.24。"
   }
 fi
 
 if declare -F love_original_install_xray_stable_v1351 >/dev/null 2>&1; then
   install_xray_stable() {
     love_original_install_xray_stable_v1351 "$@"
-    love_v13623_final_export
-    love_v13623_check
-    log "Xray 稳定模式安装完成：最终导出已统一为 v13.60.23。"
+    love_v13624_final_export
+    love_v13624_check
+    log "Xray 稳定模式安装完成：最终导出已统一为 v13.60.24。"
   }
 fi
 
 # Make common CLI aliases use the clean exporter/check.
-love_v13619_final_export() { love_v13623_final_export; }
-love_v13619_check() { love_v13623_check; }
+love_v13619_final_export() { love_v13624_final_export; }
+love_v13619_check() { love_v13624_check; }
+
+
+# ===============================================================================
+# v13.60.24 One-click Update Clean Final
+# Fix:
+#   - old updater printed "Unknown command: v13607-version" after successful update.
+#   - keep compatibility aliases v13607-version/v136xx-check.
+#   - do not run legacy version command after self update; just read VERSION from target.
+# ===============================================================================
+LOVE_SCRIPT_VERSION="Love v13.60.24-oneclick-update-clean-final"
+VERSION="$LOVE_SCRIPT_VERSION"
+
+love_v13624_oneclick_update() {
+  need_root 2>/dev/null || true
+  prepare_dirs 2>/dev/null || mkdir -p /opt/Love /opt/Love/backup
+
+  local url tmp backup target stamp newver
+  if declare -F love_v13607_update_url >/dev/null 2>&1; then
+    url="$(love_v13607_update_url)"
+  else
+    url="${LOVE_UPDATE_URL:-https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh}"
+  fi
+  target="/opt/Love/Love.sh"
+  tmp="/tmp/Love.update.$$.$RANDOM.sh"
+  stamp="$(date +%F-%H%M%S)"
+  backup="/opt/Love/backup/Love.sh.bak.${stamp}"
+  mkdir -p /opt/Love/backup
+
+  echo "================ Love 一键更新 / One-click update ================"
+  echo "当前版本 / Current: ${LOVE_SCRIPT_VERSION}"
+  echo "更新地址 / URL: ${url}"
+  echo
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fL --connect-timeout 10 --max-time 90 "${url}?t=$(date +%s)" -o "$tmp" || \
+    curl -fL --connect-timeout 10 --max-time 90 "$url" -o "$tmp" || true
+  fi
+  if [[ ! -s "$tmp" ]] && command -v wget >/dev/null 2>&1; then
+    wget -T 90 -qO "$tmp" "${url}?t=$(date +%s)" || wget -T 90 -qO "$tmp" "$url" || true
+  fi
+
+  [[ -s "$tmp" ]] || die "下载失败。请检查 GitHub Raw 地址或网络。"
+  bash -n "$tmp" || die "新版脚本语法检查失败，已取消更新。"
+
+  if [[ -f "$target" ]]; then
+    cp -f "$target" "$backup"
+    log "旧版已备份：$backup"
+  fi
+
+  cp -f "$tmp" "$target"
+  chmod +x "$target"
+  ln -sf "$target" /usr/local/bin/Love
+  ln -sf "$target" /usr/local/bin/love
+  echo "$url" > /opt/Love/update_url
+  chmod 600 /opt/Love/update_url 2>/dev/null || true
+
+  newver="$(grep -m1 '^LOVE_SCRIPT_VERSION=' "$target" 2>/dev/null | sed 's/^LOVE_SCRIPT_VERSION=//; s/^\"//; s/\"$//' || true)"
+  [[ -n "$newver" ]] || newver="$(grep -m1 '^VERSION=' "$target" 2>/dev/null | sed 's/^VERSION=//; s/^\"//; s/\"$//' || true)"
+  log "Love 已更新。重新运行：Love"
+  [[ -n "$newver" ]] && echo "$newver"
+}
+
+# Override menu so option 12 uses the clean updater and compatibility aliases exist.
+if declare -F love_v13619_menu >/dev/null 2>&1; then
+  eval "$(declare -f love_v13619_menu | sed 's/love_v13607_oneclick_update/love_v13624_oneclick_update/g')"
+fi
+
+main() {
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      love_v13619_prepare_dirs 2>/dev/null || prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_v13619_menu
+      ;;
+    version|-v|--version|v13607-version|v13624-version) echo "${LOVE_SCRIPT_VERSION}" ;;
+    update|self-update|online-update) love_v13624_oneclick_update ;;
+    sub|subscribe|subscription|clients|client-export|link-fix|client-fix|fix-links) love_v13624_final_export ;;
+    web|green-web) web_admin_page ;;
+    qr|qrcode) generate_qrcodes ;;
+    check|final-check|v13624-check|v13623-check|v13622-check|v13621-check|v13620-check|v13619-check|v13618-check|v13617-check|v13616-check|v13615-check|v13614-check|v13613-check) love_v13624_check ;;
+    xray-2659) love_v13619_xray_update_version "26.5.9" ;;
+    xray-custom) read -rp "Xray version: " xv; love_v13619_xray_update_version "$xv" ;;
+    optimize|bbr) love_v13619_safe_bbr ;;
+    singbox|sing-box|sb) install_singbox_native ;;
+    xray|reality|xray-hy2) install_xray_stable ;;
+    xray-extended|xray-all|xray-plus|xray-ext) install_xray_extended ;;
+    uninstall|uninstall-menu) if declare -F love_v13607_uninstall_menu >/dev/null; then love_v13607_uninstall_menu; else echo "uninstall unavailable"; fi ;;
+    *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
+  esac
+}
 
 
 main "$@"
