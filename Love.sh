@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.14-client-export-real-final"
+VERSION="Love v13.60.15-clean-export-chain-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -24166,6 +24166,134 @@ main() {
       echo "${LOVE_SCRIPT_VERSION}" ;;
     *)
       love_original_main_before_v13614 "$@" ;;
+  esac
+}
+
+# disabled by v13.60.15 clean export chain: previous main invocation moved to final tail
+# main "$@"
+
+
+# ==============================================================================
+# Love v13.60.15 - Clean Export Chain Final
+# Purpose:
+#   Remove old export/post-guard chains from the active execution path.
+#   Old code is kept only as dormant compatibility code, but user-facing install,
+#   sub, web, QR, and client exports are finalized by v13.60.14 real exporter only.
+#   This prevents v13.51/v13.55/v13.57/v13.60.13 from overwriting all.txt,
+#   v2rayN/NekoBox URI, Naive SNI, Web copies, or QR sources.
+# Boundaries:
+#   - Do not rewrite sing-box/xray server configs.
+#   - Do not change Green Web style.
+#   - Do not change QR style.
+#   - Do not change main menu mapping.
+# ============================================================================== 
+LOVE_SCRIPT_VERSION="Love v13.60.15-clean-export-chain-final"
+
+love_v13615_export_final_only() {
+  echo "================ Love Clean Final Export v13.60.15 ================"
+  love_v13614_client_export_real_final 2>/dev/null || {
+    echo "[ERROR] v13.60.14 final exporter failed."
+    return 1
+  }
+  echo "[OK] 旧导出链已从执行路径移除；最终输出只以 v13.60.14 客户端专用导出为准。"
+  echo "[OK] all.txt / v2rayN / NekoBox / sing-box JSON / Mihomo / Web / QR 已同步最终源。"
+}
+
+love_v13615_final_links_print() {
+  echo
+  echo "================ 最终节点 / Final Links ================"
+  if [[ -s /opt/Love/subscribe/all.txt ]]; then
+    cat /opt/Love/subscribe/all.txt
+  else
+    echo "[WARN] /opt/Love/subscribe/all.txt 为空，请执行 Love sub。"
+  fi
+}
+
+love_v13615_clean_after_install() {
+  # Only safe actions: open ports, generate final exports, print final source.
+  # No v13.51 source-correct, no v13.57 source-first, no v13.60.13 overwrite.
+  if declare -F love_v1351_open_ports_from_current_configs >/dev/null 2>&1; then
+    love_v1351_open_ports_from_current_configs >/dev/null 2>&1 || true
+  fi
+  love_v13615_export_final_only || true
+  love_v13615_final_links_print || true
+}
+
+# Hard override old noisy/exporting functions. These names may still be called by
+# older install bodies, so make them dispatch only to the final exporter.
+love_after_node_generated_exports() { love_v13615_export_final_only; }
+love_v1360_generate_client_subs() { love_v13615_export_final_only; }
+love_v1348_source_correct_outputs() { love_v13615_export_final_only; }
+love_v13613_export_clients_strict() { love_v13615_export_final_only; }
+love_v1351_regen_qr_web_after_uri() { love_v13615_export_final_only; }
+love_v1351_post_install_guard() { love_v13615_clean_after_install; }
+
+# Re-wrap install entrypoints to avoid the v13.51 post guard wrapper. We call the
+# saved pre-v13.51 install bodies when available, then our clean final export.
+if declare -F love_original_install_singbox_native_v1351 >/dev/null 2>&1; then
+  install_singbox_native() {
+    love_original_install_singbox_native_v1351 "$@"
+    love_v13615_clean_after_install
+  }
+fi
+
+if declare -F love_original_install_xray_stable_v1351 >/dev/null 2>&1; then
+  install_xray_stable() {
+    love_original_install_xray_stable_v1351 "$@"
+    love_v13615_clean_after_install
+  }
+fi
+
+love_v13615_check() {
+  echo "================ Love v13.60.15 Clean Export Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Final all.txt HY2/Naive]"
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+  echo "[v2rayN HY2/Naive]"
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "[NekoBox HY2/Naive]"
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/nekobox-uri.txt 2>/dev/null || true
+  echo
+  echo "[sing-box JSON exists]"
+  [[ -s /opt/Love/subscribe/clients/sing-box-client.json ]] && echo "[OK] sing-box-client.json" || echo "[MISS] sing-box-client.json"
+  echo
+  if grep -Rqs 'sni=self.local&sni=self.local' /opt/Love/subscribe /var/www/love-admin 2>/dev/null; then
+    echo "[WARN] 仍发现重复 sni，请执行：Love sub"
+  else
+    echo "[OK] 未发现重复 sni。"
+  fi
+  if grep -E 'LOVE-(XRAY-)?HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null | grep -q 'alpn=h3' \
+     && grep -E 'LOVE-(XRAY-)?HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null | grep -q 'allowInsecure=true'; then
+    echo "[OK] v2rayN HY2/Xray-HY2 已带 allowInsecure=true + alpn=h3。"
+  else
+    echo "[WARN] v2rayN HY2/Xray-HY2 仍不完整，请执行：Love sub"
+  fi
+  echo "==================================================================="
+}
+
+# Final main override. Do not call older sub/web/export chains first.
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13615 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_before_v13615/')"
+fi
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.15-clean-export-chain-final}"
+  case "${1:-}" in
+    sub|subscribe|clients|client-export|source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|true-fix|cert-true-fix|client-export-strict|client-export-real)
+      love_v13615_export_final_only ;;
+    web)
+      # Keep existing Green Web style, only sync final export files into it.
+      love_v13615_export_final_only ;;
+    qr|qrcode|qr-fix)
+      love_v13615_export_final_only ;;
+    v13615-check|clean-export-check|export-clean-check)
+      love_v13615_check ;;
+    version|v13615-version)
+      echo "${LOVE_SCRIPT_VERSION}" ;;
+    *)
+      love_original_main_before_v13615 "$@" ;;
   esac
 }
 
