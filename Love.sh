@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.32-qr-web-flag-xray-final"
+VERSION="Love v13.60.34-uninstall-yn-clean-final"
 LOVE_SCRIPT_VERSION="$VERSION"
 # disabled legacy LOVE_SCRIPT_VERSION="$VERSION"
 
@@ -23387,7 +23387,7 @@ main() {
     singbox|sing-box|sb) install_singbox_native ;;
     xray|reality|xray-hy2) install_xray_stable ;;
     xray-extended|xray-all|xray-plus|xray-ext) install_xray_extended ;;
-    uninstall|uninstall-menu) if declare -F love_v13607_uninstall_menu >/dev/null; then love_v13607_uninstall_menu; else echo "uninstall unavailable"; fi ;;
+    uninstall|uninstall-menu|remove|clean-uninstall) love_uninstall_menu_v13634 ;;
     *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
   esac
 }
@@ -23876,7 +23876,7 @@ main() {
     singbox|sing-box|sb) install_singbox_native ;;
     xray|reality|xray-hy2) install_xray_stable ;;
     xray-extended|xray-all|xray-plus|xray-ext) install_xray_extended ;;
-    uninstall|uninstall-menu) if declare -F love_v13607_uninstall_menu >/dev/null; then love_v13607_uninstall_menu; else echo "uninstall unavailable"; fi ;;
+    uninstall|uninstall-menu|remove|clean-uninstall) love_uninstall_menu_v13634 ;;
     *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
   esac
 }
@@ -24119,7 +24119,7 @@ love_v13619_menu() {
       20) love_v13626_warp_manager ;;
       21) if declare -F show_status >/dev/null; then show_status; else love_v13624_check; fi ;;
       22) if declare -F backup_configs >/dev/null; then backup_configs; else mkdir -p /opt/Love/backup; cp -a /etc/sing-box /usr/local/etc/xray /opt/Love/backup/ 2>/dev/null || true; fi ;;
-      23) if declare -F love_v13607_uninstall_menu >/dev/null; then love_v13607_uninstall_menu; else echo "uninstall unavailable"; fi ;;
+      23) love_uninstall_menu_v13634 ;;
       24) github_publish_note 2>/dev/null || echo "GitHub Raw: https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh" ;;
       25) love_v13626_install_warp_command ;;
       26) install_xray_extended ;;
@@ -24181,7 +24181,7 @@ main() {
     singbox|sing-box|sb) install_singbox_native ;;
     xray|reality|xray-hy2) install_xray_stable ;;
     xray-extended|xray-all|xray-plus|xray-ext) install_xray_extended ;;
-    uninstall|uninstall-menu) if declare -F love_v13607_uninstall_menu >/dev/null; then love_v13607_uninstall_menu; else echo "uninstall unavailable"; fi ;;
+    uninstall|uninstall-menu|remove|clean-uninstall) love_uninstall_menu_v13634 ;;
     *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
   esac
 }
@@ -25474,5 +25474,521 @@ love_v13631_check() { love_v13624_check; }
 love_v13631_web() { love_v13632_web_setup; }
 love_v13631_sub() { love_v13632_final_export; }
 
+
+# main call moved to v13.60.33 final dispatcher
+
+
+
+# ======================================================================
+# Love v13.60.33 Slim adaptive output + Xray grouping + Web setup fix
+# - Keep proven install cores, but relabel user-facing output to current version.
+# - Do not dump all nodes by default; show concise Web/subscription entrypoints.
+# - Split final exports into combined / sing-box only / Xray only.
+# - Xray Stable/Extended are grouped under Xray files; menu 26 keeps all Xray extended.
+# - Web setup is a hard, visible flow; pressing Y cannot silently return.
+# ======================================================================
+LOVE_SCRIPT_VERSION="$VERSION"
+
+# Save old install cores before overriding wrappers.
+if declare -F install_singbox_native >/dev/null 2>&1 && ! declare -F install_singbox_native_core_v13633 >/dev/null 2>&1; then
+  eval "$(declare -f install_singbox_native | sed '1s/install_singbox_native/install_singbox_native_core_v13633/')"
+fi
+if declare -F install_xray_stable >/dev/null 2>&1 && ! declare -F install_xray_stable_core_v13633 >/dev/null 2>&1; then
+  eval "$(declare -f install_xray_stable | sed '1s/install_xray_stable/install_xray_stable_core_v13633/')"
+fi
+if declare -F install_xray_extended >/dev/null 2>&1 && ! declare -F install_xray_extended_core_v13633 >/dev/null 2>&1; then
+  eval "$(declare -f install_xray_extended | sed '1s/install_xray_extended/install_xray_extended_core_v13633/')"
+fi
+if declare -F install_xray_core >/dev/null 2>&1 && ! declare -F install_xray_core_original_v13633 >/dev/null 2>&1; then
+  eval "$(declare -f install_xray_core | sed '1s/install_xray_core/install_xray_core_original_v13633/')"
+fi
+
+love_v13633_note_family() { mkdir -p /opt/Love; printf '%s\n' "$1" > /opt/Love/last-install-family; }
+love_v13633_family() { cat /opt/Love/last-install-family 2>/dev/null | head -n1 | tr -d '\r\n'; }
+
+# Default Xray install/update uses the known stable 26.5.9 path, while menu keeps latest/custom entries.
+install_xray_core() {
+  if [[ "${LOVE_XRAY_LATEST:-}" == "1" ]]; then
+    install_xray_core_original_v13633 "$@"
+  else
+    love_v13619_xray_update_version "26.5.9"
+  fi
+}
+
+install_singbox_native() {
+  love_v13633_note_family "singbox"
+  echo "================ Love sing-box 全协议安装 / All Protocols ${LOVE_SCRIPT_VERSION} ================"
+  install_singbox_native_core_v13633 "$@"
+}
+
+install_xray_stable() {
+  love_v13633_note_family "xray"
+  echo "================ Love Xray 稳定模式 / Stable ${LOVE_SCRIPT_VERSION} ================"
+  install_xray_stable_core_v13633 "$@"
+}
+
+install_xray_extended() {
+  love_v13633_note_family "xray"
+  echo "================ Love Xray 全量补全 / Extended All ${LOVE_SCRIPT_VERSION} ================"
+  install_xray_extended_core_v13633 "$@"
+}
+
+love_v13633_service_active() { systemctl is-active "$1" >/dev/null 2>&1; }
+
+love_v13633_split_exports() {
+  mkdir -p /opt/Love/subscribe/sing-box /opt/Love/subscribe/xray /var/www/love-admin/sing-box /var/www/love-admin/xray
+  : > /opt/Love/subscribe/sing-box/all.txt
+  : > /opt/Love/subscribe/xray/all.txt
+  if [[ -s /opt/Love/subscribe/all.txt ]]; then
+    grep -E 'LOVE-XRAY' /opt/Love/subscribe/all.txt > /opt/Love/subscribe/xray/all.txt 2>/dev/null || true
+    grep -Ev 'LOVE-XRAY' /opt/Love/subscribe/all.txt > /opt/Love/subscribe/sing-box/all.txt 2>/dev/null || true
+  fi
+  cp -f /opt/Love/subscribe/xray/all.txt /var/www/love-admin/xray/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/sing-box/all.txt /var/www/love-admin/sing-box/all.txt 2>/dev/null || true
+
+  # Service-specific v2rayN files.
+  grep -E 'LOVE-XRAY' /opt/Love/subscribe/clients/v2rayn-uri.txt > /opt/Love/subscribe/clients/xray-v2rayn-uri.txt 2>/dev/null || true
+  grep -Ev 'LOVE-XRAY' /opt/Love/subscribe/clients/v2rayn-uri.txt > /opt/Love/subscribe/clients/singbox-v2rayn-uri.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/xray-v2rayn-uri.txt /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/singbox-v2rayn-uri.txt /var/www/love-admin/clients/ 2>/dev/null || true
+}
+
+love_v13633_count_file() { [[ -s "$1" ]] && grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$1" 2>/dev/null || echo 0; }
+
+love_v13633_client_addr() { love_v13619_client_host 2>/dev/null || cat /opt/Love/client-address 2>/dev/null || echo "127.0.0.1"; }
+love_v13633_web_port() { cat /opt/Love/web-port 2>/dev/null | head -n1 | tr -d '\r\n' || true; }
+love_v13633_web_url() { local p; p="$(love_v13633_web_port)"; [[ -n "$p" ]] || p=8099; echo "http://$(love_v13633_client_addr):${p}/"; }
+
+love_v13633_summary() {
+  local fam weburl c_all c_sb c_xr
+  fam="$(love_v13633_family)"; [[ -n "$fam" ]] || fam="all"
+  weburl="$(love_v13633_web_url)"
+  c_all="$(love_v13633_count_file /opt/Love/subscribe/all.txt)"
+  c_sb="$(love_v13633_count_file /opt/Love/subscribe/sing-box/all.txt)"
+  c_xr="$(love_v13633_count_file /opt/Love/subscribe/xray/all.txt)"
+  echo
+  echo "================ Love 订阅入口 / Adaptive Subscription Summary v13.60.33 ================"
+  echo "Web 管理页:        ${weburl}"
+  echo "QR 页面:           ${weburl%/}/qr/index.html"
+  echo
+  echo "节点计数 / Counts: combined=${c_all}, sing-box=${c_sb}, xray=${c_xr}, last-install=${fam}"
+  echo
+  echo "常用订阅 / Common URLs:"
+  echo "  Raw URI:          ${weburl}all.txt"
+  echo "  v2rayN:           ${weburl}clients/v2rayn-uri.txt"
+  echo "  v2rayN Xray稳妥:  ${weburl}clients/v2rayn-xray-core.txt"
+  echo "  v2rayN sing_box:  ${weburl}clients/v2rayn-singbox-core-uri.txt"
+  echo "  NekoBox:          ${weburl}clients/nekobox-uri.txt"
+  echo "  Shadowrocket:     ${weburl}clients/shadowrocket-uri.txt"
+  echo "  sing-box JSON:    ${weburl}clients/sing-box-client.json"
+  echo "  Mihomo/Clash:     ${weburl}clients/mihomo.yaml"
+  echo
+  echo "分组文件 / Grouped files:"
+  echo "  Combined:         /opt/Love/subscribe/all.txt"
+  echo "  sing-box only:    /opt/Love/subscribe/sing-box/all.txt"
+  echo "  Xray only:        /opt/Love/subscribe/xray/all.txt"
+  echo "  Xray v2rayN:      /opt/Love/subscribe/clients/xray-v2rayn-uri.txt"
+  echo "  sing-box v2rayN:  /opt/Love/subscribe/clients/singbox-v2rayn-uri.txt"
+  echo
+  echo "显示命令 / Show commands:"
+  echo "  Love links        # 全部 Raw 节点"
+  echo "  Love v2rayn       # v2rayN 专用"
+  echo "  Love xray-links   # 只看 Xray 节点"
+  echo "  Love sb-links     # 只看 sing-box 节点"
+  echo "  Love qr           # 二维码"
+  echo "  Love web          # 设置/启动绿色 Web"
+  [[ "$(love_v13633_client_addr)" == \[*\] ]] && echo "[TIP] IPv6 Web 访问必须保留中括号 []。"
+}
+
+love_v13633_final_export() {
+  echo "================ Love Final Export v13.60.33 ================"
+  love_v13632_sync_flag_files || true
+  love_v13631_harden_singbox_server || true
+  love_v13622_export_from_configs >/dev/null
+  love_v13631_force_v2rayn_profile || true
+  love_v13631_generate_full_singbox_client_json || true
+  love_v13632_split_v2rayn_core_files || true
+  love_v13631_cleanup_legacy_outputs || true
+  love_v13619_generate_mihomo_yaml >/dev/null 2>&1 || true
+  love_v13632_qr_direct quiet || true
+  love_v13619_web_sync >/dev/null 2>&1 || true
+  mkdir -p /var/www/love-admin/clients /var/www/love-admin/sub /var/www/love-admin/qr
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/node-links.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/sub/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/* /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -a /opt/Love/subscribe/qr/. /var/www/love-admin/qr/ 2>/dev/null || true
+  love_v13633_split_exports || true
+  love_v13633_summary
+}
+
+love_v13633_web_setup() {
+  local port auth username password auth_file auth_lines addr conf
+  echo
+  echo "================ Love Green Web 设置 / Web Setup v13.60.33 ================"
+  read -r -p "Web 端口 / Web port [8099]: " port || port=""
+  port="${port:-8099}"
+  if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then port=8099; fi
+  read -r -p "是否开启 Basic Auth 密码保护？[Y/n]: " auth || auth=""
+  auth="${auth:-Y}"
+  username="love"; password=""
+  if [[ "${auth,,}" != "n" ]]; then
+    read -r -p "Web 用户名 [love]: " username || username=""
+    username="${username:-love}"
+    read -r -p "Web 密码，留空自动生成: " password || password=""
+    if [[ -z "$password" ]]; then password="$(openssl rand -hex 6 2>/dev/null || date +%s)"; echo "[INFO] 自动生成 Web 密码：$password"; fi
+  fi
+  echo "$port" > /opt/Love/web-port
+  mkdir -p /var/www/love-admin/clients /var/www/love-admin/sub /var/www/love-admin/qr
+  love_v13633_final_export >/dev/null 2>&1 || true
+  cat > /var/www/love-admin/index.html <<'EOFWEB33'
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love Green Web</title><style>body{font-family:Arial,sans-serif;background:#07130f;color:#e8fff4;padding:24px}a{color:#86efac;display:block;margin:9px 0;text-decoration:none}.card{max-width:980px;margin:auto;background:#0f241b;border:1px solid #1f7a4d;padding:24px;border-radius:16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.box{background:#102d21;border-radius:12px;padding:12px}.small{color:#a7f3d0;font-size:13px}</style></head><body><div class="card"><h1>Love Green Web</h1><p class="small">Adaptive subscriptions / 客户端自适应订阅入口</p><div class="grid"><div class="box"><h3>Common</h3><a href="/all.txt">Raw URI</a><a href="/sub/all.txt">Sub all</a><a href="/qr/index.html">QR Gallery</a></div><div class="box"><h3>v2rayN</h3><a href="/clients/v2rayn-uri.txt">v2rayN Mixed</a><a href="/clients/v2rayn-xray-core.txt">v2rayN Xray Core</a><a href="/clients/v2rayn-singbox-core-uri.txt">v2rayN sing_box URI</a><a href="/clients/v2rayn-singbox-core-full.json">v2rayN sing_box JSON</a></div><div class="box"><h3>Other Clients</h3><a href="/clients/nekobox-uri.txt">NekoBox</a><a href="/clients/shadowrocket-uri.txt">Shadowrocket</a><a href="/clients/sing-box-client.json">sing-box JSON</a><a href="/clients/mihomo.yaml">Mihomo YAML</a><a href="/clients/clash-meta.yaml">Clash Meta</a></div><div class="box"><h3>Groups</h3><a href="/sing-box/all.txt">sing-box only</a><a href="/xray/all.txt">Xray only</a><a href="/clients/xray-v2rayn-uri.txt">Xray v2rayN</a><a href="/clients/singbox-v2rayn-uri.txt">sing-box v2rayN</a></div></div></div></body></html>
+EOFWEB33
+  auth_file="/etc/nginx/.love_web_htpasswd"; auth_lines=""
+  if [[ "${auth,,}" != "n" ]]; then
+    if command -v htpasswd >/dev/null 2>&1; then htpasswd -bc "$auth_file" "$username" "$password" >/dev/null 2>&1 || true; else printf '%s:%s\n' "$username" "$(openssl passwd -apr1 "$password")" > "$auth_file"; fi
+    auth_lines=$'        auth_basic "Love Web";\n        auth_basic_user_file /etc/nginx/.love_web_htpasswd;'
+  fi
+  rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/null || true
+  conf="/etc/nginx/conf.d/love-admin.conf"
+  cat > "$conf" <<EOFNGINX33
+server {
+    listen 0.0.0.0:${port};
+    listen [::]:${port};
+    server_name _;
+    root /var/www/love-admin;
+    index index.html;
+    location / {
+${auth_lines}
+        try_files \$uri \$uri/ =404;
+    }
+}
+EOFNGINX33
+  ufw allow "${port}/tcp" >/dev/null 2>&1 || true
+  ufw reload >/dev/null 2>&1 || true
+  nginx -t && systemctl enable nginx >/dev/null 2>&1 || true
+  systemctl restart nginx
+  addr="$(love_v13633_client_addr)"
+  echo
+  echo "[OK] Web 管理页 / Web Panel: http://${addr}:${port}/"
+  echo "[OK] QR: http://${addr}:${port}/qr/index.html"
+  if [[ "${auth,,}" != "n" ]]; then echo "[OK] 用户名 / User: $username"; echo "[OK] 密码 / Pass: $password"; else echo "[OK] Basic Auth: off"; fi
+  [[ "$addr" == \[*\] ]] && echo "[TIP] IPv6 地址访问 Web 必须保留中括号 []。"
+}
+
+love_after_node_generated_exports() {
+  love_v13633_final_export
+  echo "[OK] 安装完成后只走 v13.60.34 final exporter；旧导出/检查链已禁用。"
+  echo
+  local setup_web
+  read -r -p "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web || setup_web="Y"
+  setup_web="${setup_web:-Y}"
+  if [[ "${setup_web,,}" != "n" ]]; then
+    echo "[INFO] 进入绿色 Web 设置..."
+    love_v13633_web_setup
+  else
+    echo "[INFO] 已跳过 Web 设置。之后可执行：Love web"
+  fi
+}
+
+export_subscription() { love_v13633_final_export; }
+love_sub_safe_v1341() { love_v13633_final_export; }
+love_v13624_final_export() { love_v13633_final_export; }
+love_v13619_final_export() { love_v13633_final_export; }
+love_v13629_final_export() { love_v13633_final_export; }
+love_v13628_final_export() { love_v13633_final_export; }
+love_v13630_final_export() { love_v13633_final_export; }
+love_v13631_final_export() { love_v13633_final_export; }
+love_v13632_final_export() { love_v13633_final_export; }
+web_admin_page() { love_v13633_web_setup; }
+generate_qrcodes() { love_v13632_qr_direct; }
+
+love_v13624_check() {
+  echo "================ Love v13.60.34 Clean Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Services]"
+  echo -n "sing-box: "; systemctl is-active sing-box 2>/dev/null || true
+  echo -n "xray: "; systemctl is-active xray 2>/dev/null || true
+  echo -n "nginx: "; systemctl is-active nginx 2>/dev/null || true
+  echo
+  echo "[Counts] combined=$(love_v13633_count_file /opt/Love/subscribe/all.txt) sing-box=$(love_v13633_count_file /opt/Love/subscribe/sing-box/all.txt) xray=$(love_v13633_count_file /opt/Love/subscribe/xray/all.txt)"
+  echo
+  echo "[Bad patterns]"
+  grep -qE 'sni=[^&]+.*sni=' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[BAD] duplicate sni found" || echo "[OK] no duplicate sni"
+  grep -qE 'path=%252F' /opt/Love/subscribe/all.txt 2>/dev/null && echo "[BAD] double encoded path found" || echo "[OK] no double encoded path"
+  grep -qE 'LOVE-H2-REALITY' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[WARN] H2 Reality still in normal v2rayN URI list" || echo "[OK] H2 Reality removed from normal v2rayN URI list"
+  echo
+  echo "[Client files]"
+  for f in /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/clients/v2rayn-xray-core.txt /opt/Love/subscribe/clients/v2rayn-singbox-core-uri.txt /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/mihomo.yaml /opt/Love/subscribe/clients/shadowrocket-uri.txt; do [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"; done
+  echo
+  echo "[Web URL] $(love_v13633_web_url)"
+}
+
+love_show_links_v13633() { cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[MISS] Run: Love sub"; }
+love_show_v2rayn_v13633() { cat /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || echo "[MISS] Run: Love sub"; }
+love_show_xray_links_v13633() { cat /opt/Love/subscribe/xray/all.txt 2>/dev/null || echo "[MISS] No Xray nodes. Run Xray install first."; }
+love_show_sb_links_v13633() { cat /opt/Love/subscribe/sing-box/all.txt 2>/dev/null || echo "[MISS] No sing-box nodes. Run sing-box install first."; }
+
+love_v13633_menu() {
+  while true; do
+    clear 2>/dev/null || true
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo "  Love Node Server Manager · 经典主菜单 / Classic Main Menu"
+    echo "  ${LOVE_SCRIPT_VERSION}"
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo
+    echo "系统状态 / Status"
+    echo "  OS:        $(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")"
+    echo "  Arch:      $(uname -m)"
+    echo "  sing-box:  $(systemctl is-active sing-box 2>/dev/null || echo inactive)"
+    echo "  xray:      $(systemctl is-active xray 2>/dev/null || echo inactive)"
+    echo "  nginx web: $(systemctl is-active nginx 2>/dev/null || echo inactive)"
+    love_v13619_section "核心安装 / Core Install"
+    love_v13619_row "1) 节点目录 / Node catalog" "26) Xray 全量补全 / Xray All"
+    love_v13619_row "2) Xray 稳定 / Xray Stable" "27) VPS 环境 / VPS env"
+    love_v13619_row "3) sing-box 全协议 / All" "28) BBR/MTU 优化 / Optimize"
+    love_v13619_row "4) Argo 隧道 / Cloudflared" "29) 一键测速 / Speed"
+    love_v13619_row "5) UDP 跳跃 / Port hopping" "30) 重建订阅 / Rebuild sub"
+    love_v13619_row "6) WARP 双栈说明 / WARP Help" "31) 客户端订阅 / Client sub"
+    love_v13619_section "导出与客户端 / Export & Clients"
+    love_v13619_row "7) 节点入口 / Summary" "32) Clash/Mihomo YAML"
+    love_v13619_row "8) 订阅生成 / Build sub" "33) 证书检查 / Cert check"
+    love_v13619_row "9) 二维码 / QR codes" "34) HTTP-01 证书 / LE cert"
+    love_v13619_row "10) Super Tools / 修复" "35) 证书切换 / Cert switch"
+    love_v13619_row "11) 绿色 Web / Green Web" "36) CF Token / CF config"
+    love_v13619_row "12) 一键更新 / One-click update" "37) CF DNS / DNS upsert"
+    love_v13619_row "13) 客户端导出 / Client export" "38) CF DNS-01 证书 / DNS cert"
+    love_v13619_section "工具与维护 / Tools & Maintenance"
+    love_v13619_row "14) v6 Project Tools" "39) H2 Reality help"
+    love_v13619_row "15) v7 Stable Tools" "40) 查看归档链接 / Show archive"
+    love_v13619_row "16) v8 Project Panel" "41) 备份归档链接 / Backup archive"
+    love_v13619_row "17) Nginx Reverse Proxy" "42) 清空归档链接 / Clean archive"
+    love_v13619_row "18) HY2/sing-box 修复" "43) 帮助 / Help"
+    love_v13619_row "19) IPv6-only 修复" "44) v13.60 检查 / Final check"
+    love_v13619_row "20) WARP 双栈管理" "45) 端口/防火墙 / Ports"
+    love_v13619_row "21) 运行状态 / Status" "46) 国旗图标 / Flag icon"
+    love_v13619_row "22) 备份配置 / Backup" "47) 自动识别国旗 / Auto flag"
+    love_v13619_row "23) 卸载菜单 / Uninstall" "48) TRUE 手动提醒 / TRUE note"
+    love_v13619_row "24) GitHub 发布说明" "49) Xray 检查 / Xray check"
+    love_v13619_row "25) 安装/修复 warp 命令" "50) Xray 26.5.9 更新"
+    love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
+    love_v13619_row "53) v13.60.34 检查" "0) 退出 / Exit"
+    echo
+    echo "提示: 终端默认只显示订阅入口；完整节点用 Love links / Love v2rayn。"
+    read -rp "请选择 / Select: " c
+    case "$c" in
+      1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
+      2) install_xray_stable ;;
+      3) install_singbox_native ;;
+      4) argo_helper ;;
+      5) port_hopping_helper ;;
+      6) love_v13626_warp_help ;;
+      7|8|13|30|31) love_v13633_final_export ;;
+      9) generate_qrcodes ;;
+      10) if declare -F super_tools_menu >/dev/null; then super_tools_menu; else love_v13624_check; fi ;;
+      11) web_admin_page ;;
+      12) love_v13624_oneclick_update ;;
+      20) love_v13626_warp_manager ;;
+      21) if declare -F show_status >/dev/null; then show_status; else love_v13624_check; fi ;;
+      22) if declare -F backup_configs >/dev/null; then backup_configs; else mkdir -p /opt/Love/backup; cp -a /etc/sing-box /usr/local/etc/xray /opt/Love/backup/ 2>/dev/null || true; fi ;;
+      23) love_uninstall_menu_v13634 ;;
+      24) github_publish_note 2>/dev/null || echo "GitHub Raw: https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh" ;;
+      25) love_v13626_install_warp_command ;;
+      26) install_xray_extended ;;
+      27) if declare -F love_v1360_env_detect >/dev/null; then love_v1360_env_detect; else detect_network; fi ;;
+      28) love_v13619_safe_bbr ;;
+      29) if declare -F love_v1360_speed >/dev/null; then love_v1360_speed; else love_v13624_check; fi ;;
+      32) generate_mihomo_yaml ;;
+      33) if declare -F love_v1360_cert_check >/dev/null; then love_v1360_cert_check; else openssl x509 -in /etc/sing-box/cert/cert.pem -noout -subject -dates 2>/dev/null || true; fi ;;
+      34) if declare -F love_v1360_cert_http01 >/dev/null; then love_v1360_cert_http01; else echo "cert-ca"; fi ;;
+      35) if declare -F love_cert_switch13600 >/dev/null; then love_cert_switch13600; else echo "cert-switch unavailable"; fi ;;
+      36) if declare -F love_v1360_cf_config >/dev/null; then love_v1360_cf_config; else echo "cf config unavailable"; fi ;;
+      37) if declare -F love_v1360_cf_dns >/dev/null; then love_v1360_cf_dns; else echo "cf dns unavailable"; fi ;;
+      38) if declare -F love_v1360_cf_cert_dns01 >/dev/null; then love_v1360_cf_cert_dns01; else echo "cf cert unavailable"; fi ;;
+      39) echo "H2 Reality: 不放 v2rayN 主订阅；优先 sing-box JSON/NekoBox/SFA。" ;;
+      40) if declare -F love_legacy_show13601 >/dev/null; then love_legacy_show13601; else ls -lah /opt/Love/backup 2>/dev/null || true; fi ;;
+      41) if declare -F love_legacy_backup13601 >/dev/null; then love_legacy_backup13601; else cp -a /opt/Love/subscribe /opt/Love/backup/subscribe.$(date +%F-%H%M%S) 2>/dev/null || true; fi ;;
+      42) if declare -F love_legacy_clean13601 >/dev/null; then love_legacy_clean13601; else echo "clean archive unavailable"; fi ;;
+      43) echo "Love ${LOVE_SCRIPT_VERSION}"; echo "Commands: Love sub | Love links | Love v2rayn | Love xray-links | Love sb-links | Love web | Love qr | Love check | Love warp | Love update" ;;
+      44|53) love_v13624_check ;;
+      45) if declare -F love_ports_v1334 >/dev/null; then love_ports_v1334; else ss -tulnp; fi ;;
+      46) if declare -F love_flag_set13602 >/dev/null; then love_flag_set13602; else read -rp "Flag emoji: " f; echo "$f" >/opt/Love/flag-icon; fi ;;
+      47) if declare -F love_flag_auto13602 >/dev/null; then love_flag_auto13602; else echo "auto flag unavailable"; fi; love_v13633_final_export ;;
+      48) if declare -F love_v13604_tls_manual_report >/dev/null; then love_v13604_tls_manual_report; else echo "self.local 手动 TRUE: Allow insecure=True, ALPN=h3"; fi ;;
+      49) if declare -F love_v13605_xray_extended_check >/dev/null; then love_v13605_xray_extended_check; else love_v13624_check; fi ;;
+      50) love_v13619_xray_update_version "26.5.9" ;;
+      51) LOVE_XRAY_LATEST=1 install_xray_core_original_v13633 ;;
+      52) read -rp "Xray version, e.g. 26.5.9: " xv; love_v13619_xray_update_version "$xv" ;;
+      0|q|Q|exit) exit 0 ;;
+      *) echo "[WARN] 无效选择。" ;;
+    esac
+    read -rp "按回车返回主菜单 / Press Enter to return..." _
+  done
+}
+
+
+# ------------------------------------------------------------------------------
+# v13.60.34 clean uninstall override: Y/N confirmation + verification
+# ------------------------------------------------------------------------------
+love_uninstall_verify_v13634() {
+  echo
+  echo "================ Love 卸载结果检查 / Uninstall Verify v13.60.34 ================"
+  local miss=0
+  for svc in xray sing-box nginx love-wireproxy love-argo love-backup wireproxy; do
+    if systemctl list-unit-files 2>/dev/null | awk '{print $1}' | grep -qx "${svc}.service"; then
+      case "$svc" in
+        nginx) : ;; # nginx may remain installed for the OS; only Love config is removed.
+        *) echo "[LEFT] service unit still exists: ${svc}.service"; miss=1 ;;
+      esac
+    fi
+  done
+  for p in /opt/Love /var/www/love-admin /etc/sing-box /usr/local/etc/xray /usr/local/bin/Love /usr/local/bin/love /etc/nginx/conf.d/love-admin.conf /etc/nginx/sites-enabled/love-admin /etc/nginx/sites-available/love-admin; do
+    if [[ -e "$p" || -L "$p" ]]; then echo "[LEFT] $p"; miss=1; else echo "[OK] removed: $p"; fi
+  done
+  if [[ "$miss" == "0" ]]; then
+    echo "[OK] Love 卸载检查通过。"
+  else
+    echo "[WARN] 还有残留，通常是系统 nginx 或旧文件；可重新进入 23 选择对应清理项。"
+  fi
+}
+
+love_full_uninstall_v13634() {
+  echo
+  echo "================ Love 完整卸载 / Full Uninstall v13.60.34 ================"
+  echo "将删除：/opt/Love、/var/www/love-admin、Love/love 命令、Xray/sing-box 配置、Love 相关 systemd/nginx 配置。"
+  echo "不会删除系统本身；nginx 软件包通常保留，只删除 Love 的 Web 配置和站点文件。"
+  read -r -p "确认完整卸载？[y/N]: " ok || ok=""
+  [[ "${ok,,}" == "y" || "${ok,,}" == "yes" ]] || { echo "[INFO] 已取消完整卸载。"; return 0; }
+
+  echo "[1/9] 停止服务..."
+  systemctl stop xray sing-box love-wireproxy.service love-argo.service love-backup.timer love-backup.service wireproxy 2>/dev/null || true
+
+  echo "[2/9] 禁用服务..."
+  systemctl disable xray sing-box love-wireproxy.service love-argo.service love-backup.timer love-backup.service wireproxy 2>/dev/null || true
+
+  echo "[3/9] 删除 systemd unit/drop-in..."
+  rm -f /etc/systemd/system/xray.service /etc/systemd/system/xray@.service /etc/systemd/system/sing-box.service
+  rm -f /etc/systemd/system/love-wireproxy.service /etc/systemd/system/love-argo.service /etc/systemd/system/love-backup.service /etc/systemd/system/love-backup.timer /etc/systemd/system/wireproxy.service
+  rm -rf /etc/systemd/system/xray.service.d /etc/systemd/system/xray@.service.d /etc/systemd/system/sing-box.service.d
+
+  echo "[4/9] 删除 Love 数据与订阅/Web 文件..."
+  rm -rf /opt/Love /var/www/love-admin
+
+  echo "[5/9] 删除核心配置..."
+  rm -rf /etc/sing-box /usr/local/etc/xray /usr/local/share/xray /var/log/xray
+
+  echo "[6/9] 删除 nginx Love 配置..."
+  rm -f /etc/nginx/conf.d/love-admin.conf
+  rm -f /etc/nginx/sites-enabled/love-admin /etc/nginx/sites-available/love-admin
+  rm -f /etc/nginx/sites-enabled/love-sub /etc/nginx/sites-available/love-sub
+  rm -f /etc/nginx/.love_web_htpasswd
+
+  echo "[7/9] 删除 Love 命令与相关二进制..."
+  rm -f /usr/local/bin/Love /usr/local/bin/love /usr/local/bin/xray /usr/local/bin/sing-box
+  rm -f /usr/local/bin/warp /usr/local/bin/warp-go /usr/local/bin/wireproxy /usr/local/bin/cloudflared
+
+  echo "[8/9] 清理 WARP/WireProxy/临时文件..."
+  rm -rf /etc/wireproxy /opt/warp /opt/wireproxy /tmp/love-* /tmp/Love.* /tmp/xray.* /tmp/singbox.* 2>/dev/null || true
+  rm -f /etc/letsencrypt/renewal-hooks/deploy/love-xray-copy-cert.sh
+
+  echo "[9/9] 刷新 systemd / nginx..."
+  systemctl daemon-reload || true
+  systemctl reset-failed || true
+  if command -v nginx >/dev/null 2>&1; then nginx -t >/dev/null 2>&1 && systemctl restart nginx 2>/dev/null || true; fi
+
+  love_uninstall_verify_v13634 || true
+  echo
+  echo "[OK] Love 已完整卸载。当前脚本即将退出，避免返回旧菜单。"
+  exit 0
+}
+
+love_soft_uninstall_v13634() {
+  echo
+  echo "================ Love 软卸载 / Soft Uninstall v13.60.34 ================"
+  echo "软卸载只停止并禁用节点服务，保留配置和订阅文件。"
+  read -r -p "确认软卸载节点服务？[y/N]: " ok || ok=""
+  [[ "${ok,,}" == "y" || "${ok,,}" == "yes" ]] || { echo "[INFO] 已取消软卸载。"; return 0; }
+  systemctl stop xray sing-box love-wireproxy.service love-argo.service wireproxy 2>/dev/null || true
+  systemctl disable xray sing-box love-wireproxy.service love-argo.service wireproxy 2>/dev/null || true
+  systemctl daemon-reload || true
+  echo "[OK] 节点服务已停止并禁用，配置保留。"
+}
+
+love_uninstall_menu_v13634() {
+  while true; do
+    echo
+    echo "================ Love 卸载 / 清理菜单 v13.60.34 ================"
+    echo "1) 软卸载节点服务 / Stop services, keep config"
+    echo "2) 完整卸载 Love / Full uninstall"
+    echo "3) 只清理绿色 Web / Clean Web only"
+    echo "4) 只清理订阅/二维码/客户端导出 / Clean exports only"
+    echo "5) 卸载结果检查 / Verify uninstall leftovers"
+    echo "0) 返回 / Back"
+    read -r -p "请选择 / Select: " u || u=""
+    case "$u" in
+      1) love_soft_uninstall_v13634 ;;
+      2) love_full_uninstall_v13634 ;;
+      3)
+        read -r -p "确认清理绿色 Web？[y/N]: " ok || ok=""
+        [[ "${ok,,}" == "y" || "${ok,,}" == "yes" ]] || { echo "[INFO] 已取消。"; continue; }
+        rm -rf /var/www/love-admin
+        rm -f /etc/nginx/conf.d/love-admin.conf /etc/nginx/sites-enabled/love-admin /etc/nginx/sites-available/love-admin /etc/nginx/.love_web_htpasswd
+        nginx -t >/dev/null 2>&1 && systemctl restart nginx 2>/dev/null || true
+        echo "[OK] 绿色 Web 已清理。"
+        ;;
+      4)
+        read -r -p "确认清理订阅/二维码/客户端导出？[y/N]: " ok || ok=""
+        [[ "${ok,,}" == "y" || "${ok,,}" == "yes" ]] || { echo "[INFO] 已取消。"; continue; }
+        rm -rf /opt/Love/subscribe /var/www/love-admin/sub /var/www/love-admin/qr /var/www/love-admin/clients /var/www/love-admin/sing-box /var/www/love-admin/xray
+        rm -f /var/www/love-admin/all.txt /var/www/love-admin/node-links.txt /var/www/love-admin/全部节点.txt /var/www/love-admin/推荐节点.txt /var/www/love-admin/节点清晰版.txt
+        echo "[OK] 订阅/二维码/客户端导出已清理。"
+        ;;
+      5) love_uninstall_verify_v13634 ;;
+      0|q|Q|exit) return 0 ;;
+      *) echo "[WARN] 无效选择。" ;;
+    esac
+  done
+}
+
+uninstall_menu_v7() { love_uninstall_menu_v13634; }
+uninstall_menu() { love_uninstall_menu_v13634; }
+love_v13607_uninstall_menu() { love_uninstall_menu_v13634; }
+
+main() {
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      love_v13619_prepare_dirs 2>/dev/null || prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_v13633_menu
+      ;;
+    version|-v|--version|v13607-version|v13624-version|v13626-version|v13634-version) echo "${LOVE_SCRIPT_VERSION}" ;;
+    update|self-update|online-update) love_v13624_oneclick_update ;;
+    sub|subscribe|subscription|clients|client-export|link-fix|client-fix|fix-links) love_v13633_final_export ;;
+    links|all-links) love_show_links_v13633 ;;
+    v2rayn|v2rayn-links) love_show_v2rayn_v13633 ;;
+    xray-links|xray-sub) love_show_xray_links_v13633 ;;
+    sb-links|singbox-links|sing-box-links) love_show_sb_links_v13633 ;;
+    web|green-web) web_admin_page ;;
+    qr|qrcode) generate_qrcodes ;;
+    check|final-check|v13634-check|v13632-check|v13631-check|v13630-check|v13629-check) love_v13624_check ;;
+    warp) shift || true; love_v13626_warp_command "$@" ;;
+    warp-install|install-warp-command|warp-command) love_v13626_install_warp_command ;;
+    warp-manager|warp-dual|warp-final) love_v13626_warp_manager ;;
+    warp-status|warp-report) love_v13626_warp_status ;;
+    warp-restore-direct) love_v13626_restore_direct ;;
+    xray-2659) love_v13619_xray_update_version "26.5.9" ;;
+    xray-custom) read -rp "Xray version: " xv; love_v13619_xray_update_version "$xv" ;;
+    optimize|bbr) love_v13619_safe_bbr ;;
+    singbox|sing-box|sb) install_singbox_native ;;
+    xray|reality|xray-hy2) install_xray_stable ;;
+    xray-extended|xray-all|xray-plus|xray-ext) install_xray_extended ;;
+    uninstall|uninstall-menu|remove|clean-uninstall) love_uninstall_menu_v13634 ;;
+    *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
+  esac
+}
 
 main "$@"
