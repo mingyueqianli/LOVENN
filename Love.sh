@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.26-warp-integrated-tools-final"
+VERSION="Love v13.60.28-client-sections-web-setup-final"
 LOVE_SCRIPT_VERSION="$VERSION"
 
 RED='\033[0;31m'
@@ -22509,7 +22509,7 @@ main() {
 #       * Web files missing after clean chain
 # ==============================================================================
 
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.26-warp-integrated-tools-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.28-v2rayn-true-export-final"
 # disabled duplicate legacy VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13619_prepare_dirs() {
@@ -22606,6 +22606,66 @@ love_v13619_hy2_query() {
   [[ -n "$extra" ]] && q="${q}&${extra}"
   q="${q}&alpn=h3"
   printf '%s' "$q"
+}
+
+
+# v13.60.28: Generate v2rayN-specific URI file with numeric TRUE flags.
+# v2rayN can ignore boolean true on some TLS/self-signed imports, especially VLESS WS TLS / AnyTLS.
+love_v13627_generate_v2rayn_uri() {
+  love_v13619_prepare_dirs
+  local all="/opt/Love/subscribe/all.txt"
+  local out="/opt/Love/subscribe/clients/v2rayn-uri.txt"
+  [[ -s "$all" ]] || { : > "$out"; return 0; }
+  python3 <<'PYV2N'
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode
+allp = Path('/opt/Love/subscribe/all.txt')
+outp = Path('/opt/Love/subscribe/clients/v2rayn-uri.txt')
+note = Path('/opt/Love/subscribe/clients/v2rayn-true-note.txt')
+
+def rebuild(line, force_numeric=False, add_h3=False):
+    main, sep, frag = line.partition('#')
+    base, qsep, query = main.partition('?')
+    params = []
+    seen = set()
+    for k, v in parse_qsl(query, keep_blank_values=True):
+        lk = k.lower()
+        if lk in {'allowinsecure','insecure','allow_insecure','skip-cert-verify'}:
+            continue
+        if lk == 'alpn' and add_h3:
+            continue
+        if k not in seen:
+            params.append((k, v)); seen.add(k)
+    if force_numeric:
+        params += [('allowInsecure','1'), ('insecure','1'), ('allow_insecure','1'), ('skip-cert-verify','true')]
+    if add_h3:
+        params.append(('alpn','h3'))
+    q = urlencode(params, doseq=True)
+    return base + ('?' + q if q else '') + (sep + frag if sep else '')
+
+lines=[]
+for raw in allp.read_text(encoding='utf-8', errors='ignore').splitlines():
+    line = raw.strip()
+    if not line:
+        continue
+    low=line.lower()
+    if 'love-vless-ws-tls' in low or (line.startswith('vless://') and 'security=tls' in low and 'type=ws' in low):
+        line = rebuild(line, force_numeric=True, add_h3=False)
+    elif 'love-anytls' in low or line.startswith('anytls://'):
+        line = rebuild(line, force_numeric=True, add_h3=False)
+    elif 'love-trojan' in low or line.startswith('trojan://'):
+        line = rebuild(line, force_numeric=True, add_h3=False)
+    elif 'love-naive' in low or line.startswith('https://'):
+        line = rebuild(line, force_numeric=True, add_h3=False)
+    elif 'love-hy2' in low or 'love-xray-hy2' in low or line.startswith('hy2://') or line.startswith('hysteria2://'):
+        line = rebuild(line, force_numeric=True, add_h3=True)
+    elif 'love-tuic' in low or line.startswith('tuic://'):
+        line = rebuild(line, force_numeric=True, add_h3=True)
+    lines.append(line)
+
+outp.write_text('\n'.join(lines)+'\n', encoding='utf-8')
+note.write_text('v2rayN TRUE note\n\nThis file uses numeric allowInsecure=1 for v2rayN.\nVLESS-WS-TLS should import with skip certificate verification enabled more reliably.\nAnyTLS support depends on the v2rayN core/front-end mapping; if it still displays False, edit the node manually or use sing-box-client.json.\n', encoding='utf-8')
+PYV2N
 }
 
 love_v13619_tls_node_query() {
@@ -22854,7 +22914,7 @@ love_v13619_export_from_configs() {
   awk 'NF && !seen[$0]++' "$all" > "${all}.tmp" && mv "${all}.tmp" "$all"
 
   # client-specific URI files
-  cp -f "$all" /opt/Love/subscribe/clients/v2rayn-uri.txt
+  love_v13627_generate_v2rayn_uri
   cp -f "$all" /opt/Love/subscribe/clients/nekobox-uri.txt
   cp -f "$all" /opt/Love/subscribe/clients/singbox-uri.txt
   grep -E '^(hy2|hysteria2|tuic|ss|trojan|vmess|vless)://' "$all" | grep -Ev 'REALITY|AnyTLS|NAIVE' > /opt/Love/subscribe/clients/shadowrocket-uri.txt || true
@@ -22870,7 +22930,7 @@ love_v13619_export_from_configs() {
 
   local count
   count="$(grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$all" 2>/dev/null || echo 0)"
-  echo "[OK] v13.60.21 final export generated ${count} URI nodes."
+  echo "[OK] v13.60.28 final export generated ${count} URI nodes."
 }
 
 love_v13621_parse_uri_host_port() {
@@ -23095,7 +23155,7 @@ love_v13619_final_export() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.26 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.28 final exporter；旧导出链不再参与最终写入。"
 }
 
 extract_raw_links() {
@@ -23142,7 +23202,7 @@ love_v13619_check() {
   grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
   echo
   echo "[HY2 / Xray-HY2 / Naive]"
-  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE|LOVE-VLESS-WS-TLS|LOVE-ANYTLS' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
   echo
   echo "[Bad patterns]"
   if grep -E 'sni=[^& ]+.*sni=' /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/all.txt 2>/dev/null; then
@@ -23256,7 +23316,7 @@ love_v13619_menu() {
     love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
     love_v13619_row "53) v13.60.26 检查" "0) 退出 / Exit"
     echo
-    echo "提示: 最终导出只走 v13.60.26；旧导出链不再写 all.txt/Web/QR。"
+    echo "提示: 最终导出只走 v13.60.28；旧导出链不再写 all.txt/Web/QR。"
     read -rp "请选择 / Select: " c
     case "$c" in
       1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
@@ -23341,7 +23401,7 @@ main() {
 #   - Old v13.51 post-install matrix no longer runs after install.
 #   - Final check is clean and checks real final files only.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.26-warp-integrated-tools-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.28-v2rayn-true-export-final"
 # disabled duplicate legacy VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13622_any_protocol_selected() {
@@ -23566,10 +23626,10 @@ love_v13619_export_from_configs() {
 }
 
 love_v13619_final_export() {
-  echo "================ Love Final Export v13.60.26 ================"
+  echo "================ Love Final Export v13.60.28 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.26 ================"
+  echo "================ 最终节点 / Final Links v13.60.28 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
@@ -23580,7 +23640,7 @@ love_v13622_check_duplicate_sni() {
 }
 
 love_v13619_check() {
-  echo "================ Love v13.60.26 Clean Check ================"
+  echo "================ Love v13.60.28 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23592,7 +23652,7 @@ love_v13619_check() {
   grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
   echo
   echo "[v2rayN HY2 / Xray-HY2 / Naive]"
-  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE|LOVE-VLESS-WS-TLS|LOVE-ANYTLS' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
   echo
   echo "[Bad patterns]"
   if love_v13622_check_duplicate_sni >/tmp/love-dup-sni.$$ 2>/dev/null; then
@@ -23627,7 +23687,7 @@ love_v1351_post_install_guard() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.26 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.28 final exporter；旧导出链不再参与最终写入。"
 }
 
 export_subscription() { love_v13619_final_export; }
@@ -23643,19 +23703,19 @@ generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; echo "[OK] 
 #   Keep the proven install core, but remove old post-install export/check chains
 #   from the execution path. The final output is generated once from live configs.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.26-warp-integrated-tools-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.28-v2rayn-true-export-final"
 # disabled duplicate legacy VERSION="$LOVE_SCRIPT_VERSION"
 
 love_v13624_final_export() {
-  echo "================ Love Final Export v13.60.26 ================"
+  echo "================ Love Final Export v13.60.28 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.26 ================"
+  echo "================ 最终节点 / Final Links v13.60.28 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
 love_v13624_check() {
-  echo "================ Love v13.60.26 Clean Check ================"
+  echo "================ Love v13.60.28 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23667,7 +23727,7 @@ love_v13624_check() {
   grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
   echo
   echo "[v2rayN HY2 / Xray-HY2 / Naive]"
-  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE|LOVE-VLESS-WS-TLS|LOVE-ANYTLS' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
   echo
   echo "[Bad patterns]"
   if awk '{n=gsub(/sni=/,"sni="); if(n>1){bad=1; print}} END{exit bad?0:1}' /opt/Love/subscribe/clients/v2rayn-uri.txt >/tmp/love-dup-sni.$$ 2>/dev/null; then
@@ -23695,7 +23755,7 @@ love_v13624_check() {
 # Disable old export/check/print chains completely. They must not decide final files.
 love_v1351_post_install_guard() { :; }
 love_v1351_matrix_check() { love_v13624_check; }
-love_after_node_generated_exports() { love_v13624_final_export; echo "[OK] 安装完成后只走 v13.60.26 final exporter；旧导出/检查链已禁用。"; }
+love_after_node_generated_exports() { love_v13624_final_export; echo "[OK] 安装完成后只走 v13.60.28 final exporter；旧导出/检查链已禁用。"; }
 export_subscription() { love_v13624_final_export; }
 love_sub_safe_v1341() { love_v13624_final_export; }
 extract_raw_links() { love_v13624_final_export >/dev/null; echo /opt/Love/subscribe/all.txt; }
@@ -23735,7 +23795,7 @@ love_v13619_check() { love_v13624_check; }
 #   - keep compatibility aliases v13607-version/v136xx-check.
 #   - do not run legacy version command after self update; just read VERSION from target.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.26-warp-integrated-tools-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.28-v2rayn-true-export-final"
 # disabled duplicate legacy VERSION="$LOVE_SCRIPT_VERSION"
 
 love_v13624_oneclick_update() {
@@ -23828,7 +23888,7 @@ main() {
 #   - Integrate the old WARP tools into the current menu; no more "legacy" label.
 #   - Fix menu 25: install/repair FS-style warp command.
 #   - Add Love warp command family back into the final main dispatcher.
-#   - Keep the proven install core and v13.60.26 final exporter.
+#   - Keep the proven install core and v13.60.28 final exporter.
 # ===============================================================================
 
 love_v13626_warp_status() {
@@ -24041,7 +24101,7 @@ love_v13619_menu() {
     love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
     love_v13619_row "53) v13.60.26 检查" "0) 退出 / Exit"
     echo
-    echo "提示: 工具已整合到新版菜单；最终导出只走 v13.60.26。"
+    echo "提示: 工具已整合到新版菜单；最终导出只走 v13.60.28。"
     read -rp "请选择 / Select: " c
     case "$c" in
       1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
@@ -24123,6 +24183,185 @@ main() {
     uninstall|uninstall-menu) if declare -F love_v13607_uninstall_menu >/dev/null; then love_v13607_uninstall_menu; else echo "uninstall unavailable"; fi ;;
     *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
   esac
+}
+
+
+# ===============================================================================
+# Love v13.60.28 Client Sections + Web Setup Restore
+# Purpose:
+#   - Keep the stable v13.60.27 server install/export base.
+#   - Print client-specific exports in separate sections instead of one mixed list.
+#   - Restore interactive Green Web setup after install and from menu 11 / Love web.
+#   - Keep v2rayN TRUE-special export, QR, Web sync, and all client files.
+# ===============================================================================
+
+love_v13628_web_url() {
+  local addr
+  addr="$(love_v13619_client_host 2>/dev/null || echo '127.0.0.1')"
+  local port="$(cat /opt/Love/web-port 2>/dev/null | head -n1 | tr -d '\r\n')"
+  [[ -n "$port" ]] || port="8099"
+  printf 'http://%s:%s/' "$addr" "$port"
+}
+
+love_v13628_show_file() {
+  local title="$1" file="$2"
+  echo
+  echo "================ ${title} ================"
+  if [[ -s "$file" ]]; then
+    cat "$file"
+  else
+    echo "[MISS] $file"
+  fi
+}
+
+love_v13628_print_client_sections() {
+  echo
+  echo "================ 客户端分流导出 / Client-specific Exports v13.60.28 ================"
+  echo "Web: $(love_v13628_web_url)"
+  echo
+  echo "文件位置 / Files:"
+  echo "  Raw URI:        /opt/Love/subscribe/all.txt"
+  echo "  v2rayN:         /opt/Love/subscribe/clients/v2rayn-uri.txt"
+  echo "  NekoBox:        /opt/Love/subscribe/clients/nekobox-uri.txt"
+  echo "  Shadowrocket:   /opt/Love/subscribe/clients/shadowrocket-uri.txt"
+  echo "  sing-box JSON:  /opt/Love/subscribe/clients/sing-box-client.json"
+  echo "  Mihomo YAML:    /opt/Love/subscribe/clients/mihomo.yaml"
+  echo "  Clash Meta:     /opt/Love/subscribe/clients/clash-meta.yaml"
+  echo "  QR:             /opt/Love/subscribe/qr/index.html"
+
+  love_v13628_show_file "1) 通用 Raw URI / all.txt" "/opt/Love/subscribe/all.txt"
+  love_v13628_show_file "2) v2rayN 专用 / v2rayn-uri.txt" "/opt/Love/subscribe/clients/v2rayn-uri.txt"
+  love_v13628_show_file "3) NekoBox 专用 / nekobox-uri.txt" "/opt/Love/subscribe/clients/nekobox-uri.txt"
+  love_v13628_show_file "4) Shadowrocket 小火箭 / shadowrocket-uri.txt" "/opt/Love/subscribe/clients/shadowrocket-uri.txt"
+
+  echo
+  echo "================ 5) JSON/YAML 客户端文件 / JSON-YAML Files ================"
+  for f in \
+    /opt/Love/subscribe/clients/sing-box-client.json \
+    /opt/Love/subscribe/clients/mihomo.yaml \
+    /opt/Love/subscribe/clients/clash-meta.yaml; do
+    if [[ -s "$f" ]]; then
+      echo "[OK] $f"
+    else
+      echo "[MISS] $f"
+    fi
+  done
+}
+
+love_v13628_final_export() {
+  echo "================ Love Final Export v13.60.28 ================"
+  love_v13622_export_from_configs >/dev/null
+  love_v13628_print_client_sections
+}
+
+love_v13628_web_setup() {
+  love_v13622_export_from_configs >/dev/null
+  love_v13619_generate_qr >/dev/null 2>&1 || true
+
+  local default_port port auth username password addr
+  default_port="$(cat /opt/Love/web-port 2>/dev/null | head -n1 | tr -d '\r\n')"
+  [[ -n "$default_port" ]] || default_port="8099"
+
+  echo
+  echo "================ Love Green Web 设置 / Web Setup v13.60.28 ================"
+  read -rp "Web 端口 / Web port [${default_port}]: " port
+  port="${port:-$default_port}"
+  if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then
+    echo "[WARN] Web 端口无效，使用 8099。"
+    port="8099"
+  fi
+
+  read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " auth
+  auth="${auth:-Y}"
+  if [[ "${auth,,}" != "n" ]]; then
+    read -rp "Web 用户名 [love]: " username
+    username="${username:-love}"
+    read -rp "Web 密码，留空自动生成: " password
+  else
+    username="love"
+    password=""
+  fi
+
+  echo "$port" > /opt/Love/web-port
+  ufw allow "${port}/tcp" >/dev/null 2>&1 || true
+  ufw reload >/dev/null 2>&1 || true
+
+  love_v1354_web_direct "$port" "$auth" "$username" "${password:-}"
+  love_v13619_web_sync >/dev/null 2>&1 || true
+  love_v13619_generate_qr >/dev/null 2>&1 || true
+
+  addr="$(love_v13619_client_host 2>/dev/null || echo '127.0.0.1')"
+  echo
+  echo "[OK] Web 管理页 / Web Panel: http://${addr}:${port}/"
+  echo "[OK] 订阅 / Raw sub:        http://${addr}:${port}/sub/all.txt"
+  echo "[OK] v2rayN:                http://${addr}:${port}/clients/v2rayn-uri.txt"
+  echo "[OK] NekoBox:               http://${addr}:${port}/clients/nekobox-uri.txt"
+  echo "[OK] Shadowrocket:          http://${addr}:${port}/clients/shadowrocket-uri.txt"
+  echo "[OK] QR:                    http://${addr}:${port}/qr/index.html"
+  if [[ "$addr" == \[*\] ]]; then
+    echo "[TIP] IPv6 地址访问 Web 必须保留中括号 []。"
+  fi
+}
+
+love_after_node_generated_exports() {
+  love_v13628_final_export
+  echo "[OK] 安装完成后只走 v13.60.28 final exporter；旧导出/检查链已禁用。"
+  echo
+  read -rp "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web
+  setup_web="${setup_web:-Y}"
+  if [[ "${setup_web,,}" != "n" ]]; then
+    love_v13628_web_setup
+  else
+    echo "[INFO] 已跳过 Web 设置。之后可执行：Love web"
+  fi
+}
+
+export_subscription() { love_v13628_final_export; }
+love_sub_safe_v1341() { love_v13628_final_export; }
+extract_raw_links() { love_v13628_final_export >/dev/null; echo /opt/Love/subscribe/all.txt; }
+generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
+generate_qrcodes() { love_v13622_export_from_configs >/dev/null; love_v13619_generate_qr; echo "[OK] QR 已生成：/opt/Love/subscribe/qr/index.html"; }
+web_admin_page() { love_v13628_web_setup; }
+love_v13624_final_export() { love_v13628_final_export; }
+love_v13619_final_export() { love_v13628_final_export; }
+
+love_v13624_check() {
+  echo "================ Love v13.60.28 Clean Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Services]"
+  echo -n "sing-box: "; systemctl is-active sing-box 2>/dev/null || true
+  echo -n "xray: "; systemctl is-active xray 2>/dev/null || true
+  echo -n "nginx: "; systemctl is-active nginx 2>/dev/null || true
+  echo
+  echo "[Final all.txt count]"
+  grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
+  echo
+  echo "[v2rayN TRUE-critical nodes]"
+  grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE|LOVE-VLESS-WS-TLS|LOVE-ANYTLS' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "[Bad patterns]"
+  if awk '{n=gsub(/sni=/,"sni="); if(n>1){bad=1; print}} END{exit bad?0:1}' /opt/Love/subscribe/clients/v2rayn-uri.txt >/tmp/love-dup-sni.$$ 2>/dev/null; then
+    echo "[BAD] duplicate sni found:"; cat /tmp/love-dup-sni.$$ 2>/dev/null || true
+  else
+    echo "[OK] no duplicate sni"
+  fi
+  rm -f /tmp/love-dup-sni.$$ 2>/dev/null || true
+  grep -qE 'path=%252F' /opt/Love/subscribe/all.txt 2>/dev/null && echo "[BAD] double encoded path found" || echo "[OK] no double encoded path"
+  grep -qE 'hy2://[^?]+\?sni=[^&]+&insecure=true($|#)' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[BAD] old HY2 minimal format found" || echo "[OK] old HY2 minimal format not found"
+  grep -q 'alpn=h3' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[OK] HY2 alpn=h3 exists" || echo "[WARN] HY2 alpn=h3 missing"
+  echo
+  echo "[Client files]"
+  for f in /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/clients/nekobox-uri.txt /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/mihomo.yaml /opt/Love/subscribe/clients/clash-meta.yaml /opt/Love/subscribe/clients/shadowrocket-uri.txt; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  echo
+  echo "[Web files]"
+  for f in /var/www/love-admin/all.txt /var/www/love-admin/node-links.txt /var/www/love-admin/sub/all.txt /var/www/love-admin/qr/index.html /var/www/love-admin/clients/v2rayn-uri.txt; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  echo
+  echo "[Web URL] $(love_v13628_web_url)"
 }
 
 main "$@"
