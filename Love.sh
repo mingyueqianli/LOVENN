@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.34-uninstall-yn-clean-final"
+VERSION="Love v13.60.37-bbr-warp-install-flow-final"
 LOVE_SCRIPT_VERSION="$VERSION"
 # disabled legacy LOVE_SCRIPT_VERSION="$VERSION"
 
@@ -8568,7 +8568,7 @@ love_warp_final_menu_v12() {
 # This override is placed immediately before 
 
 # ==============================================================================
-# Love v13.60.1 Color Bilingual Main Menu Final
+# Love v13.60.36 Color Bilingual Main Menu Final
 # Purpose:
 #   - Do NOT delete old functions.
 #   - Do NOT change Green Web UI.
@@ -8576,7 +8576,7 @@ love_warp_final_menu_v12() {
 #   - Add bilingual Chinese/English labels so users can find features quickly.
 #   - Keep legacy links hidden from normal subscriptions; provide show/backup/clean tools.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.1-color-bilingual-main-menu-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-color-bilingual-main-menu-final"
 
 love_c13601() {
   case "${1:-reset}" in
@@ -8729,7 +8729,7 @@ love_legacy_clean13601() {
 
 love_color_menu_help13601() {
   cat <<'EOF'
-Love v13.60.1 menu commands / 菜单命令：
+Love v13.60.36 menu commands / 菜单命令：
   Love menu          打开全彩中英主菜单
   Love help1360      查看 v13.60 新增命令
   Love env           VPS 环境识别
@@ -8861,7 +8861,7 @@ main_menu() {
 }
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.1-color-bilingual-main-menu-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.36-color-bilingual-main-menu-final}"
   case "${1:-}" in
     ""|menu|main|m)
       need_root 2>/dev/null || true
@@ -8885,7 +8885,7 @@ main() {
   esac
 }
 
-# disabled by v13.60.9 early-main fix: main "$@" so it wins.
+# disabled by v13.60.36 early-main fix: main "$@" so it wins.
 # ==============================================================================
 
 LOVE_RAW_URL_DEFAULT="https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh"
@@ -19981,7 +19981,7 @@ main() {
 #   - Existing VPS operations below are non-destructive unless the user explicitly confirms.
 # ================================================================================
 
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.0-network-cf-cert-sub-speed-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-network-cf-cert-sub-speed-final"
 
 love_v1360_mkdirs() {
   mkdir -p /opt/Love /opt/Love/reports /opt/Love/secrets /opt/Love/subscribe /opt/Love/subscribe/clients /var/www/love-admin 2>/dev/null || true
@@ -20398,7 +20398,7 @@ if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_v1357 >/de
 fi
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.0-network-cf-cert-sub-speed-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.36-network-cf-cert-sub-speed-final}"
   case "${1:-}" in
     env|detect|vps|network)
       love_v1360_env_detect ;;
@@ -20433,14 +20433,14 @@ main() {
 
 
 # ================================================================================
-# Love v13.60.2 Flag Icon Final
+# Love v13.60.36 Flag Icon Final
 # Purpose:
 #   - Convert country letters such as US/JP/DE into real emoji flag icons.
 #   - Apply the same flag to all subscription outputs, client-specific files,
 #     Web copied text files, and QR source links.
 #   - Add menu/command entries without deleting any existing feature.
 # ================================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.2-flag-icon-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-flag-icon-final"
 
 love_v13602_cc_to_emoji() {
   local cc
@@ -20655,7 +20655,7 @@ love_v13602_apply_flag_files() {
 }
 
 love_v13602_fix_flags_all() {
-  echo "================ Love Flag Icon Fix v13.60.2 ================"
+  echo "================ Love Flag Icon Fix v13.60.36 ================"
   love_flag_show13602 || true
   love_v13602_apply_flag_files
   # Rebuild QR from the flag-correct all.txt so QR imports also show emoji icons.
@@ -20693,7 +20693,7 @@ love_v1360_web() {
 
 love_v13602_help() {
   cat <<'EOF'
-Love v13.60.2 flag commands:
+Love v13.60.36 flag commands:
   Love flag          国旗图标设置 / set emoji flag icon
   Love flag-set      同上 / same as flag
   Love flag-auto     自动识别国家并转成 emoji 国旗
@@ -20713,7 +20713,7 @@ if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_fla
 fi
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.2-flag-icon-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.36-flag-icon-final}"
   case "${1:-}" in
     ""|menu|main|m)
       need_root 2>/dev/null || true
@@ -20747,14 +20747,14 @@ main() {
 
 
 # ==============================================================================
-# Love v13.60.3 Flag Icon Source-First Final
+# Love v13.60.36 Flag Icon Source-First Final
 # Purpose:
 #   - Generate real emoji flag remarks at the source/template layer.
 #   - Do NOT depend on post-generation scanning such as flag-fix for normal output.
 #   - Keep legacy flag-fix command only as a safe rebuild alias, not a file scanner.
 #   - Preserve all existing protocols, Green Web, QR, and legacy archive behavior.
 # ==============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.3-flag-icon-source-first-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-flag-icon-source-first-final"
 
 love_v13603_cc_to_emoji() {
   local cc
@@ -21019,7 +21019,7 @@ love_v1355_export_direct() {
 }
 
 love_v1360_generate_client_subs() {
-  love_v1360_header "Love Subscriptions v13.60.3 Source-First" 2>/dev/null || echo "================ Love Subscriptions v13.60.3 Source-First ================"
+  love_v1360_header "Love Subscriptions v13.60.36 Source-First" 2>/dev/null || echo "================ Love Subscriptions v13.60.36 Source-First ================"
   love_v1360_mkdirs 2>/dev/null || mkdir -p /opt/Love/subscribe/clients /opt/Love/reports
   love_v1355_export_direct 2>/dev/null || love_v1354_export_direct 2>/dev/null || true
   love_v1354_qr_direct 2>/dev/null || true
@@ -21056,10 +21056,10 @@ love_v1360_web() {
   web_admin_page
 }
 
-# In v13.60.3 flag-fix is not a normal post-processing scanner anymore.
+# In v13.60.36 flag-fix is not a normal post-processing scanner anymore.
 # It is kept only as a compatibility alias that regenerates subscriptions from the source template.
 love_v13602_fix_flags_all() {
-  echo "================ Love Flag Source-First v13.60.3 ================"
+  echo "================ Love Flag Source-First v13.60.36 ================"
   echo "[INFO] 正常流程不再扫描旧订阅改字母；现在直接从源头重新生成 emoji 国旗节点名。"
   love_v1360_generate_client_subs
   love_v1354_qr_direct 2>/dev/null || true
@@ -21067,7 +21067,7 @@ love_v13602_fix_flags_all() {
 }
 
 love_v13603_check() {
-  echo "================ Love v13.60.3 Source-First Flag Check ================"
+  echo "================ Love v13.60.36 Source-First Flag Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo "Current flag: $(love_v13603_flag_get) $(cat /opt/Love/node-country 2>/dev/null || echo US)"
   echo
@@ -21086,7 +21086,7 @@ love_v13603_check() {
 
 love_v13603_help() {
   cat <<'EOF'
-Love v13.60.3 source-first flag commands:
+Love v13.60.36 source-first flag commands:
   Love flag          设置国旗图标源头 / set source emoji flag
   Love flag-auto     自动识别并保存国旗图标源头
   Love flag-show     查看当前国旗
@@ -21095,7 +21095,7 @@ Love v13.60.3 source-first flag commands:
   Love v13603-check  检查是否还有 #US LOVE 这类字母标签
 
 Note:
-  v13.60.3 不把 flag-fix 当正常流程；flag-fix 仅作为兼容命令，实际执行源头重建。
+  v13.60.36 不把 flag-fix 当正常流程；flag-fix 仅作为兼容命令，实际执行源头重建。
 EOF
 }
 
@@ -21104,7 +21104,7 @@ if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_fla
 fi
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.3-flag-icon-source-first-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.36-flag-icon-source-first-final}"
   case "${1:-}" in
     ""|menu|main|m)
       need_root 2>/dev/null || true
@@ -21140,14 +21140,14 @@ main() {
 
 
 # ==============================================================================
-# Love v13.60.4 Manual TRUE Notice Source-Final
+# Love v13.60.36 Manual TRUE Notice Source-Final
 # Purpose:
 #   - Do NOT change working server config.
 #   - Do NOT post-scan URI to change protocol logic.
 #   - Generate a source-time v2rayN manual TRUE reminder report after node export.
 #   - Keep Green Web / QR / legacy links unchanged.
 # ==============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.4-manual-true-notice-source-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-manual-true-notice-source-final"
 
 love_v13604_line_name() {
   local line="$1" frag=""
@@ -21174,7 +21174,7 @@ love_v13604_tls_manual_report() {
   sni="$(cat /opt/Love/node-sni 2>/dev/null || echo self.local)"
 
   {
-    echo "Love v13.60.4 v2rayN Manual TRUE Notice / 手动 TRUE 提醒"
+    echo "Love v13.60.36 v2rayN Manual TRUE Notice / 手动 TRUE 提醒"
     echo "==============================================================="
     echo "Flag / 国旗: ${flag} ${country}"
     echo "Cert mode / 证书模式: ${mode}"
@@ -21286,7 +21286,7 @@ love_v13604_tls_manual_report() {
 }
 
 love_v13604_check() {
-  echo "================ Love v13.60.4 Check ================"
+  echo "================ Love v13.60.36 Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   love_v13603_check 2>/dev/null || true
   love_v13604_tls_manual_report
@@ -21294,7 +21294,7 @@ love_v13604_check() {
 
 love_v13604_help() {
   cat <<'EOF13604HELP'
-Love v13.60.4 commands:
+Love v13.60.36 commands:
   Love sub              从源头生成订阅 + 生成 v2rayN TRUE 手动提醒
   Love web              同步绿色 Web，包含 clients/v2rayn-manual-true-note.txt
   Love manual-true      查看/生成手动 TRUE 提醒
@@ -21321,7 +21321,7 @@ if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13
 fi
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.4-manual-true-notice-source-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.36-manual-true-notice-source-final}"
   case "${1:-}" in
     manual-true|true-note|v2rayn-true|cert-true-note|true-help)
       love_v13604_tls_manual_report ;;
@@ -21335,14 +21335,14 @@ main() {
 }
 
 # ==============================================================================
-# Love v13.60.6 Cert Mode Strict + Xray Source-Aware Final
+# Love v13.60.36 Cert Mode Strict + Xray Source-Aware Final
 # Purpose:
 #   - Restore classic aligned two-column menu with one unified color style.
 #   - Add Xray Extended mode without replacing/removing Xray Stable mode.
 #   - Xray Extended supports domain/no-domain/custom cert source choices.
 #   - Do not change Green Web / QR / sing-box working nodes / legacy archive logic.
 # ==============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.6-cert-mode-strict-xray-source-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-cert-mode-strict-xray-source-final"
 
 love_c13605() {
   case "${1:-}" in
@@ -21567,7 +21567,7 @@ EOF_XRNOTE
 }
 
 
-# v13.60.6: strict certificate trust detection for imported certs.
+# v13.60.36: strict certificate trust detection for imported certs.
 # Return value text is intentionally only "true" or "false" for command substitution:
 #   true  = client links must include insecure/allowInsecure parameters
 #   false = client links should verify certificate normally
@@ -21880,7 +21880,7 @@ love_v13605_classic_menu() {
 }
 
 love_v13605_xray_extended_check() {
-  echo "================ Love v13.60.6 Xray Extended / Cert Mode Check ================"
+  echo "================ Love v13.60.36 Xray Extended / Cert Mode Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   if [[ -f "${XRAY_CONF}" ]]; then
@@ -21898,7 +21898,7 @@ love_v13605_xray_extended_check() {
 
 love_v13605_help() {
   cat <<'EOF_V13605HELP'
-Love v13.60.6 commands:
+Love v13.60.36 commands:
   Love                         打开经典双列菜单
   Love xray-extended           安装 Xray 补全模式
   Love xray-all                同上
@@ -21928,7 +21928,7 @@ if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13
 fi
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.6-cert-mode-strict-xray-source-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.36-cert-mode-strict-xray-source-final}"
   case "${1:-}" in
     ""|menu|main|m)
       need_root 2>/dev/null || true
@@ -21950,13 +21950,13 @@ main() {
 
 
 # ============================================================================== 
-# Love v13.60.7 - Classic menu / one-click update / uninstall index fixed
-# - Based on v13.60.4 stable line plus later source-first improvements kept.
+# Love v13.60.36 - Classic menu / one-click update / uninstall index fixed
+# - Based on v13.60.36 stable line plus later source-first improvements kept.
 # - No protocol/web/QR/node logic removed.
 # - Fixes menu item 12 to one-click update without asking URL.
 # - Fixes menu item 23 to a stable classic uninstall menu.
 # ============================================================================== 
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.10-classic-ui-catalog-install-fix-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-classic-ui-catalog-install-fix-final"
 LOVE_RAW_URL_DEFAULT="${LOVE_RAW_URL_DEFAULT:-https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh}"
 
 love_v13607_c() {
@@ -22203,7 +22203,7 @@ love_v13607_classic_menu() {
 
 
 # ===============================================================================
-# Love v13.60.10 Classic UI + Catalog install mapping fix
+# Love v13.60.36 Classic UI + Catalog install mapping fix
 # - UI references the original clean catalog style, but uses display-width padding
 #   so Chinese/English columns align better.
 # - Catalog install items call real install functions, not repair functions.
@@ -22247,7 +22247,7 @@ love_v13610_line() {
 love_v13610_title() {
   love_v13610_line
   echo "  Love Node Server Manager · 经典主菜单 / Classic Main Menu"
-  echo "  ${LOVE_SCRIPT_VERSION:-Love v13.60.10-classic-ui-catalog-install-fix-final}"
+  echo "  ${LOVE_SCRIPT_VERSION:-Love v13.60.36-classic-ui-catalog-install-fix-final}"
   love_v13610_line
 }
 
@@ -22465,7 +22465,7 @@ if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13
 fi
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.10-classic-ui-catalog-install-fix-final}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.36-classic-ui-catalog-install-fix-final}"
   case "${1:-}" in
     ""|menu|main|m)
       need_root 2>/dev/null || true
@@ -22489,18 +22489,18 @@ main() {
   esac
 }
 
-# main "$@" disabled by Love v13.60.19 clean driver
+# main "$@" disabled by Love v13.60.36 clean driver
 
 
 # ==============================================================================
-# Love v13.60.19 Clean Rebuild Driver Final
+# Love v13.60.36 Clean Rebuild Driver Final
 #
 # Purpose:
 #   - Keep existing install / web / warp / cert / menu abilities.
 #   - Remove old export chains from the final write path.
 #   - Use ONE final exporter after install and for Love sub/web/qr/clients.
-#   - Fix issues observed from v13.60.10-v13.60.18:
-#       * old v13.51/v13.55/v13.57/v13.60.13 export overwrite
+#   - Fix issues observed from v13.60.36-v13.60.36:
+#       * old v13.51/v13.55/v13.57/v13.60.36 export overwrite
 #       * HY2 missing allowInsecure / h3
 #       * Xray-HY2 missing allowInsecure / h3
 #       * Naive duplicated sni
@@ -22510,7 +22510,7 @@ main() {
 #       * Web files missing after clean chain
 # ==============================================================================
 
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.29-v2rayn-true-export-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-v2rayn-true-export-final"
 # disabled duplicate legacy VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13619_prepare_dirs() {
@@ -22610,7 +22610,7 @@ love_v13619_hy2_query() {
 }
 
 
-# v13.60.29: Generate v2rayN-specific URI file with numeric TRUE flags.
+# v13.60.36: Generate v2rayN-specific URI file with numeric TRUE flags.
 # v2rayN can ignore boolean true on some TLS/self-signed imports, especially VLESS WS TLS / AnyTLS.
 love_v13627_generate_v2rayn_uri() {
   love_v13619_prepare_dirs
@@ -22767,7 +22767,7 @@ Love sing-box Client Info
 Generated by: ${LOVE_SCRIPT_VERSION}
 Client Address: ${1:-$(love_v13619_client_host)}
 TLS SNI: ${4:-$(love_v13619_tls_sni)}
-Note: final links are generated by Love sub / Love web from v13.60.21 clean exporter.
+Note: final links are generated by Love sub / Love web from v13.60.36 clean exporter.
 EOF
   chmod 600 /opt/Love/client-info/sing-box-client-info.txt
 }
@@ -22780,7 +22780,7 @@ Generated by: ${LOVE_SCRIPT_VERSION}
 Client Address: ${6:-${1:-$(love_v13619_client_host)}}
 Reality SNI: ${2:-$(love_v13619_reality_sni)}
 HY2 SNI: ${4:-$(love_v13619_tls_sni)}
-Note: final links are generated by Love sub / Love web from v13.60.21 clean exporter.
+Note: final links are generated by Love sub / Love web from v13.60.36 clean exporter.
 EOF
   chmod 600 /opt/Love/client-info/xray-client-info.txt
 }
@@ -22931,7 +22931,7 @@ love_v13619_export_from_configs() {
 
   local count
   count="$(grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$all" 2>/dev/null || echo 0)"
-  echo "[OK] v13.60.29 final export generated ${count} URI nodes."
+  echo "[OK] v13.60.36 final export generated ${count} URI nodes."
 }
 
 love_v13621_parse_uri_host_port() {
@@ -23147,16 +23147,16 @@ EOF
 }
 
 love_v13619_final_export() {
-  echo "================ Love Final Export v13.60.21 ================"
+  echo "================ Love Final Export v13.60.36 ================"
   love_v13619_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.21 ================"
+  echo "================ 最终节点 / Final Links v13.60.36 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.29 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.36 final exporter；旧导出链不再参与最终写入。"
 }
 
 extract_raw_links() {
@@ -23191,7 +23191,7 @@ generate_mihomo_yaml() {
 
 love_v13619_check() {
   love_v13619_export_from_configs >/dev/null
-  echo "================ Love v13.60.21 Clean Check ================"
+  echo "================ Love v13.60.36 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23315,9 +23315,9 @@ love_v13619_menu() {
     love_v13619_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
     love_v13619_row "25) 安装/修复 warp 命令" "50) Xray 26.5.9 更新"
     love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
-    love_v13619_row "53) v13.60.26 检查" "0) 退出 / Exit"
+    love_v13619_row "53) v13.60.36 检查" "0) 退出 / Exit"
     echo
-    echo "提示: 最终导出只走 v13.60.29；旧导出链不再写 all.txt/Web/QR。"
+    echo "提示: 最终导出只走 v13.60.36；旧导出链不再写 all.txt/Web/QR。"
     read -rp "请选择 / Select: " c
     case "$c" in
       1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
@@ -23393,8 +23393,8 @@ main() {
 }
 
 # ===============================================================================
-# Love v13.60.22 Stable Final Driver
-# Fixes after v13.60.21:
+# Love v13.60.36 Stable Final Driver
+# Fixes after v13.60.36:
 #   - Uppercase protocol selection (A/B/C...) is normalized.
 #   - Empty sing-box config caused by uppercase A is prevented.
 #   - Final exporter exports active sing-box only, active Xray only.
@@ -23402,7 +23402,7 @@ main() {
 #   - Old v13.51 post-install matrix no longer runs after install.
 #   - Final check is clean and checks real final files only.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.29-v2rayn-true-export-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-v2rayn-true-export-final"
 # disabled duplicate legacy VERSION="${LOVE_SCRIPT_VERSION}"
 
 love_v13622_any_protocol_selected() {
@@ -23619,7 +23619,7 @@ love_v13622_export_from_configs() {
 
   local count
   count="$(grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' "$all" 2>/dev/null || echo 0)"
-  echo "[OK] v13.60.26 final export generated ${count} URI nodes."
+  echo "[OK] v13.60.36 final export generated ${count} URI nodes."
 }
 
 love_v13619_export_from_configs() {
@@ -23627,10 +23627,10 @@ love_v13619_export_from_configs() {
 }
 
 love_v13619_final_export() {
-  echo "================ Love Final Export v13.60.29 ================"
+  echo "================ Love Final Export v13.60.36 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.29 ================"
+  echo "================ 最终节点 / Final Links v13.60.36 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
@@ -23641,7 +23641,7 @@ love_v13622_check_duplicate_sni() {
 }
 
 love_v13619_check() {
-  echo "================ Love v13.60.29 Clean Check ================"
+  echo "================ Love v13.60.36 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23680,7 +23680,7 @@ love_v13619_check() {
 
 love_v1351_matrix_check() { love_v13619_check; }
 love_v1351_post_install_guard() {
-  echo "================ Love Post-Install Guard v13.60.26 ================"
+  echo "================ Love Post-Install Guard v13.60.36 ================"
   love_v1351_open_ports_from_current_configs 2>/dev/null || true
   love_v13619_final_export
   love_v13619_check
@@ -23688,7 +23688,7 @@ love_v1351_post_install_guard() {
 
 love_after_node_generated_exports() {
   love_v13619_final_export
-  echo "[OK] 安装完成后只走 v13.60.29 final exporter；旧导出链不再参与最终写入。"
+  echo "[OK] 安装完成后只走 v13.60.36 final exporter；旧导出链不再参与最终写入。"
 }
 
 export_subscription() { love_v13619_final_export; }
@@ -23699,24 +23699,24 @@ generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; echo "[OK] 
 
 
 # ===============================================================================
-# v13.60.26 Clean Install + Export Final
+# v13.60.36 Clean Install + Export Final
 # Purpose:
 #   Keep the proven install core, but remove old post-install export/check chains
 #   from the execution path. The final output is generated once from live configs.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.29-v2rayn-true-export-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-v2rayn-true-export-final"
 # disabled duplicate legacy VERSION="$LOVE_SCRIPT_VERSION"
 
 love_v13624_final_export() {
-  echo "================ Love Final Export v13.60.29 ================"
+  echo "================ Love Final Export v13.60.36 ================"
   love_v13622_export_from_configs
   echo
-  echo "================ 最终节点 / Final Links v13.60.29 ================"
+  echo "================ 最终节点 / Final Links v13.60.36 ================"
   cat /opt/Love/subscribe/all.txt 2>/dev/null || echo "[WARN] no all.txt"
 }
 
 love_v13624_check() {
-  echo "================ Love v13.60.29 Clean Check ================"
+  echo "================ Love v13.60.36 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -23756,7 +23756,7 @@ love_v13624_check() {
 # Disable old export/check/print chains completely. They must not decide final files.
 love_v1351_post_install_guard() { :; }
 love_v1351_matrix_check() { love_v13624_check; }
-love_after_node_generated_exports() { love_v13624_final_export; echo "[OK] 安装完成后只走 v13.60.29 final exporter；旧导出/检查链已禁用。"; }
+love_after_node_generated_exports() { love_v13624_final_export; echo "[OK] 安装完成后只走 v13.60.36 final exporter；旧导出/检查链已禁用。"; }
 export_subscription() { love_v13624_final_export; }
 love_sub_safe_v1341() { love_v13624_final_export; }
 extract_raw_links() { love_v13624_final_export >/dev/null; echo /opt/Love/subscribe/all.txt; }
@@ -23771,7 +23771,7 @@ if declare -F love_original_install_singbox_native_v1351 >/dev/null 2>&1; then
     love_original_install_singbox_native_v1351 "$@"
     love_v13624_final_export
     love_v13624_check
-    log "sing-box 全协议安装完成：最终导出已统一为 v13.60.26。"
+    log "sing-box 全协议安装完成：最终导出已统一为 v13.60.36。"
   }
 fi
 
@@ -23780,7 +23780,7 @@ if declare -F love_original_install_xray_stable_v1351 >/dev/null 2>&1; then
     love_original_install_xray_stable_v1351 "$@"
     love_v13624_final_export
     love_v13624_check
-    log "Xray 稳定模式安装完成：最终导出已统一为 v13.60.26。"
+    log "Xray 稳定模式安装完成：最终导出已统一为 v13.60.36。"
   }
 fi
 
@@ -23790,13 +23790,13 @@ love_v13619_check() { love_v13624_check; }
 
 
 # ===============================================================================
-# v13.60.26 One-click Update Clean Final
+# v13.60.36 One-click Update Clean Final
 # Fix:
 #   - old updater printed "Unknown command: v13607-version" after successful update.
 #   - keep compatibility aliases v13607-version/v136xx-check.
 #   - do not run legacy version command after self update; just read VERSION from target.
 # ===============================================================================
-# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.29-v2rayn-true-export-final"
+# disabled duplicate legacy LOVE_SCRIPT_VERSION="Love v13.60.36-v2rayn-true-export-final"
 # disabled duplicate legacy VERSION="$LOVE_SCRIPT_VERSION"
 
 love_v13624_oneclick_update() {
@@ -23884,12 +23884,12 @@ main() {
 
 
 # ===============================================================================
-# v13.60.26 WARP + Integrated Tools Final
+# v13.60.36 WARP + Integrated Tools Final
 # Purpose:
 #   - Integrate the old WARP tools into the current menu; no more "legacy" label.
 #   - Fix menu 25: install/repair FS-style warp command.
 #   - Add Love warp command family back into the final main dispatcher.
-#   - Keep the proven install core and v13.60.29 final exporter.
+#   - Keep the proven install core and v13.60.36 final exporter.
 # ===============================================================================
 
 love_v13626_warp_status() {
@@ -24100,9 +24100,9 @@ love_v13619_menu() {
     love_v13619_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
     love_v13619_row "25) 安装/修复 warp 命令" "50) Xray 26.5.9 更新"
     love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
-    love_v13619_row "53) v13.60.26 检查" "0) 退出 / Exit"
+    love_v13619_row "53) v13.60.36 检查" "0) 退出 / Exit"
     echo
-    echo "提示: 工具已整合到新版菜单；最终导出只走 v13.60.29。"
+    echo "提示: 工具已整合到新版菜单；最终导出只走 v13.60.36。"
     read -rp "请选择 / Select: " c
     case "$c" in
       1) if declare -F node_catalog_menu >/dev/null; then node_catalog_menu; else install_singbox_native; fi ;;
@@ -24188,9 +24188,9 @@ main() {
 
 
 # ===============================================================================
-# Love v13.60.29 Client Sections + Web Setup Restore
+# Love v13.60.36 Client Sections + Web Setup Restore
 # Purpose:
-#   - Keep the stable v13.60.27 server install/export base.
+#   - Keep the stable v13.60.36 server install/export base.
 #   - Print client-specific exports in separate sections instead of one mixed list.
 #   - Restore interactive Green Web setup after install and from menu 11 / Love web.
 #   - Keep v2rayN TRUE-special export, QR, Web sync, and all client files.
@@ -24217,7 +24217,7 @@ love_v13628_show_file() {
 
 love_v13628_print_client_sections() {
   echo
-  echo "================ 客户端分流导出 / Client-specific Exports v13.60.29 ================"
+  echo "================ 客户端分流导出 / Client-specific Exports v13.60.36 ================"
   echo "Web: $(love_v13628_web_url)"
   echo
   echo "文件位置 / Files:"
@@ -24250,7 +24250,7 @@ love_v13628_print_client_sections() {
 }
 
 love_v13628_final_export() {
-  echo "================ Love Final Export v13.60.29 ================"
+  echo "================ Love Final Export v13.60.36 ================"
   love_v13622_export_from_configs >/dev/null
   love_v13628_print_client_sections
 }
@@ -24264,7 +24264,7 @@ love_v13628_web_setup() {
   [[ -n "$default_port" ]] || default_port="8099"
 
   echo
-  echo "================ Love Green Web 设置 / Web Setup v13.60.29 ================"
+  echo "================ Love Green Web 设置 / Web Setup v13.60.36 ================"
   read -rp "Web 端口 / Web port [${default_port}]: " port
   port="${port:-$default_port}"
   if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then
@@ -24306,7 +24306,7 @@ love_v13628_web_setup() {
 
 love_after_node_generated_exports() {
   love_v13628_final_export
-  echo "[OK] 安装完成后只走 v13.60.29 final exporter；旧导出/检查链已禁用。"
+  echo "[OK] 安装完成后只走 v13.60.36 final exporter；旧导出/检查链已禁用。"
   echo
   read -rp "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web
   setup_web="${setup_web:-Y}"
@@ -24327,7 +24327,7 @@ love_v13624_final_export() { love_v13628_final_export; }
 love_v13619_final_export() { love_v13628_final_export; }
 
 love_v13624_check() {
-  echo "================ Love v13.60.29 Clean Check ================"
+  echo "================ Love v13.60.36 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -24367,7 +24367,7 @@ love_v13624_check() {
 
 
 # ======================================================================
-# Love v13.60.29 Web setup + v2rayN TRUE final override
+# Love v13.60.36 Web setup + v2rayN TRUE final override
 # - Fix: pressing Y after install must enter Web setup instead of returning shell.
 # - Fix: v2rayN-specific file uses numeric TRUE flags for TLS/self-signed nodes.
 # - Keep service install core unchanged.
@@ -24436,7 +24436,7 @@ PYV2N29
 }
 
 love_v13629_final_export() {
-  echo "================ Love Final Export v13.60.29 ================"
+  echo "================ Love Final Export v13.60.36 ================"
   love_v13622_export_from_configs >/dev/null
   love_v13629_force_v2rayn_numeric || true
   love_v13619_web_sync >/dev/null 2>&1 || true
@@ -24450,7 +24450,7 @@ love_v13629_web_setup() {
   [[ -n "$default_port" ]] || default_port="8099"
 
   echo
-  echo "================ Love Green Web 设置 / Web Setup v13.60.29 ================"
+  echo "================ Love Green Web 设置 / Web Setup v13.60.36 ================"
   read -rp "Web 端口 / Web port [${default_port}]: " port
   port="${port:-$default_port}"
   if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then
@@ -24496,7 +24496,7 @@ love_v13629_web_setup() {
 
 love_after_node_generated_exports() {
   love_v13629_final_export
-  echo "[OK] 安装完成后只走 v13.60.29 final exporter；旧导出/检查链已禁用。"
+  echo "[OK] 安装完成后只走 v13.60.36 final exporter；旧导出/检查链已禁用。"
   echo
   local setup_web
   read -rp "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web
@@ -24517,7 +24517,7 @@ generate_qrcodes() { love_v13622_export_from_configs >/dev/null; love_v13629_for
 generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null; love_v13629_force_v2rayn_numeric || true; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
 
 love_v13624_check() {
-  echo "================ Love v13.60.29 Clean Check ================"
+  echo "================ Love v13.60.36 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -24554,7 +24554,7 @@ love_v13624_check() {
 
 
 # ======================================================================
-# Love v13.60.31 Web/HY2/H2 v2rayN cleanup final override
+# Love v13.60.36 Web/HY2/H2 v2rayN cleanup final override
 # - Web setup: independent robust Nginx builder; pressing Y must not return to shell.
 # - v2rayN: HY2 uses hysteria2:// alias; H2 Reality moved out of normal v2rayN because Xray HTTP transport is incompatible in many v2rayN builds.
 # - Legacy link outputs are removed from final Web/subscribe path; install core remains unchanged.
@@ -24646,7 +24646,7 @@ love_v13631_print_client_sections() {
   local weburl
   weburl="$(love_v13631_web_url 2>/dev/null || true)"
   echo
-  echo "================ 客户端分流导出 / Client-specific Exports v13.60.30 ================"
+  echo "================ 客户端分流导出 / Client-specific Exports v13.60.36 ================"
   [[ -n "$weburl" ]] && echo "Web: $weburl"
   echo
   echo "文件位置 / Files:"
@@ -24682,7 +24682,7 @@ love_v13631_print_client_sections() {
 }
 
 love_v13631_final_export() {
-  echo "================ Love Final Export v13.60.30 ================"
+  echo "================ Love Final Export v13.60.36 ================"
   love_v13622_export_from_configs >/dev/null
   love_v13631_force_v2rayn_profile || true
   love_v13631_cleanup_legacy_outputs || true
@@ -24704,7 +24704,7 @@ love_v13631_web_setup() {
   default_port="$(cat /opt/Love/web-port 2>/dev/null | head -n1 | tr -d '\r\n')"
   [[ -n "$default_port" ]] || default_port="8099"
   echo
-  echo "================ Love Green Web 设置 / Web Setup v13.60.30 ================"
+  echo "================ Love Green Web 设置 / Web Setup v13.60.36 ================"
   read -rp "Web 端口 / Web port [${default_port}]: " port || port=""
   port="${port:-$default_port}"
   if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then
@@ -24789,7 +24789,7 @@ EOFNGINX30
 
 love_after_node_generated_exports() {
   love_v13631_final_export
-  echo "[OK] 安装完成后只走 v13.60.31 final exporter；旧导出/检查链已禁用。"
+  echo "[OK] 安装完成后只走 v13.60.36 final exporter；旧导出/检查链已禁用。"
   echo
   local setup_web
   read -rp "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web || setup_web="Y"
@@ -24812,7 +24812,7 @@ generate_qrcodes() { love_v13622_export_from_configs >/dev/null 2>&1 || true; lo
 generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null 2>&1 || true; love_v13631_force_v2rayn_profile || true; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
 
 love_v13624_check() {
-  echo "================ Love v13.60.31 Clean Check ================"
+  echo "================ Love v13.60.36 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -24850,7 +24850,7 @@ love_v13631_sub() { love_v13631_final_export; }
 
 
 # ======================================================================
-# Love v13.60.31 sing-box JSON / HY2 / H2 Reality hardening
+# Love v13.60.36 sing-box JSON / HY2 / H2 Reality hardening
 # - v2rayN changing a URI node to sing_box core is not enough for HY2/H2 Reality in some builds.
 # - Generate a real sing-box client JSON with HY2 + H2 Reality + gRPC Reality + VLESS Reality.
 # - Add server-side ALPN h3 to HY2/TUIC inbounds before export.
@@ -24999,7 +24999,7 @@ outp.write_text(json.dumps(cfg,ensure_ascii=False,indent=2),encoding='utf-8')
 v2full.write_text(json.dumps(cfg,ensure_ascii=False,indent=2),encoding='utf-8')
 h2cfg={"log":{"level":"warn","timestamp":True},"inbounds":[{"type":"mixed","tag":"mixed-in","listen":"127.0.0.1","listen_port":2080}],"outbounds":h2_outbounds + [{"type":"direct","tag":"direct"}],"route":{"final":"direct"}}
 h2only.write_text(json.dumps(h2cfg,ensure_ascii=False,indent=2),encoding='utf-8')
-note.write_text('v2rayN sing_box core note\n\nHY2 and H2 Reality are more reliable as real sing-box JSON than as URI-imported nodes.\nUse v2rayn-singbox-core-full.json / v2rayn-h2-reality-singbox.json as custom sing-box configs if URI nodes still fail after switching core.\nServer HY2/TUIC TLS ALPN is hardened to h3 by v13.60.31.\n',encoding='utf-8')
+note.write_text('v2rayN sing_box core note\n\nHY2 and H2 Reality are more reliable as real sing-box JSON than as URI-imported nodes.\nUse v2rayn-singbox-core-full.json / v2rayn-h2-reality-singbox.json as custom sing-box configs if URI nodes still fail after switching core.\nServer HY2/TUIC TLS ALPN is hardened to h3 by v13.60.36.\n',encoding='utf-8')
 PYSB31
   jq empty /opt/Love/subscribe/clients/sing-box-client.json >/dev/null 2>&1 || echo '{"log":{"level":"warn"},"inbounds":[{"type":"mixed","tag":"mixed-in","listen":"127.0.0.1","listen_port":2080}],"outbounds":[{"type":"direct","tag":"direct"}],"route":{"final":"direct"}}' > /opt/Love/subscribe/clients/sing-box-client.json
   cp -f /opt/Love/subscribe/clients/v2rayn-singbox-core-full.json /var/www/love-admin/clients/v2rayn-singbox-core-full.json 2>/dev/null || true
@@ -25007,12 +25007,12 @@ PYSB31
   cp -f /opt/Love/subscribe/clients/v2rayn-singbox-core-note.txt /var/www/love-admin/clients/v2rayn-singbox-core-note.txt 2>/dev/null || true
 }
 
-# Explicit v13.60.31 client section printer.
+# Explicit v13.60.36 client section printer.
 love_v13631_print_client_sections_real() {
   local weburl
   weburl="$(love_v13631_web_url 2>/dev/null || love_v13630_web_url 2>/dev/null || true)"
   echo
-  echo "================ 客户端分流导出 / Client-specific Exports v13.60.31 ================"
+  echo "================ 客户端分流导出 / Client-specific Exports v13.60.36 ================"
   [[ -n "$weburl" ]] && echo "Web: $weburl"
   echo
   echo "文件位置 / Files:"
@@ -25055,7 +25055,7 @@ love_v13631_print_client_sections_real() {
 }
 
 love_v13631_final_export() {
-  echo "================ Love Final Export v13.60.31 ================"
+  echo "================ Love Final Export v13.60.36 ================"
   love_v13631_harden_singbox_server || true
   love_v13622_export_from_configs >/dev/null
   love_v13631_force_v2rayn_profile || true
@@ -25072,7 +25072,7 @@ love_v13631_final_export() {
 
 love_after_node_generated_exports() {
   love_v13631_final_export
-  echo "[OK] 安装完成后只走 v13.60.31 final exporter；旧导出/检查链已禁用。"
+  echo "[OK] 安装完成后只走 v13.60.36 final exporter；旧导出/检查链已禁用。"
   echo
   local setup_web
   read -rp "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web || setup_web="Y"
@@ -25096,7 +25096,7 @@ generate_qrcodes() { love_v13631_final_export >/dev/null 2>&1 || true; echo "[OK
 generate_mihomo_yaml() { love_v13631_final_export >/dev/null 2>&1 || true; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
 
 love_v13624_check() {
-  echo "================ Love v13.60.31 Clean Check ================"
+  echo "================ Love v13.60.36 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -25131,7 +25131,7 @@ love_v13631_sub() { love_v13631_final_export; }
 
 
 # ======================================================================
-# Love v13.60.32 QR / Web / Flag / Xray-Core split final polish
+# Love v13.60.36 QR / Web / Flag / Xray-Core split final polish
 # - Keep LOVE-HY2 as valid service node; do not regenerate just for HY2.
 # - Add explicit v2rayN Xray-core / sing_box-core split files.
 # - Restore terminal QR printing and Web QR sync.
@@ -25300,7 +25300,7 @@ love_v13632_web_setup() {
   default_port="$(cat /opt/Love/web-port 2>/dev/null | head -n1 | tr -d '\r\n')"
   [[ -n "$default_port" ]] || default_port="8099"
   echo
-  echo "================ Love Green Web 设置 / Web Setup v13.60.32 ================"
+  echo "================ Love Green Web 设置 / Web Setup v13.60.36 ================"
   love_v13632_tty_read "Web 端口 / Web port [${default_port}]: " port "$default_port"
   if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then port="8099"; fi
   love_v13632_tty_read "是否开启 Basic Auth 密码保护？[Y/n]: " auth "Y"
@@ -25361,7 +25361,7 @@ love_v13632_print_client_sections() {
   local weburl
   weburl="$(love_v13632_web_url 2>/dev/null || true)"
   echo
-  echo "================ 客户端分流导出 / Client-specific Exports v13.60.32 ================"
+  echo "================ 客户端分流导出 / Client-specific Exports v13.60.36 ================"
   [[ -n "$weburl" ]] && echo "Web: $weburl"
   echo "Flag: $(love_v13632_flag)"
   echo
@@ -25400,7 +25400,7 @@ love_v13632_print_client_sections() {
 }
 
 love_v13632_final_export() {
-  echo "================ Love Final Export v13.60.32 ================"
+  echo "================ Love Final Export v13.60.36 ================"
   love_v13632_sync_flag_files || true
   love_v13631_harden_singbox_server || true
   love_v13622_export_from_configs >/dev/null
@@ -25418,7 +25418,7 @@ love_v13632_final_export() {
 
 love_after_node_generated_exports() {
   love_v13632_final_export
-  echo "[OK] 安装完成后只走 v13.60.32 final exporter；旧导出/检查链已禁用。"
+  echo "[OK] 安装完成后只走 v13.60.36 final exporter；旧导出/检查链已禁用。"
   echo
   local setup_web
   love_v13632_tty_read "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web "Y"
@@ -25438,7 +25438,7 @@ generate_qrcodes() { love_v13632_qr_direct; }
 generate_mihomo_yaml() { love_v13632_final_export >/dev/null 2>&1 || true; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
 
 love_v13624_check() {
-  echo "================ Love v13.60.32 Clean Check ================"
+  echo "================ Love v13.60.36 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -25475,12 +25475,12 @@ love_v13631_web() { love_v13632_web_setup; }
 love_v13631_sub() { love_v13632_final_export; }
 
 
-# main call moved to v13.60.33 final dispatcher
+# main call moved to v13.60.36 final dispatcher
 
 
 
 # ======================================================================
-# Love v13.60.33 Slim adaptive output + Xray grouping + Web setup fix
+# Love v13.60.36 Slim adaptive output + Xray grouping + Web setup fix
 # - Keep proven install cores, but relabel user-facing output to current version.
 # - Do not dump all nodes by default; show concise Web/subscription entrypoints.
 # - Split final exports into combined / sing-box only / Xray only.
@@ -25567,7 +25567,7 @@ love_v13633_summary() {
   c_sb="$(love_v13633_count_file /opt/Love/subscribe/sing-box/all.txt)"
   c_xr="$(love_v13633_count_file /opt/Love/subscribe/xray/all.txt)"
   echo
-  echo "================ Love 订阅入口 / Adaptive Subscription Summary v13.60.33 ================"
+  echo "================ Love 订阅入口 / Adaptive Subscription Summary v13.60.36 ================"
   echo "Web 管理页:        ${weburl}"
   echo "QR 页面:           ${weburl%/}/qr/index.html"
   echo
@@ -25601,7 +25601,7 @@ love_v13633_summary() {
 }
 
 love_v13633_final_export() {
-  echo "================ Love Final Export v13.60.33 ================"
+  echo "================ Love Final Export v13.60.36 ================"
   love_v13632_sync_flag_files || true
   love_v13631_harden_singbox_server || true
   love_v13622_export_from_configs >/dev/null
@@ -25625,7 +25625,7 @@ love_v13633_final_export() {
 love_v13633_web_setup() {
   local port auth username password auth_file auth_lines addr conf
   echo
-  echo "================ Love Green Web 设置 / Web Setup v13.60.33 ================"
+  echo "================ Love Green Web 设置 / Web Setup v13.60.36 ================"
   read -r -p "Web 端口 / Web port [8099]: " port || port=""
   port="${port:-8099}"
   if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then port=8099; fi
@@ -25678,7 +25678,7 @@ EOFNGINX33
 
 love_after_node_generated_exports() {
   love_v13633_final_export
-  echo "[OK] 安装完成后只走 v13.60.34 final exporter；旧导出/检查链已禁用。"
+  echo "[OK] 安装完成后只走 v13.60.36 final exporter；旧导出/检查链已禁用。"
   echo
   local setup_web
   read -r -p "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web || setup_web="Y"
@@ -25704,7 +25704,7 @@ web_admin_page() { love_v13633_web_setup; }
 generate_qrcodes() { love_v13632_qr_direct; }
 
 love_v13624_check() {
-  echo "================ Love v13.60.34 Clean Check ================"
+  echo "================ Love v13.60.36 Clean Check ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[Services]"
@@ -25773,7 +25773,7 @@ love_v13633_menu() {
     love_v13619_row "24) GitHub 发布说明" "49) Xray 检查 / Xray check"
     love_v13619_row "25) 安装/修复 warp 命令" "50) Xray 26.5.9 更新"
     love_v13619_row "51) Xray 官方 latest" "52) Xray 指定版本"
-    love_v13619_row "53) v13.60.34 检查" "0) 退出 / Exit"
+    love_v13619_row "53) v13.60.36 检查" "0) 退出 / Exit"
     echo
     echo "提示: 终端默认只显示订阅入口；完整节点用 Love links / Love v2rayn。"
     read -rp "请选择 / Select: " c
@@ -25829,11 +25829,11 @@ love_v13633_menu() {
 
 
 # ------------------------------------------------------------------------------
-# v13.60.34 clean uninstall override: Y/N confirmation + verification
+# v13.60.36 clean uninstall override: Y/N confirmation + verification
 # ------------------------------------------------------------------------------
 love_uninstall_verify_v13634() {
   echo
-  echo "================ Love 卸载结果检查 / Uninstall Verify v13.60.34 ================"
+  echo "================ Love 卸载结果检查 / Uninstall Verify v13.60.36 ================"
   local miss=0
   for svc in xray sing-box nginx love-wireproxy love-argo love-backup wireproxy; do
     if systemctl list-unit-files 2>/dev/null | awk '{print $1}' | grep -qx "${svc}.service"; then
@@ -25855,7 +25855,7 @@ love_uninstall_verify_v13634() {
 
 love_full_uninstall_v13634() {
   echo
-  echo "================ Love 完整卸载 / Full Uninstall v13.60.34 ================"
+  echo "================ Love 完整卸载 / Full Uninstall v13.60.36 ================"
   echo "将删除：/opt/Love、/var/www/love-admin、Love/love 命令、Xray/sing-box 配置、Love 相关 systemd/nginx 配置。"
   echo "不会删除系统本身；nginx 软件包通常保留，只删除 Love 的 Web 配置和站点文件。"
   read -r -p "确认完整卸载？[y/N]: " ok || ok=""
@@ -25905,7 +25905,7 @@ love_full_uninstall_v13634() {
 
 love_soft_uninstall_v13634() {
   echo
-  echo "================ Love 软卸载 / Soft Uninstall v13.60.34 ================"
+  echo "================ Love 软卸载 / Soft Uninstall v13.60.36 ================"
   echo "软卸载只停止并禁用节点服务，保留配置和订阅文件。"
   read -r -p "确认软卸载节点服务？[y/N]: " ok || ok=""
   [[ "${ok,,}" == "y" || "${ok,,}" == "yes" ]] || { echo "[INFO] 已取消软卸载。"; return 0; }
@@ -25918,7 +25918,7 @@ love_soft_uninstall_v13634() {
 love_uninstall_menu_v13634() {
   while true; do
     echo
-    echo "================ Love 卸载 / 清理菜单 v13.60.34 ================"
+    echo "================ Love 卸载 / 清理菜单 v13.60.36 ================"
     echo "1) 软卸载节点服务 / Stop services, keep config"
     echo "2) 完整卸载 Love / Full uninstall"
     echo "3) 只清理绿色 Web / Clean Web only"
@@ -25991,4 +25991,355 @@ main() {
   esac
 }
 
+
+
+# ------------------------------------------------------------------------------
+# v13.60.36 Xray geodata / routing hard fix
+# Root cause fixed:
+#   Xray 26.5.9 may look for geoip.dat near /usr/local/bin during run -test.
+#   The stable install also used geoip:private, so missing assets stopped Xray.
+# Strategy:
+#   1) Install geodata to /usr/local/share/xray and compatibility symlinks.
+#   2) Add XRAY_LOCATION_ASSET to systemd service.
+#   3) Replace geoip:private with literal private CIDRs, so Xray no longer depends on geoip for private blocking.
+# ------------------------------------------------------------------------------
+LOVE_SCRIPT_VERSION="$VERSION"
+
+love_v13635_ensure_xray_assets() {
+  mkdir -p /usr/local/share/xray /usr/local/bin
+  local base="https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download"
+  if [[ ! -s /usr/local/share/xray/geoip.dat ]]; then
+    curl -L --retry 2 --connect-timeout 10 --max-time 90 "${base}/geoip.dat" -o /usr/local/share/xray/geoip.dat 2>/dev/null || true
+  fi
+  if [[ ! -s /usr/local/share/xray/geosite.dat ]]; then
+    curl -L --retry 2 --connect-timeout 10 --max-time 90 "${base}/geosite.dat" -o /usr/local/share/xray/geosite.dat 2>/dev/null || true
+  fi
+  [[ -s /usr/local/share/xray/geoip.dat ]] && ln -sf /usr/local/share/xray/geoip.dat /usr/local/bin/geoip.dat || true
+  [[ -s /usr/local/share/xray/geosite.dat ]] && ln -sf /usr/local/share/xray/geosite.dat /usr/local/bin/geosite.dat || true
+}
+
+love_v13635_patch_xray_no_geoip_private() {
+  local cfg="/usr/local/etc/xray/config.json"
+  [[ -s "$cfg" ]] || return 0
+  local tmp
+  tmp="$(mktemp)"
+  jq '(.routing.rules[]? | select(.ip? == ["geoip:private"]) | .ip) = [
+    "127.0.0.0/8",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "169.254.0.0/16",
+    "::1/128",
+    "fc00::/7",
+    "fe80::/10"
+  ]' "$cfg" > "$tmp" && cat "$tmp" > "$cfg"
+  rm -f "$tmp"
+}
+
+# Preserve old writers, then wrap them.
+if declare -F write_xray_config >/dev/null 2>&1 && ! declare -F write_xray_config_core_v13635 >/dev/null 2>&1; then
+  eval "$(declare -f write_xray_config | sed '1s/write_xray_config/write_xray_config_core_v13635/')"
+fi
+write_xray_config() {
+  write_xray_config_core_v13635 "$@"
+  love_v13635_patch_xray_no_geoip_private || true
+  love_v13635_ensure_xray_assets || true
+}
+
+write_xray_service() {
+  rm -rf /etc/systemd/system/xray.service.d 2>/dev/null || true
+  cat > /etc/systemd/system/xray.service <<'EOFV13635XRAY'
+[Unit]
+Description=Xray Service by Love
+Documentation=https://github.com/XTLS/Xray-core
+After=network-online.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xray
+Group=xray
+UMask=0077
+Environment=XRAY_LOCATION_ASSET=/usr/local/share/xray
+ExecStart=/usr/local/bin/xray run -config /usr/local/etc/xray/config.json
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=23
+LimitNOFILE=1048576
+LimitNPROC=10000
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RuntimeDirectory=xray
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target
+EOFV13635XRAY
+  systemctl daemon-reload
+}
+
+# Override Xray update/install to always prepare assets and compatibility symlinks.
+if declare -F love_v13619_xray_update_version >/dev/null 2>&1 && ! declare -F love_v13619_xray_update_version_core_v13635 >/dev/null 2>&1; then
+  eval "$(declare -f love_v13619_xray_update_version | sed '1s/love_v13619_xray_update_version/love_v13619_xray_update_version_core_v13635/')"
+fi
+love_v13619_xray_update_version() {
+  love_v13619_xray_update_version_core_v13635 "$@"
+  love_v13635_ensure_xray_assets || true
+}
+
+if declare -F install_xray_core >/dev/null 2>&1 && ! declare -F install_xray_core_core_v13635 >/dev/null 2>&1; then
+  eval "$(declare -f install_xray_core | sed '1s/install_xray_core/install_xray_core_core_v13635/')"
+fi
+install_xray_core() {
+  install_xray_core_core_v13635 "$@"
+  love_v13635_ensure_xray_assets || true
+}
+
+love_v13635_xray_check() {
+  echo "================ Love Xray Check v13.60.36 ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Service]"
+  systemctl is-active xray 2>/dev/null || true
+  echo
+  echo "[Assets]"
+  ls -lah /usr/local/share/xray/geoip.dat /usr/local/share/xray/geosite.dat /usr/local/bin/geoip.dat /usr/local/bin/geosite.dat 2>/dev/null || true
+  echo
+  echo "[Config private rule]"
+  jq -r '.routing.rules[]? | select(.ip?) | .ip | @json' /usr/local/etc/xray/config.json 2>/dev/null | head -5 || true
+  echo
+  echo "[Xray test]"
+  XRAY_LOCATION_ASSET=/usr/local/share/xray /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json 2>&1 || true
+  echo
+  echo "[Listening 443]"
+  ss -lntup | grep ':443' || true
+}
+
+# Patch final menu/version labels without altering install/export cores.
+main() {
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      love_v13619_prepare_dirs 2>/dev/null || prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_v13633_menu
+      ;;
+    version|-v|--version|v13607-version|v13624-version|v13626-version|v13634-version|v13635-version|v13636-version) echo "${LOVE_SCRIPT_VERSION}" ;;
+    update|self-update|online-update) love_v13624_oneclick_update ;;
+    sub|subscribe|subscription|clients|client-export|link-fix|client-fix|fix-links) love_v13633_final_export ;;
+    links|all-links) love_show_links_v13633 ;;
+    v2rayn|v2rayn-links) love_show_v2rayn_v13633 ;;
+    xray-links|xray-sub) love_show_xray_links_v13633 ;;
+    sb-links|singbox-links|sing-box-links) love_show_sb_links_v13633 ;;
+    web|green-web) web_admin_page ;;
+    qr|qrcode) generate_qrcodes ;;
+    check|final-check|v13636-check|v13635-check|v13634-check|v13632-check|v13631-check|v13630-check|v13629-check) love_v13624_check ;;
+    xray-check|xray-test|xray-geo-check) love_v13635_xray_check ;;
+    warp) shift || true; love_v13626_warp_command "$@" ;;
+    warp-install|install-warp-command|warp-command) love_v13626_install_warp_command ;;
+    warp-manager|warp-dual|warp-final) love_v13626_warp_manager ;;
+    warp-status|warp-report) love_v13626_warp_status ;;
+    warp-restore-direct) love_v13626_restore_direct ;;
+    xray-2659) love_v13619_xray_update_version "26.5.9" ;;
+    xray-custom) read -rp "Xray version: " xv; love_v13619_xray_update_version "$xv" ;;
+    optimize|bbr) love_v13619_safe_bbr ;;
+    singbox|sing-box|sb) install_singbox_native ;;
+    xray|reality|xray-hy2) install_xray_stable ;;
+    xray-extended|xray-all|xray-plus|xray-ext) install_xray_extended ;;
+    uninstall|uninstall-menu|remove|clean-uninstall) love_uninstall_menu_v13634 ;;
+    *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
+  esac
+}
+
+
+# ------------------------------------------------------------------------------
+# v13.60.37 BBR + WARP install-flow integration
+# Purpose:
+#   - BBR/WARP were available only as menu tools; users expect them in install flow.
+#   - Keep service install cores unchanged; add safe prompts around Xray/sing-box install.
+#   - BBR: safe sysctl only, no kernel upgrade, no reboot, no SSH change.
+#   - WARP: optional after node install; never forced to avoid SSH/network risk.
+# ------------------------------------------------------------------------------
+LOVE_SCRIPT_VERSION="$VERSION"
+
+love_v13637_read_tty() {
+  # usage: love_v13637_read_tty VAR "prompt" "default"
+  local __var="$1" __prompt="$2" __default="${3:-}"
+  local __ans=""
+  if [[ -r /dev/tty ]]; then
+    read -r -p "$__prompt" __ans < /dev/tty || __ans=""
+  else
+    read -r -p "$__prompt" __ans || __ans=""
+  fi
+  __ans="${__ans:-$__default}"
+  printf -v "$__var" '%s' "$__ans"
+}
+
+love_v13637_safe_bbr() {
+  echo "================ Love Safe BBR v13.60.37 ================"
+  if declare -F love_v13619_safe_bbr >/dev/null 2>&1; then
+    love_v13619_safe_bbr || true
+  else
+    cat >/etc/sysctl.d/99-love-bbr.conf <<'EOFV13637BBR'
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+EOFV13637BBR
+    sysctl --system >/dev/null 2>&1 || true
+    echo "[INFO] tcp_congestion_control: $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || true)"
+    lsmod | grep -i bbr || true
+    echo "[OK] 安全 BBR 已尝试开启；未升级内核、未强制重启、未改 SSH。"
+  fi
+}
+
+love_v13637_install_bbr_prompt() {
+  local ans
+  echo
+  echo "================ 安装前网络优化 / Pre-install Optimize ================"
+  echo "安全 BBR 只写 sysctl，不升级内核、不重启、不改 SSH。"
+  love_v13637_read_tty ans "是否开启/确认安全 BBR？[Y/n]: " "Y"
+  case "${ans,,}" in
+    y|yes|"") love_v13637_safe_bbr ;;
+    *) echo "[INFO] 跳过 BBR。后续可运行：Love optimize 或 Love bbr" ;;
+  esac
+}
+
+love_v13637_ipv4_probe() {
+  curl -4 -sS --connect-timeout 6 --max-time 10 https://ifconfig.co >/tmp/love_ipv4_probe.out 2>/tmp/love_ipv4_probe.err
+}
+
+love_v13637_ipv6_probe() {
+  curl -6 -sS --connect-timeout 6 --max-time 10 https://ifconfig.co >/tmp/love_ipv6_probe.out 2>/tmp/love_ipv6_probe.err
+}
+
+love_v13637_warp_prompt_after_install() {
+  echo
+  echo "================ WARP 双栈出站 / WARP Dual-stack Outbound ================"
+  local v4="no" v6="no" ans action
+  love_v13637_ipv4_probe && v4="yes" || true
+  love_v13637_ipv6_probe && v6="yes" || true
+  echo "IPv4 outbound: ${v4}"
+  echo "IPv6 outbound: ${v6}"
+  echo "说明：WARP 只改善 VPS 出站 IPv4/IPv6；不能给 IPv6-only VPS 增加公网 IPv4 入站。"
+  echo
+  if [[ "$v4" != "yes" ]]; then
+    echo "[WARN] 当前没有 IPv4 出站，GitHub / Microsoft / 部分 IPv4 网站可能超时。"
+    echo "推荐：安装/修复 warp 命令，然后进入 WARP 双栈管理。"
+    love_v13637_read_tty ans "是否现在处理 WARP 双栈出站？[Y/n]: " "Y"
+  else
+    love_v13637_read_tty ans "是否现在打开 WARP 双栈管理？[y/N]: " "N"
+  fi
+  case "${ans,,}" in
+    y|yes)
+      echo
+      echo "1) 安装/修复 warp 命令 / Install warp command"
+      echo "2) 进入 WARP 双栈管理 / Open WARP Manager"
+      echo "3) 直接尝试 WARP IPv4 出站增强 / Try IPv4 outbound"
+      echo "0) 跳过 / Skip"
+      love_v13637_read_tty action "请选择 / Select [2]: " "2"
+      case "$action" in
+        1)
+          if declare -F love_v13626_install_warp_command >/dev/null 2>&1; then love_v13626_install_warp_command; else echo "[MISS] warp install function not found."; fi
+          ;;
+        2)
+          if declare -F love_v13626_warp_manager >/dev/null 2>&1; then love_v13626_warp_manager; else echo "[MISS] WARP manager not found. Try: Love warp"; fi
+          ;;
+        3)
+          if declare -F love_v13626_warp_command >/dev/null 2>&1; then love_v13626_warp_command 4; else echo "[MISS] WARP command not found."; fi
+          ;;
+        *) echo "[INFO] 跳过 WARP。后续可运行：Love warp / Love warp-install" ;;
+      esac
+      ;;
+    *)
+      echo "[INFO] 跳过 WARP。后续可运行：Love warp / Love warp-install / Love warp status"
+      ;;
+  esac
+}
+
+# Preserve current install functions, then add BBR/WARP flow around them.
+if declare -F install_singbox_native >/dev/null 2>&1 && ! declare -F install_singbox_native_core_v13637 >/dev/null 2>&1; then
+  eval "$(declare -f install_singbox_native | sed '1s/install_singbox_native/install_singbox_native_core_v13637/')"
+fi
+install_singbox_native() {
+  love_v13637_install_bbr_prompt || true
+  install_singbox_native_core_v13637 "$@"
+  love_v13637_warp_prompt_after_install || true
+}
+
+if declare -F install_xray_stable >/dev/null 2>&1 && ! declare -F install_xray_stable_core_v13637 >/dev/null 2>&1; then
+  eval "$(declare -f install_xray_stable | sed '1s/install_xray_stable/install_xray_stable_core_v13637/')"
+fi
+install_xray_stable() {
+  love_v13637_install_bbr_prompt || true
+  install_xray_stable_core_v13637 "$@"
+  love_v13637_warp_prompt_after_install || true
+}
+
+love_v13637_install_flow_check() {
+  echo "================ Love Install Flow Check v13.60.37 ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[BBR]"
+  echo "tcp_congestion_control=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || true)"
+  echo "default_qdisc=$(sysctl -n net.core.default_qdisc 2>/dev/null || true)"
+  lsmod | grep -i bbr || true
+  echo
+  echo "[WARP commands]"
+  command -v Love >/dev/null 2>&1 && echo "Love=$(command -v Love)" || true
+  command -v warp >/dev/null 2>&1 && echo "warp=$(command -v warp)" || echo "warp command: not installed"
+  declare -F love_v13626_warp_manager >/dev/null 2>&1 && echo "warp manager: OK" || echo "warp manager: MISS"
+  echo
+  echo "[Outbound]"
+  curl -4 -sS --connect-timeout 6 --max-time 10 https://ifconfig.co 2>/dev/null | sed 's/^/IPv4: /' || echo "IPv4: failed"
+  curl -6 -sS --connect-timeout 6 --max-time 10 https://ifconfig.co 2>/dev/null | sed 's/^/IPv6: /' || echo "IPv6: failed"
+}
+
+# Final dispatcher with v13.60.37 aliases.
+main() {
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      love_v13619_prepare_dirs 2>/dev/null || prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_v13633_menu
+      ;;
+    version|-v|--version|v13607-version|v13624-version|v13626-version|v13634-version|v13635-version|v13636-version|v13637-version) echo "${LOVE_SCRIPT_VERSION}" ;;
+    update|self-update|online-update) love_v13624_oneclick_update ;;
+    sub|subscribe|subscription|clients|client-export|link-fix|client-fix|fix-links) love_v13633_final_export ;;
+    links|all-links) love_show_links_v13633 ;;
+    v2rayn|v2rayn-links) love_show_v2rayn_v13633 ;;
+    xray-links|xray-sub) love_show_xray_links_v13633 ;;
+    sb-links|singbox-links|sing-box-links) love_show_sb_links_v13633 ;;
+    web|green-web) web_admin_page ;;
+    qr|qrcode) generate_qrcodes ;;
+    check|final-check|v13637-check|v13636-check|v13635-check|v13634-check|v13632-check|v13631-check|v13630-check|v13629-check) love_v13624_check ;;
+    flow-check|install-flow-check|bbr-warp-check) love_v13637_install_flow_check ;;
+    xray-check|xray-test|xray-geo-check) love_v13635_xray_check ;;
+    warp) shift || true; love_v13626_warp_command "$@" ;;
+    warp-install|install-warp-command|warp-command) love_v13626_install_warp_command ;;
+    warp-manager|warp-dual|warp-final) love_v13626_warp_manager ;;
+    warp-status|warp-report) love_v13626_warp_status ;;
+    warp-restore-direct) love_v13626_restore_direct ;;
+    xray-2659) love_v13619_xray_update_version "26.5.9" ;;
+    xray-custom) read -rp "Xray version: " xv; love_v13619_xray_update_version "$xv" ;;
+    optimize|bbr) love_v13637_safe_bbr ;;
+    singbox|sing-box|sb) install_singbox_native ;;
+    xray|reality|xray-hy2) install_xray_stable ;;
+    xray-extended|xray-all|xray-plus|xray-ext) install_xray_extended ;;
+    uninstall|uninstall-menu|remove|clean-uninstall) love_uninstall_menu_v13634 ;;
+    *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
+  esac
+}
+
 main "$@"
+
+# v13.60.37 note: BBR prompt and WARP dual-stack prompt restored to install flow.
