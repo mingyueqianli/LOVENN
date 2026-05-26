@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.29-web-setup-v2rayn-true-final"
+VERSION="Love v13.60.32-qr-web-flag-xray-final"
 LOVE_SCRIPT_VERSION="$VERSION"
 # disabled legacy LOVE_SCRIPT_VERSION="$VERSION"
 
@@ -24550,6 +24550,929 @@ love_v13624_check() {
   echo
   echo "[Web URL] $(love_v13628_web_url)"
 }
+
+
+
+# ======================================================================
+# Love v13.60.31 Web/HY2/H2 v2rayN cleanup final override
+# - Web setup: independent robust Nginx builder; pressing Y must not return to shell.
+# - v2rayN: HY2 uses hysteria2:// alias; H2 Reality moved out of normal v2rayN because Xray HTTP transport is incompatible in many v2rayN builds.
+# - Legacy link outputs are removed from final Web/subscribe path; install core remains unchanged.
+# ======================================================================
+
+love_v13631_cleanup_legacy_outputs() {
+  mkdir -p /opt/Love/subscribe/clients /var/www/love-admin/clients 2>/dev/null || true
+  rm -f \
+    /opt/Love/subscribe/legacy-raw-links.txt \
+    /opt/Love/subscribe/clients/legacy-raw-links.txt \
+    /var/www/love-admin/legacy-raw-links.txt \
+    /var/www/love-admin/clients/legacy-raw-links.txt \
+    /var/www/love-admin/旧链接.txt \
+    /var/www/love-admin/old-links.txt 2>/dev/null || true
+}
+
+love_v13631_force_v2rayn_profile() {
+  mkdir -p /opt/Love/subscribe/clients
+  python3 <<'PYV2N30'
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode
+allp = Path('/opt/Love/subscribe/all.txt')
+v2p = Path('/opt/Love/subscribe/clients/v2rayn-uri.txt')
+exp = Path('/opt/Love/subscribe/clients/v2rayn-singbox-core-only.txt')
+note = Path('/opt/Love/subscribe/clients/v2rayn-import-note.txt')
+if not allp.exists():
+    v2p.write_text('', encoding='utf-8')
+    exp.write_text('', encoding='utf-8')
+    raise SystemExit
+
+def split(line):
+    main, sep, frag = line.partition('#')
+    base, qsep, query = main.partition('?')
+    return main, sep, frag, base, query
+
+def rebuild(line, force_numeric=False, add_h3=False):
+    main, sep, frag, base, query = split(line)
+    params=[]
+    for k,v in parse_qsl(query, keep_blank_values=True):
+        lk=k.lower()
+        if lk in {'allowinsecure','insecure','allow_insecure','skip-cert-verify','skip_cert_verify'}:
+            continue
+        if lk=='alpn' and add_h3:
+            continue
+        params.append((k,v))
+    if force_numeric:
+        params += [('allowInsecure','1'),('insecure','1'),('allow_insecure','1'),('skip-cert-verify','true')]
+    if add_h3:
+        params.append(('alpn','h3'))
+    q=urlencode(params, doseq=True, safe=':/')
+    return base + (('?' + q) if q else '') + ((sep+frag) if sep else '')
+
+def hy2_to_hysteria2(line):
+    if line.startswith('hy2://'):
+        return 'hysteria2://' + line[len('hy2://'):]
+    return line
+
+v2=[]
+exp_lines=[]
+for raw in allp.read_text(encoding='utf-8', errors='ignore').splitlines():
+    line=raw.strip()
+    if not line:
+        continue
+    low=line.lower()
+    if 'love-h2-reality' in low and 'type=http' in low:
+        exp_lines.append(line + '  # NOTE: v2rayN requires sing_box core; default Xray core may fail')
+        continue
+    if ('love-hy2' in low or 'love-xray-hy2' in low or line.startswith('hy2://') or line.startswith('hysteria2://')):
+        line = rebuild(line, True, True)
+        line = hy2_to_hysteria2(line)
+    elif ('love-tuic' in low or line.startswith('tuic://')):
+        line = rebuild(line, True, True)
+    elif ('love-vless-ws-tls' in low or (line.startswith('vless://') and 'security=tls' in low and 'type=ws' in low)):
+        line = rebuild(line, True, False)
+    elif ('love-anytls' in low or line.startswith('anytls://')):
+        line = rebuild(line, True, False)
+    elif ('love-trojan' in low or line.startswith('trojan://')):
+        line = rebuild(line, True, False)
+    elif ('love-naive' in low or line.startswith('https://')):
+        line = rebuild(line, True, False)
+    v2.append(line)
+v2p.write_text('\n'.join(v2)+('\n' if v2 else ''), encoding='utf-8')
+exp.write_text('\n'.join(exp_lines)+('\n' if exp_lines else ''), encoding='utf-8')
+note.write_text('v2rayN import note\n\n1. v2rayN main file excludes LOVE-H2-REALITY because type=http REALITY requires sing_box core in many v2rayN builds; import v2rayn-singbox-core-only.txt only when you manually set node core to sing_box.\n2. LOVE-HY2 is exported as hysteria2:// for v2rayN compatibility.\n3. TLS/self-signed nodes use allowInsecure=1, insecure=1, allow_insecure=1 and skip-cert-verify=true.\n4. If a node still shows False after import, it is a v2rayN import-field mapping limitation; use sing-box-client.json or set that node manually.\n', encoding='utf-8')
+PYV2N30
+}
+
+love_v13631_print_client_sections() {
+  local weburl
+  weburl="$(love_v13631_web_url 2>/dev/null || true)"
+  echo
+  echo "================ 客户端分流导出 / Client-specific Exports v13.60.30 ================"
+  [[ -n "$weburl" ]] && echo "Web: $weburl"
+  echo
+  echo "文件位置 / Files:"
+  echo "  Raw URI:             /opt/Love/subscribe/all.txt"
+  echo "  v2rayN:              /opt/Love/subscribe/clients/v2rayn-uri.txt"
+  echo "  v2rayN sing_box only:/opt/Love/subscribe/clients/v2rayn-singbox-core-only.txt"
+  echo "  NekoBox:             /opt/Love/subscribe/clients/nekobox-uri.txt"
+  echo "  Shadowrocket:        /opt/Love/subscribe/clients/shadowrocket-uri.txt"
+  echo "  sing-box JSON:       /opt/Love/subscribe/clients/sing-box-client.json"
+  echo "  Mihomo YAML:         /opt/Love/subscribe/clients/mihomo.yaml"
+  echo "  Clash Meta:          /opt/Love/subscribe/clients/clash-meta.yaml"
+  echo "  QR:                  /opt/Love/subscribe/qr/index.html"
+  echo
+  echo "================ 1) 通用 Raw URI / all.txt ================"
+  cat /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+  echo "================ 2) v2rayN 专用 / v2rayn-uri.txt ================"
+  cat /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "================ 2.1) v2rayN sing_box core only / experimental ================"
+  cat /opt/Love/subscribe/clients/v2rayn-singbox-core-only.txt 2>/dev/null || true
+  echo
+  echo "================ 3) NekoBox 专用 / nekobox-uri.txt ================"
+  cat /opt/Love/subscribe/clients/nekobox-uri.txt 2>/dev/null || true
+  echo
+  echo "================ 4) Shadowrocket 小火箭 / shadowrocket-uri.txt ================"
+  cat /opt/Love/subscribe/clients/shadowrocket-uri.txt 2>/dev/null || true
+  echo
+  echo "================ 5) JSON/YAML 客户端文件 / JSON-YAML Files ================"
+  for f in /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/mihomo.yaml /opt/Love/subscribe/clients/clash-meta.yaml; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+}
+
+love_v13631_final_export() {
+  echo "================ Love Final Export v13.60.30 ================"
+  love_v13622_export_from_configs >/dev/null
+  love_v13631_force_v2rayn_profile || true
+  love_v13631_cleanup_legacy_outputs || true
+  love_v13619_web_sync >/dev/null 2>&1 || true
+  love_v13619_generate_qr >/dev/null 2>&1 || true
+  love_v13631_print_client_sections
+}
+
+love_v13631_web_url() {
+  local addr port
+  addr="$(love_v13619_client_host 2>/dev/null || cat /opt/Love/client-address 2>/dev/null || echo '127.0.0.1')"
+  port="$(cat /opt/Love/web-port 2>/dev/null | head -n1 | tr -d '\r\n')"
+  [[ -n "$port" ]] || port="8099"
+  echo "http://${addr}:${port}/"
+}
+
+love_v13631_web_setup() {
+  local default_port port auth username password addr auth_file conf auth_lines
+  default_port="$(cat /opt/Love/web-port 2>/dev/null | head -n1 | tr -d '\r\n')"
+  [[ -n "$default_port" ]] || default_port="8099"
+  echo
+  echo "================ Love Green Web 设置 / Web Setup v13.60.30 ================"
+  read -rp "Web 端口 / Web port [${default_port}]: " port || port=""
+  port="${port:-$default_port}"
+  if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then
+    echo "[WARN] Web 端口无效，使用 8099。"
+    port="8099"
+  fi
+  read -rp "是否开启 Basic Auth 密码保护？[Y/n]: " auth || auth=""
+  auth="${auth:-Y}"
+  username="love"
+  password=""
+  if [[ "${auth,,}" != "n" ]]; then
+    read -rp "Web 用户名 [love]: " username || username=""
+    username="${username:-love}"
+    read -rp "Web 密码，留空自动生成: " password || password=""
+    if [[ -z "$password" ]]; then
+      password="$(openssl rand -hex 6 2>/dev/null || date +%s)"
+      echo "[INFO] 自动生成 Web 密码：$password"
+    fi
+  fi
+
+  echo "$port" > /opt/Love/web-port
+  mkdir -p /var/www/love-admin/clients /var/www/love-admin/sub /var/www/love-admin/qr /opt/Love/subscribe/clients
+  love_v13622_export_from_configs >/dev/null 2>&1 || true
+  love_v13631_force_v2rayn_profile || true
+  love_v13631_cleanup_legacy_outputs || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/node-links.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/sub/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/* /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -f /opt/Love/subscribe/qr/* /var/www/love-admin/qr/ 2>/dev/null || true
+
+  cat > /var/www/love-admin/index.html <<'EOFWEB30'
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love Web</title><style>body{font-family:Arial,sans-serif;background:#0b1220;color:#e5e7eb;padding:24px}a{color:#93c5fd;display:block;margin:10px 0}.card{max-width:880px;margin:auto;background:#111827;padding:24px;border-radius:16px}</style></head><body><div class="card"><h1>Love Web Panel</h1><p>Client-specific exports</p><a href="/all.txt">Raw URI</a><a href="/clients/v2rayn-uri.txt">v2rayN</a><a href="/clients/v2rayn-singbox-core-only.txt">v2rayN sing_box core only</a><a href="/clients/nekobox-uri.txt">NekoBox</a><a href="/clients/shadowrocket-uri.txt">Shadowrocket</a><a href="/clients/sing-box-client.json">sing-box JSON</a><a href="/clients/mihomo.yaml">Mihomo YAML</a><a href="/clients/clash-meta.yaml">Clash Meta</a><a href="/qr/index.html">QR</a></div></body></html>
+EOFWEB30
+
+  auth_file="/etc/nginx/.love_web_htpasswd"
+  auth_lines=""
+  if [[ "${auth,,}" != "n" ]]; then
+    if command -v htpasswd >/dev/null 2>&1; then
+      htpasswd -bc "$auth_file" "$username" "$password" >/dev/null 2>&1 || true
+    else
+      printf '%s:%s\n' "$username" "$(openssl passwd -apr1 "$password")" > "$auth_file"
+    fi
+    auth_lines=$'        auth_basic "Love Web";\n        auth_basic_user_file /etc/nginx/.love_web_htpasswd;'
+  fi
+
+  rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/null || true
+  conf="/etc/nginx/conf.d/love-admin.conf"
+  cat > "$conf" <<EOFNGINX30
+server {
+    listen 0.0.0.0:${port};
+    listen [::]:${port};
+    server_name _;
+    root /var/www/love-admin;
+    index index.html;
+    location / {
+${auth_lines}
+        try_files \$uri \$uri/ =404;
+    }
+}
+EOFNGINX30
+
+  ufw allow "${port}/tcp" >/dev/null 2>&1 || true
+  ufw reload >/dev/null 2>&1 || true
+  nginx -t && systemctl enable nginx >/dev/null 2>&1 || true
+  systemctl restart nginx
+  addr="$(love_v13619_client_host 2>/dev/null || echo '127.0.0.1')"
+  echo
+  echo "[OK] Web 管理页 / Web Panel: http://${addr}:${port}/"
+  if [[ "${auth,,}" != "n" ]]; then
+    echo "[OK] 用户名 / User: $username"
+    echo "[OK] 密码 / Pass: $password"
+  else
+    echo "[OK] Basic Auth: off"
+  fi
+  echo "[OK] v2rayN:       http://${addr}:${port}/clients/v2rayn-uri.txt"
+  echo "[OK] NekoBox:      http://${addr}:${port}/clients/nekobox-uri.txt"
+  echo "[OK] sing-box:     http://${addr}:${port}/clients/sing-box-client.json"
+  echo "[OK] QR:           http://${addr}:${port}/qr/index.html"
+  [[ "$addr" == \[*\] ]] && echo "[TIP] IPv6 地址访问 Web 必须保留中括号 []。"
+}
+
+love_after_node_generated_exports() {
+  love_v13631_final_export
+  echo "[OK] 安装完成后只走 v13.60.31 final exporter；旧导出/检查链已禁用。"
+  echo
+  local setup_web
+  read -rp "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web || setup_web="Y"
+  setup_web="${setup_web:-Y}"
+  if [[ "${setup_web,,}" != "n" ]]; then
+    love_v13631_web_setup
+  else
+    echo "[INFO] 已跳过 Web 设置。之后可执行：Love web"
+  fi
+}
+
+export_subscription() { love_v13631_final_export; }
+love_sub_safe_v1341() { love_v13631_final_export; }
+love_v13624_final_export() { love_v13631_final_export; }
+love_v13619_final_export() { love_v13631_final_export; }
+love_v13629_final_export() { love_v13631_final_export; }
+love_v13628_final_export() { love_v13631_final_export; }
+web_admin_page() { love_v13631_web_setup; }
+generate_qrcodes() { love_v13622_export_from_configs >/dev/null 2>&1 || true; love_v13631_force_v2rayn_profile || true; love_v13619_generate_qr; love_v13619_web_sync >/dev/null 2>&1 || true; echo "[OK] QR 已生成：/opt/Love/subscribe/qr/index.html"; }
+generate_mihomo_yaml() { love_v13622_export_from_configs >/dev/null 2>&1 || true; love_v13631_force_v2rayn_profile || true; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
+
+love_v13624_check() {
+  echo "================ Love v13.60.31 Clean Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Services]"
+  echo -n "sing-box: "; systemctl is-active sing-box 2>/dev/null || true
+  echo -n "xray: "; systemctl is-active xray 2>/dev/null || true
+  echo -n "nginx: "; systemctl is-active nginx 2>/dev/null || true
+  echo
+  echo "[Final all.txt count]"
+  grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
+  echo
+  echo "[v2rayN stable nodes]"
+  grep -E 'LOVE-HY2|LOVE-H2-REALITY|LOVE-VLESS-WS-TLS|LOVE-ANYTLS|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "[v2rayN sing_box core only]"
+  cat /opt/Love/subscribe/clients/v2rayn-singbox-core-only.txt 2>/dev/null || true
+  echo
+  echo "[Bad patterns]"
+  grep -qE 'sni=[^&]+.*sni=' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[BAD] duplicate sni found" || echo "[OK] no duplicate sni"
+  grep -qE 'path=%252F' /opt/Love/subscribe/all.txt 2>/dev/null && echo "[BAD] double encoded path found" || echo "[OK] no double encoded path"
+  grep -qE '^hy2://.*LOVE-HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[WARN] v2rayN HY2 still uses hy2://" || echo "[OK] v2rayN HY2 uses hysteria2:// or no HY2"
+  grep -qE 'LOVE-H2-REALITY' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[WARN] H2 Reality still in normal v2rayN list" || echo "[OK] H2 Reality removed from normal v2rayN list"
+  grep -q 'allowInsecure=1' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[OK] v2rayN numeric allowInsecure=1 exists" || echo "[WARN] v2rayN numeric allowInsecure=1 missing"
+  echo
+  echo "[Client files]"
+  for f in /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/clients/v2rayn-singbox-core-only.txt /opt/Love/subscribe/clients/nekobox-uri.txt /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/mihomo.yaml /opt/Love/subscribe/clients/clash-meta.yaml /opt/Love/subscribe/clients/shadowrocket-uri.txt; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  echo
+  echo "[Web URL] $(love_v13631_web_url)"
+}
+
+love_v13631_check() { love_v13624_check; }
+love_v13631_web() { love_v13631_web_setup; }
+love_v13631_sub() { love_v13631_final_export; }
+
+
+# ======================================================================
+# Love v13.60.31 sing-box JSON / HY2 / H2 Reality hardening
+# - v2rayN changing a URI node to sing_box core is not enough for HY2/H2 Reality in some builds.
+# - Generate a real sing-box client JSON with HY2 + H2 Reality + gRPC Reality + VLESS Reality.
+# - Add server-side ALPN h3 to HY2/TUIC inbounds before export.
+# ======================================================================
+
+love_v13631_harden_singbox_server() {
+  local conf="/etc/sing-box/config.json"
+  [[ -s "$conf" ]] || return 0
+  local tmp="${conf}.v13631.tmp"
+  jq '(.inbounds[]? | select(.type=="hysteria2" or .tag=="hy2-in") | .tls.alpn) = ["h3"] |
+      (.inbounds[]? | select(.type=="tuic" or .tag=="tuic-in") | .tls.alpn) = ["h3"]' "$conf" > "$tmp" 2>/dev/null || return 0
+  if /usr/local/bin/sing-box check -c "$tmp" >/dev/null 2>&1; then
+    cp -f "$conf" "${conf}.bak.v13631.$(date +%F-%H%M%S)" 2>/dev/null || true
+    mv -f "$tmp" "$conf"
+    systemctl restart sing-box >/dev/null 2>&1 || true
+  else
+    rm -f "$tmp" 2>/dev/null || true
+  fi
+}
+
+love_v13631_generate_full_singbox_client_json() {
+  mkdir -p /opt/Love/subscribe/clients
+  python3 <<'PYSB31'
+import json, base64
+from pathlib import Path
+from urllib.parse import urlsplit, parse_qsl, unquote
+
+allp = Path('/opt/Love/subscribe/all.txt')
+outp = Path('/opt/Love/subscribe/clients/sing-box-client.json')
+v2full = Path('/opt/Love/subscribe/clients/v2rayn-singbox-core-full.json')
+h2only = Path('/opt/Love/subscribe/clients/v2rayn-h2-reality-singbox.json')
+note = Path('/opt/Love/subscribe/clients/v2rayn-singbox-core-note.txt')
+
+def parse_uri(line):
+    line=line.strip()
+    if not line or '://' not in line: return None
+    raw=line
+    main, _, frag = line.partition('#')
+    sp=urlsplit(main)
+    # urlsplit cannot always parse bracketed IPv6 with custom schemes + auth perfectly? It usually can.
+    scheme=sp.scheme
+    username=unquote(sp.username or '')
+    password=unquote(sp.password or '')
+    host=sp.hostname or ''
+    port=sp.port
+    q=dict(parse_qsl(sp.query, keep_blank_values=True))
+    tag=unquote(frag) if frag else scheme
+    return dict(raw=raw, main=main, tag=tag, scheme=scheme, username=username, password=password, host=host, port=port, q=q)
+
+def b64decode_vmess(s):
+    try:
+        pad='='*((4-len(s)%4)%4)
+        return json.loads(base64.urlsafe_b64decode((s+pad).encode()).decode())
+    except Exception:
+        try:
+            pad='='*((4-len(s)%4)%4)
+            return json.loads(base64.b64decode((s+pad).encode()).decode())
+        except Exception:
+            return None
+
+def tls_insecure(sni=None, alpn=None):
+    t={"enabled": True}
+    if sni: t["server_name"]=sni
+    t["insecure"]=True
+    if alpn: t["alpn"]=alpn
+    return t
+
+def reality_tls(q):
+    t={"enabled": True, "server_name": q.get('sni') or q.get('servername') or q.get('host') or 'www.cloudflare.com'}
+    fp=q.get('fp') or 'chrome'
+    t["utls"]={"enabled": True, "fingerprint": fp}
+    t["reality"]={"enabled": True, "public_key": q.get('pbk',''), "short_id": q.get('sid','')}
+    if q.get('alpn'):
+        t["alpn"]=[q.get('alpn')]
+    return t
+
+def vless_transport(q):
+    typ=(q.get('type') or 'tcp').lower()
+    if typ == 'ws':
+        tr={"type":"ws","path":unquote(q.get('path') or '/')}
+        if q.get('host'):
+            tr["headers"]={"Host": q.get('host')}
+        return tr
+    if typ == 'http':
+        tr={"type":"http","path":unquote(q.get('path') or '/')}
+        host=q.get('host') or q.get('authority')
+        if host: tr["host"]=[host]
+        return tr
+    if typ == 'grpc':
+        return {"type":"grpc","service_name":q.get('serviceName') or q.get('service_name') or 'lovegrpc'}
+    return None
+
+outbounds=[]
+h2_outbounds=[]
+if allp.exists():
+    for line in allp.read_text(encoding='utf-8', errors='ignore').splitlines():
+        p=parse_uri(line)
+        if not p or not p.get('host') or not p.get('port'):
+            continue
+        tag=p['tag']; scheme=p['scheme']; q=p['q']; low=line.lower()
+        ob=None
+        if scheme in ('hy2','hysteria2'):
+            ob={"type":"hysteria2","tag":tag,"server":p['host'],"server_port":p['port'],"password":p['username'],"tls":tls_insecure(q.get('sni') or 'self.local',["h3"])}
+        elif scheme == 'tuic':
+            ob={"type":"tuic","tag":tag,"server":p['host'],"server_port":p['port'],"uuid":p['username'],"password":p['password'],"congestion_control":q.get('congestion_control','bbr'),"udp_relay_mode":q.get('udp_relay_mode','native'),"tls":tls_insecure(q.get('sni') or 'self.local',["h3"])}
+        elif scheme == 'trojan':
+            ob={"type":"trojan","tag":tag,"server":p['host'],"server_port":p['port'],"password":p['username'],"tls":tls_insecure(q.get('sni') or 'self.local')}
+        elif scheme == 'anytls':
+            ob={"type":"anytls","tag":tag,"server":p['host'],"server_port":p['port'],"password":p['username'],"tls":tls_insecure(q.get('sni') or 'self.local')}
+        elif scheme == 'vless':
+            security=(q.get('security') or '').lower()
+            typ=(q.get('type') or 'tcp').lower()
+            ob={"type":"vless","tag":tag,"server":p['host'],"server_port":p['port'],"uuid":p['username']}
+            if q.get('flow'):
+                ob['flow']=q.get('flow')
+            if security == 'reality' or q.get('pbk'):
+                ob['tls']=reality_tls(q)
+            elif security == 'tls':
+                ob['tls']=tls_insecure(q.get('sni') or 'self.local')
+            tr=vless_transport(q)
+            if tr: ob['transport']=tr
+            if 'love-h2-reality' in low or typ == 'http':
+                h2_outbounds.append(ob.copy())
+        elif scheme == 'vmess':
+            data=b64decode_vmess(p['main'].split('://',1)[1])
+            if data:
+                ob={"type":"vmess","tag":data.get('ps',tag),"server":data.get('add',p['host']),"server_port":int(data.get('port') or p['port']),"uuid":data.get('id',''),"security":data.get('scy','auto')}
+                if data.get('net') == 'ws':
+                    ob['transport']={"type":"ws","path":data.get('path') or '/'}
+        elif scheme == 'ss':
+            # Keep SS in URI files; skip JSON parse here to avoid mis-parsing plugin/base64 variants.
+            ob=None
+        elif scheme == 'https':
+            # Naive outbound support varies; keep URI, skip JSON to avoid invalid client configs.
+            ob=None
+        if ob:
+            outbounds.append(ob)
+
+cfg={
+  "log":{"level":"warn","timestamp":True},
+  "inbounds":[{"type":"mixed","tag":"mixed-in","listen":"127.0.0.1","listen_port":2080}],
+  "outbounds":outbounds + [{"type":"direct","tag":"direct"}],
+  "route":{"final":"direct"}
+}
+outp.write_text(json.dumps(cfg,ensure_ascii=False,indent=2),encoding='utf-8')
+v2full.write_text(json.dumps(cfg,ensure_ascii=False,indent=2),encoding='utf-8')
+h2cfg={"log":{"level":"warn","timestamp":True},"inbounds":[{"type":"mixed","tag":"mixed-in","listen":"127.0.0.1","listen_port":2080}],"outbounds":h2_outbounds + [{"type":"direct","tag":"direct"}],"route":{"final":"direct"}}
+h2only.write_text(json.dumps(h2cfg,ensure_ascii=False,indent=2),encoding='utf-8')
+note.write_text('v2rayN sing_box core note\n\nHY2 and H2 Reality are more reliable as real sing-box JSON than as URI-imported nodes.\nUse v2rayn-singbox-core-full.json / v2rayn-h2-reality-singbox.json as custom sing-box configs if URI nodes still fail after switching core.\nServer HY2/TUIC TLS ALPN is hardened to h3 by v13.60.31.\n',encoding='utf-8')
+PYSB31
+  jq empty /opt/Love/subscribe/clients/sing-box-client.json >/dev/null 2>&1 || echo '{"log":{"level":"warn"},"inbounds":[{"type":"mixed","tag":"mixed-in","listen":"127.0.0.1","listen_port":2080}],"outbounds":[{"type":"direct","tag":"direct"}],"route":{"final":"direct"}}' > /opt/Love/subscribe/clients/sing-box-client.json
+  cp -f /opt/Love/subscribe/clients/v2rayn-singbox-core-full.json /var/www/love-admin/clients/v2rayn-singbox-core-full.json 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/v2rayn-h2-reality-singbox.json /var/www/love-admin/clients/v2rayn-h2-reality-singbox.json 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/v2rayn-singbox-core-note.txt /var/www/love-admin/clients/v2rayn-singbox-core-note.txt 2>/dev/null || true
+}
+
+# Explicit v13.60.31 client section printer.
+love_v13631_print_client_sections_real() {
+  local weburl
+  weburl="$(love_v13631_web_url 2>/dev/null || love_v13630_web_url 2>/dev/null || true)"
+  echo
+  echo "================ 客户端分流导出 / Client-specific Exports v13.60.31 ================"
+  [[ -n "$weburl" ]] && echo "Web: $weburl"
+  echo
+  echo "文件位置 / Files:"
+  echo "  Raw URI:                  /opt/Love/subscribe/all.txt"
+  echo "  v2rayN URI:               /opt/Love/subscribe/clients/v2rayn-uri.txt"
+  echo "  v2rayN sing_box URI:      /opt/Love/subscribe/clients/v2rayn-singbox-core-only.txt"
+  echo "  v2rayN sing_box JSON:     /opt/Love/subscribe/clients/v2rayn-singbox-core-full.json"
+  echo "  v2rayN H2 Reality JSON:   /opt/Love/subscribe/clients/v2rayn-h2-reality-singbox.json"
+  echo "  NekoBox:                  /opt/Love/subscribe/clients/nekobox-uri.txt"
+  echo "  Shadowrocket:             /opt/Love/subscribe/clients/shadowrocket-uri.txt"
+  echo "  sing-box JSON:            /opt/Love/subscribe/clients/sing-box-client.json"
+  echo "  Mihomo YAML:              /opt/Love/subscribe/clients/mihomo.yaml"
+  echo "  Clash Meta:               /opt/Love/subscribe/clients/clash-meta.yaml"
+  echo "  QR:                       /opt/Love/subscribe/qr/index.html"
+  echo
+  echo "================ 1) 通用 Raw URI / all.txt ================"
+  cat /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+  echo "================ 2) v2rayN URI 专用 / v2rayn-uri.txt ================"
+  cat /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "================ 2.1) v2rayN sing_box core URI only / experimental ================"
+  cat /opt/Love/subscribe/clients/v2rayn-singbox-core-only.txt 2>/dev/null || true
+  echo
+  echo "================ 2.2) v2rayN sing_box JSON / recommended for HY2-H2 ================"
+  for f in /opt/Love/subscribe/clients/v2rayn-singbox-core-full.json /opt/Love/subscribe/clients/v2rayn-h2-reality-singbox.json; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  echo
+  echo "================ 3) NekoBox 专用 / nekobox-uri.txt ================"
+  cat /opt/Love/subscribe/clients/nekobox-uri.txt 2>/dev/null || true
+  echo
+  echo "================ 4) Shadowrocket 小火箭 / shadowrocket-uri.txt ================"
+  cat /opt/Love/subscribe/clients/shadowrocket-uri.txt 2>/dev/null || true
+  echo
+  echo "================ 5) JSON/YAML 客户端文件 / JSON-YAML Files ================"
+  for f in /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/mihomo.yaml /opt/Love/subscribe/clients/clash-meta.yaml; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+}
+
+love_v13631_final_export() {
+  echo "================ Love Final Export v13.60.31 ================"
+  love_v13631_harden_singbox_server || true
+  love_v13622_export_from_configs >/dev/null
+  love_v13631_force_v2rayn_profile || true
+  love_v13631_generate_full_singbox_client_json || true
+  love_v13631_cleanup_legacy_outputs || true
+  love_v13619_generate_mihomo_yaml >/dev/null 2>&1 || true
+  love_v13619_generate_qr >/dev/null 2>&1 || true
+  love_v13619_web_sync >/dev/null 2>&1 || true
+  cp -f /opt/Love/subscribe/clients/v2rayn-singbox-core-full.json /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/v2rayn-h2-reality-singbox.json /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/v2rayn-singbox-core-note.txt /var/www/love-admin/clients/ 2>/dev/null || true
+  love_v13631_print_client_sections_real
+}
+
+love_after_node_generated_exports() {
+  love_v13631_final_export
+  echo "[OK] 安装完成后只走 v13.60.31 final exporter；旧导出/检查链已禁用。"
+  echo
+  local setup_web
+  read -rp "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web || setup_web="Y"
+  setup_web="${setup_web:-Y}"
+  if [[ "${setup_web,,}" != "n" ]]; then
+    love_v13631_web_setup
+  else
+    echo "[INFO] 已跳过 Web 设置。之后可执行：Love web"
+  fi
+}
+
+export_subscription() { love_v13631_final_export; }
+love_sub_safe_v1341() { love_v13631_final_export; }
+love_v13624_final_export() { love_v13631_final_export; }
+love_v13619_final_export() { love_v13631_final_export; }
+love_v13629_final_export() { love_v13631_final_export; }
+love_v13628_final_export() { love_v13631_final_export; }
+love_v13630_final_export() { love_v13631_final_export; }
+web_admin_page() { love_v13631_web_setup; }
+generate_qrcodes() { love_v13631_final_export >/dev/null 2>&1 || true; echo "[OK] QR 已生成：/opt/Love/subscribe/qr/index.html"; }
+generate_mihomo_yaml() { love_v13631_final_export >/dev/null 2>&1 || true; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
+
+love_v13624_check() {
+  echo "================ Love v13.60.31 Clean Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Services]"
+  echo -n "sing-box: "; systemctl is-active sing-box 2>/dev/null || true
+  echo -n "xray: "; systemctl is-active xray 2>/dev/null || true
+  echo -n "nginx: "; systemctl is-active nginx 2>/dev/null || true
+  echo
+  echo "[Final all.txt count]"
+  grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
+  echo
+  echo "[v2rayN URI stable nodes]"
+  grep -E 'LOVE-HY2|LOVE-H2-REALITY|LOVE-VLESS-WS-TLS|LOVE-ANYTLS|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "[v2rayN sing_box JSON files]"
+  for f in /opt/Love/subscribe/clients/v2rayn-singbox-core-full.json /opt/Love/subscribe/clients/v2rayn-h2-reality-singbox.json /opt/Love/subscribe/clients/sing-box-client.json; do
+    if [[ -s "$f" ]] && jq empty "$f" >/dev/null 2>&1; then echo "[OK] $f"; else echo "[BAD/MISS] $f"; fi
+  done
+  echo
+  echo "[Server ALPN]"
+  jq -r '.inbounds[]? | select(.tag=="hy2-in" or .tag=="tuic-in" or .tag=="h2-reality-in") | [.tag,.type,.listen_port,(.tls.alpn|tostring)] | @tsv' /etc/sing-box/config.json 2>/dev/null || true
+  echo
+  echo "[Bad patterns]"
+  grep -qE 'sni=[^&]+.*sni=' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[BAD] duplicate sni found" || echo "[OK] no duplicate sni"
+  grep -qE 'path=%252F' /opt/Love/subscribe/all.txt 2>/dev/null && echo "[BAD] double encoded path found" || echo "[OK] no double encoded path"
+  grep -qE '^hy2://.*LOVE-HY2' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[WARN] v2rayN HY2 still uses hy2://" || echo "[OK] v2rayN HY2 uses hysteria2:// or no HY2"
+  grep -qE 'LOVE-H2-REALITY' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[WARN] H2 Reality still in normal v2rayN list" || echo "[OK] H2 Reality removed from normal v2rayN URI list"
+}
+
+love_v13631_check() { love_v13624_check; }
+love_v13631_web() { love_v13631_web_setup; }
+love_v13631_sub() { love_v13631_final_export; }
+
+
+# ======================================================================
+# Love v13.60.32 QR / Web / Flag / Xray-Core split final polish
+# - Keep LOVE-HY2 as valid service node; do not regenerate just for HY2.
+# - Add explicit v2rayN Xray-core / sing_box-core split files.
+# - Restore terminal QR printing and Web QR sync.
+# - Fix flag source reading: node-flag / flag-icon / flag all unified.
+# - Robust Web setup reads from /dev/tty so pressing Y cannot silently exit.
+# ======================================================================
+
+love_v13632_cc_to_flag() {
+  python3 - "$1" <<'PYFLAG32' 2>/dev/null || printf '🇺🇸'
+import sys
+cc=(sys.argv[1] if len(sys.argv)>1 else 'US').strip().upper()
+if len(cc)!=2 or not cc.isalpha(): cc='US'
+print(''.join(chr(0x1F1E6+ord(c)-65) for c in cc))
+PYFLAG32
+}
+
+love_v13632_flag() {
+  local raw cc
+  for f in /opt/Love/node-flag /opt/Love/flag-icon /opt/Love/flag; do
+    if [[ -s "$f" ]]; then
+      raw="$(head -n1 "$f" | tr -d '\r\n')"
+      [[ -n "$raw" ]] && break
+    fi
+  done
+  if [[ -z "${raw:-}" ]]; then raw="🇺🇸"; fi
+  if [[ "$raw" =~ ^[A-Za-z]{2}$ ]]; then
+    raw="$(love_v13632_cc_to_flag "$raw")"
+  fi
+  if [[ -z "$raw" || "$raw" == "US" ]]; then raw="🇺🇸"; fi
+  printf '%s' "$raw"
+}
+
+love_v13632_sync_flag_files() {
+  local flag
+  flag="$(love_v13632_flag)"
+  mkdir -p /opt/Love
+  printf '%s\n' "$flag" > /opt/Love/node-flag
+  printf '%s\n' "$flag" > /opt/Love/flag-icon
+  printf '%s\n' "$flag" > /opt/Love/flag
+}
+
+# Override older flag getter used by final exporter.
+love_v13619_flag() { love_v13632_flag; }
+
+love_v13632_tty_read() {
+  local prompt="$1" varname="$2" default="${3:-}" ans=""
+  if [[ -r /dev/tty ]]; then
+    read -r -p "$prompt" ans < /dev/tty || ans=""
+  else
+    read -r -p "$prompt" ans || ans=""
+  fi
+  ans="${ans:-$default}"
+  printf -v "$varname" '%s' "$ans"
+}
+
+love_v13632_split_v2rayn_core_files() {
+  mkdir -p /opt/Love/subscribe/clients /var/www/love-admin/clients
+  python3 <<'PYCORE32'
+from pathlib import Path
+raw=Path('/opt/Love/subscribe/all.txt')
+v2=Path('/opt/Love/subscribe/clients/v2rayn-uri.txt')
+xray=Path('/opt/Love/subscribe/clients/v2rayn-xray-core.txt')
+sburi=Path('/opt/Love/subscribe/clients/v2rayn-singbox-core-uri.txt')
+encoded=Path('/opt/Love/subscribe/clients/v2rayn-encoded-remark.txt')
+note=Path('/opt/Love/subscribe/clients/v2rayn-core-note.txt')
+lines=[x.strip() for x in (raw.read_text(encoding='utf-8',errors='ignore').splitlines() if raw.exists() else []) if x.strip()]
+# Use current v2rayN URI file as base if it exists, because it already removes H2 Reality and uses hysteria2://.
+v2lines=[x.strip() for x in (v2.read_text(encoding='utf-8',errors='ignore').splitlines() if v2.exists() else []) if x.strip()]
+if not v2lines: v2lines=lines
+xray_lines=[]
+sb_lines=[]
+for line in v2lines:
+    low=line.lower()
+    # Xray-core friendly list: exclude HY2/TUIC/AnyTLS/H2-Reality. Keep Reality TCP, gRPC Reality, Trojan, VMess, VLESS WS TLS, SS, Naive where client supports.
+    if any(k in low for k in ['love-hy2','love-xray-hy2','hysteria2://','hy2://','tuic://','anytls://','love-h2-reality']):
+        pass
+    else:
+        xray_lines.append(line)
+    # sing-box core URI/experimental list includes the v2rayN URI base plus H2-Reality experimental if available.
+    sb_lines.append(line)
+# Add H2 Reality only to sing-box-core URI file from raw all.txt.
+for line in lines:
+    if 'love-h2-reality' in line.lower() and line not in sb_lines:
+        sb_lines.append(line)
+# Encoded remark fallback for v2rayN if emoji flag does not display after import.
+def encfrag(line):
+    import urllib.parse
+    if '#' not in line: return line
+    main, frag=line.split('#',1)
+    return main+'#'+urllib.parse.quote(urllib.parse.unquote(frag), safe='')
+encoded_lines=[encfrag(x) for x in v2lines]
+xray.write_text('\n'.join(xray_lines)+('\n' if xray_lines else ''),encoding='utf-8')
+sburi.write_text('\n'.join(sb_lines)+('\n' if sb_lines else ''),encoding='utf-8')
+encoded.write_text('\n'.join(encoded_lines)+('\n' if encoded_lines else ''),encoding='utf-8')
+note.write_text('v2rayN core note\n\n1. v2rayn-uri.txt: normal mixed import, H2 Reality removed.\n2. v2rayn-xray-core.txt: safer Xray-core list, excludes HY2/TUIC/AnyTLS/H2 Reality.\n3. v2rayn-singbox-core-uri.txt: sing_box-core URI/experimental list.\n4. v2rayn-singbox-core-full.json: recommended for HY2/H2 Reality if URI import fails.\n5. v2rayn-encoded-remark.txt: fallback if emoji flag is not displayed after importing normal URI.\n',encoding='utf-8')
+PYCORE32
+  cp -f /opt/Love/subscribe/clients/v2rayn-xray-core.txt /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/v2rayn-singbox-core-uri.txt /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/v2rayn-encoded-remark.txt /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/v2rayn-core-note.txt /var/www/love-admin/clients/ 2>/dev/null || true
+}
+
+love_v13632_qr_direct() {
+  local quiet="${1:-}" src i line name
+  mkdir -p /opt/Love/subscribe/qr /var/www/love-admin/qr
+  rm -f /opt/Love/subscribe/qr/* 2>/dev/null || true
+  if ! command -v qrencode >/dev/null 2>&1; then
+    apt-get update >/dev/null 2>&1 || true
+    apt-get install -y qrencode >/dev/null 2>&1 || true
+  fi
+  if ! command -v qrencode >/dev/null 2>&1; then
+    echo "[WARN] qrencode 不存在，无法生成二维码。"
+    return 0
+  fi
+  src="/opt/Love/subscribe/clients/v2rayn-uri.txt"
+  [[ -s "$src" ]] || src="/opt/Love/subscribe/all.txt"
+  i=0
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    i=$((i+1))
+    printf '%s' "$line" | qrencode -t ANSIUTF8 > "/opt/Love/subscribe/qr/node-${i}.ansi" 2>/dev/null || true
+    printf '%s' "$line" | qrencode -t PNG -s 8 -m 2 -o "/opt/Love/subscribe/qr/node-${i}.png" 2>/dev/null || true
+    printf '%s' "$line" | qrencode -t SVG -o "/opt/Love/subscribe/qr/node-${i}.svg" 2>/dev/null || true
+  done < "$src"
+  for pair in \
+    "all:/opt/Love/subscribe/all.txt" \
+    "v2rayn:/opt/Love/subscribe/clients/v2rayn-uri.txt" \
+    "v2rayn_xray:/opt/Love/subscribe/clients/v2rayn-xray-core.txt" \
+    "v2rayn_singbox:/opt/Love/subscribe/clients/v2rayn-singbox-core-uri.txt" \
+    "nekobox:/opt/Love/subscribe/clients/nekobox-uri.txt" \
+    "shadowrocket:/opt/Love/subscribe/clients/shadowrocket-uri.txt"; do
+    name="${pair%%:*}"; src="${pair#*:}"
+    [[ -s "$src" ]] && qrencode -t PNG -s 8 -m 2 -o "/opt/Love/subscribe/qr/${name}.png" < "$src" 2>/dev/null || true
+  done
+  cat > /opt/Love/subscribe/qr/index.html <<'EOFQR32'
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love QR</title><style>body{font-family:Arial,sans-serif;background:#07130f;color:#e8fff4;padding:22px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:18px}.card{background:#0f241b;border:1px solid #1f7a4d;border-radius:14px;padding:14px;text-align:center}img{max-width:160px;background:white;padding:8px;border-radius:8px}a{color:#7dd3fc}</style></head><body><h1>Love QR Codes</h1><p><a href="/">Back to Love Web</a></p><div class="grid">
+EOFQR32
+  for img in /opt/Love/subscribe/qr/*.png; do
+    [[ -f "$img" ]] || continue
+    base="$(basename "$img")"
+    printf '<div class="card"><img src="%s"><p>%s</p></div>\n' "$base" "$base" >> /opt/Love/subscribe/qr/index.html
+  done
+  echo '</div></body></html>' >> /opt/Love/subscribe/qr/index.html
+  cp -a /opt/Love/subscribe/qr/. /var/www/love-admin/qr/ 2>/dev/null || true
+  if [[ "$quiet" != "quiet" ]]; then
+    echo "[OK] QR 已生成：/opt/Love/subscribe/qr/index.html"
+    echo "[OK] Web QR：/qr/index.html"
+    if [[ -s /opt/Love/subscribe/qr/node-1.ansi ]]; then
+      echo
+      echo "================ 第一个节点二维码预览 / First QR Preview ================"
+      cat /opt/Love/subscribe/qr/node-1.ansi
+    fi
+  fi
+}
+
+love_v13632_web_url() {
+  local addr port
+  addr="$(love_v13619_client_host 2>/dev/null || cat /opt/Love/client-address 2>/dev/null || echo '127.0.0.1')"
+  port="$(cat /opt/Love/web-port 2>/dev/null | head -n1 | tr -d '\r\n')"
+  [[ -n "$port" ]] || port="8099"
+  echo "http://${addr}:${port}/"
+}
+
+love_v13632_web_setup() {
+  local default_port port auth username password auth_file auth_lines conf addr
+  default_port="$(cat /opt/Love/web-port 2>/dev/null | head -n1 | tr -d '\r\n')"
+  [[ -n "$default_port" ]] || default_port="8099"
+  echo
+  echo "================ Love Green Web 设置 / Web Setup v13.60.32 ================"
+  love_v13632_tty_read "Web 端口 / Web port [${default_port}]: " port "$default_port"
+  if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then port="8099"; fi
+  love_v13632_tty_read "是否开启 Basic Auth 密码保护？[Y/n]: " auth "Y"
+  username="love"; password=""
+  if [[ "${auth,,}" != "n" ]]; then
+    love_v13632_tty_read "Web 用户名 [love]: " username "love"
+    love_v13632_tty_read "Web 密码，留空自动生成: " password ""
+    if [[ -z "$password" ]]; then password="$(openssl rand -hex 6 2>/dev/null || date +%s)"; echo "[INFO] 自动生成 Web 密码：$password"; fi
+  fi
+  echo "$port" > /opt/Love/web-port
+  mkdir -p /var/www/love-admin/clients /var/www/love-admin/sub /var/www/love-admin/qr /opt/Love/subscribe/clients
+  love_v13622_export_from_configs >/dev/null 2>&1 || true
+  love_v13631_force_v2rayn_profile || true
+  love_v13631_generate_full_singbox_client_json || true
+  love_v13632_split_v2rayn_core_files || true
+  love_v13619_generate_mihomo_yaml >/dev/null 2>&1 || true
+  love_v13632_qr_direct quiet || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/node-links.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/all.txt /var/www/love-admin/sub/all.txt 2>/dev/null || true
+  cp -f /opt/Love/subscribe/clients/* /var/www/love-admin/clients/ 2>/dev/null || true
+  cat > /var/www/love-admin/index.html <<'EOFWEB32'
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Love Green Web</title><style>body{font-family:Arial,sans-serif;background:#07130f;color:#e8fff4;padding:24px}a{color:#86efac;display:block;margin:9px 0;text-decoration:none}.card{max-width:960px;margin:auto;background:#0f241b;border:1px solid #1f7a4d;padding:24px;border-radius:16px}.small{color:#a7f3d0;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.box{background:#102d21;border-radius:12px;padding:12px}</style></head><body><div class="card"><h1>Love Green Web Panel</h1><p class="small">Client-specific exports / 客户端分流订阅</p><div class="grid"><div class="box"><h3>URI</h3><a href="/all.txt">Raw URI</a><a href="/clients/v2rayn-uri.txt">v2rayN URI</a><a href="/clients/v2rayn-xray-core.txt">v2rayN Xray Core</a><a href="/clients/v2rayn-singbox-core-uri.txt">v2rayN sing_box URI</a><a href="/clients/v2rayn-encoded-remark.txt">v2rayN encoded flag fallback</a><a href="/clients/nekobox-uri.txt">NekoBox</a><a href="/clients/shadowrocket-uri.txt">Shadowrocket</a></div><div class="box"><h3>JSON/YAML</h3><a href="/clients/sing-box-client.json">sing-box JSON</a><a href="/clients/v2rayn-singbox-core-full.json">v2rayN sing_box JSON full</a><a href="/clients/v2rayn-h2-reality-singbox.json">H2 Reality sing_box JSON</a><a href="/clients/mihomo.yaml">Mihomo YAML</a><a href="/clients/clash-meta.yaml">Clash Meta</a></div><div class="box"><h3>QR</h3><a href="/qr/index.html">Open QR Gallery</a><a href="/qr/v2rayn.png">v2rayN QR</a><a href="/qr/all.png">All QR</a></div></div></div></body></html>
+EOFWEB32
+  auth_file="/etc/nginx/.love_web_htpasswd"; auth_lines=""
+  if [[ "${auth,,}" != "n" ]]; then
+    if command -v htpasswd >/dev/null 2>&1; then htpasswd -bc "$auth_file" "$username" "$password" >/dev/null 2>&1 || true; else printf '%s:%s\n' "$username" "$(openssl passwd -apr1 "$password")" > "$auth_file"; fi
+    auth_lines=$'        auth_basic "Love Web";\n        auth_basic_user_file /etc/nginx/.love_web_htpasswd;'
+  fi
+  rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/null || true
+  conf="/etc/nginx/conf.d/love-admin.conf"
+  cat > "$conf" <<EOFNGINX32
+server {
+    listen 0.0.0.0:${port};
+    listen [::]:${port};
+    server_name _;
+    root /var/www/love-admin;
+    index index.html;
+    location / {
+${auth_lines}
+        try_files \$uri \$uri/ =404;
+    }
+}
+EOFNGINX32
+  ufw allow "${port}/tcp" >/dev/null 2>&1 || true
+  ufw reload >/dev/null 2>&1 || true
+  nginx -t && systemctl enable nginx >/dev/null 2>&1 || true
+  systemctl restart nginx
+  addr="$(love_v13619_client_host 2>/dev/null || echo '127.0.0.1')"
+  echo
+  echo "[OK] Web 管理页 / Web Panel: http://${addr}:${port}/"
+  if [[ "${auth,,}" != "n" ]]; then echo "[OK] 用户名 / User: $username"; echo "[OK] 密码 / Pass: $password"; else echo "[OK] Basic Auth: off"; fi
+  echo "[OK] QR: http://${addr}:${port}/qr/index.html"
+  [[ "$addr" == \[*\] ]] && echo "[TIP] IPv6 地址访问 Web 必须保留中括号 []。"
+}
+
+love_v13632_print_client_sections() {
+  local weburl
+  weburl="$(love_v13632_web_url 2>/dev/null || true)"
+  echo
+  echo "================ 客户端分流导出 / Client-specific Exports v13.60.32 ================"
+  [[ -n "$weburl" ]] && echo "Web: $weburl"
+  echo "Flag: $(love_v13632_flag)"
+  echo
+  echo "文件位置 / Files:"
+  echo "  Raw URI:                  /opt/Love/subscribe/all.txt"
+  echo "  v2rayN URI:               /opt/Love/subscribe/clients/v2rayn-uri.txt"
+  echo "  v2rayN Xray Core:         /opt/Love/subscribe/clients/v2rayn-xray-core.txt"
+  echo "  v2rayN sing_box URI:      /opt/Love/subscribe/clients/v2rayn-singbox-core-uri.txt"
+  echo "  v2rayN encoded flag:      /opt/Love/subscribe/clients/v2rayn-encoded-remark.txt"
+  echo "  v2rayN sing_box JSON:     /opt/Love/subscribe/clients/v2rayn-singbox-core-full.json"
+  echo "  v2rayN H2 Reality JSON:   /opt/Love/subscribe/clients/v2rayn-h2-reality-singbox.json"
+  echo "  NekoBox:                  /opt/Love/subscribe/clients/nekobox-uri.txt"
+  echo "  Shadowrocket:             /opt/Love/subscribe/clients/shadowrocket-uri.txt"
+  echo "  sing-box JSON:            /opt/Love/subscribe/clients/sing-box-client.json"
+  echo "  QR:                       /opt/Love/subscribe/qr/index.html"
+  echo
+  echo "================ v2rayN URI 专用 / v2rayn-uri.txt ================"
+  cat /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "================ v2rayN Xray Core / safer ================"
+  cat /opt/Love/subscribe/clients/v2rayn-xray-core.txt 2>/dev/null || true
+  echo
+  echo "================ v2rayN sing_box Core / HY2-H2 fallback ================"
+  cat /opt/Love/subscribe/clients/v2rayn-singbox-core-uri.txt 2>/dev/null || true
+  echo
+  echo "================ JSON/YAML 文件 ================"
+  for f in /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/v2rayn-singbox-core-full.json /opt/Love/subscribe/clients/v2rayn-h2-reality-singbox.json /opt/Love/subscribe/clients/mihomo.yaml /opt/Love/subscribe/clients/clash-meta.yaml; do
+    [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"
+  done
+  love_v13632_qr_direct quiet || true
+  if [[ -s /opt/Love/subscribe/qr/node-1.ansi ]]; then
+    echo
+    echo "================ 二维码预览 / QR Preview ================"
+    cat /opt/Love/subscribe/qr/node-1.ansi
+  fi
+}
+
+love_v13632_final_export() {
+  echo "================ Love Final Export v13.60.32 ================"
+  love_v13632_sync_flag_files || true
+  love_v13631_harden_singbox_server || true
+  love_v13622_export_from_configs >/dev/null
+  love_v13631_force_v2rayn_profile || true
+  love_v13631_generate_full_singbox_client_json || true
+  love_v13632_split_v2rayn_core_files || true
+  love_v13631_cleanup_legacy_outputs || true
+  love_v13619_generate_mihomo_yaml >/dev/null 2>&1 || true
+  love_v13632_qr_direct quiet || true
+  love_v13619_web_sync >/dev/null 2>&1 || true
+  cp -f /opt/Love/subscribe/clients/* /var/www/love-admin/clients/ 2>/dev/null || true
+  cp -a /opt/Love/subscribe/qr/. /var/www/love-admin/qr/ 2>/dev/null || true
+  love_v13632_print_client_sections
+}
+
+love_after_node_generated_exports() {
+  love_v13632_final_export
+  echo "[OK] 安装完成后只走 v13.60.32 final exporter；旧导出/检查链已禁用。"
+  echo
+  local setup_web
+  love_v13632_tty_read "是否现在设置/启动绿色 Web 管理页？[Y/n]: " setup_web "Y"
+  if [[ "${setup_web,,}" != "n" ]]; then love_v13632_web_setup; else echo "[INFO] 已跳过 Web 设置。之后可执行：Love web"; fi
+}
+
+export_subscription() { love_v13632_final_export; }
+love_sub_safe_v1341() { love_v13632_final_export; }
+love_v13624_final_export() { love_v13632_final_export; }
+love_v13619_final_export() { love_v13632_final_export; }
+love_v13629_final_export() { love_v13632_final_export; }
+love_v13628_final_export() { love_v13632_final_export; }
+love_v13630_final_export() { love_v13632_final_export; }
+love_v13631_final_export() { love_v13632_final_export; }
+web_admin_page() { love_v13632_web_setup; }
+generate_qrcodes() { love_v13632_qr_direct; }
+generate_mihomo_yaml() { love_v13632_final_export >/dev/null 2>&1 || true; echo "[OK] Mihomo 已生成：/opt/Love/subscribe/clients/mihomo.yaml"; }
+
+love_v13624_check() {
+  echo "================ Love v13.60.32 Clean Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[Services]"
+  echo -n "sing-box: "; systemctl is-active sing-box 2>/dev/null || true
+  echo -n "xray: "; systemctl is-active xray 2>/dev/null || true
+  echo -n "nginx: "; systemctl is-active nginx 2>/dev/null || true
+  echo
+  echo "[Final all.txt count]"
+  grep -cE '^(vless|hy2|hysteria2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || echo 0
+  echo
+  echo "[v2rayN files]"
+  for f in /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/clients/v2rayn-xray-core.txt /opt/Love/subscribe/clients/v2rayn-singbox-core-uri.txt /opt/Love/subscribe/clients/v2rayn-encoded-remark.txt; do [[ -s "$f" ]] && echo "[OK] $f" || echo "[MISS] $f"; done
+  echo
+  echo "[JSON files]"
+  for f in /opt/Love/subscribe/clients/sing-box-client.json /opt/Love/subscribe/clients/v2rayn-singbox-core-full.json /opt/Love/subscribe/clients/v2rayn-h2-reality-singbox.json; do if [[ -s "$f" ]] && jq empty "$f" >/dev/null 2>&1; then echo "[OK] $f"; else echo "[BAD/MISS] $f"; fi; done
+  echo
+  echo "[Flag] $(love_v13632_flag)"
+  echo
+  echo "[Bad patterns]"
+  grep -qE 'sni=[^&]+.*sni=' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[BAD] duplicate sni found" || echo "[OK] no duplicate sni"
+  grep -qE 'path=%252F' /opt/Love/subscribe/all.txt 2>/dev/null && echo "[BAD] double encoded path found" || echo "[OK] no double encoded path"
+  grep -qE 'LOVE-H2-REALITY' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[WARN] H2 Reality still in normal v2rayN URI list" || echo "[OK] H2 Reality removed from normal v2rayN URI list"
+  grep -q 'allowInsecure=1' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null && echo "[OK] v2rayN numeric allowInsecure=1 exists" || echo "[WARN] v2rayN numeric allowInsecure=1 missing"
+  echo
+  echo "[QR]"
+  [[ -s /opt/Love/subscribe/qr/index.html ]] && echo "[OK] /opt/Love/subscribe/qr/index.html" || echo "[MISS] /opt/Love/subscribe/qr/index.html"
+  [[ -s /var/www/love-admin/qr/index.html ]] && echo "[OK] /var/www/love-admin/qr/index.html" || echo "[MISS] /var/www/love-admin/qr/index.html"
+  echo
+  echo "[Web URL] $(love_v13632_web_url)"
+}
+
+love_v13631_check() { love_v13624_check; }
+love_v13631_web() { love_v13632_web_setup; }
+love_v13631_sub() { love_v13632_final_export; }
 
 
 main "$@"
