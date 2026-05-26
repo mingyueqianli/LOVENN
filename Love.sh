@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.37-bbr-warp-install-flow-final"
+VERSION="Love v13.60.38-v2rayn-flag-encoded-final"
 LOVE_SCRIPT_VERSION="$VERSION"
 # disabled legacy LOVE_SCRIPT_VERSION="$VERSION"
 
@@ -26161,7 +26161,7 @@ main() {
 
 
 # ------------------------------------------------------------------------------
-# v13.60.37 BBR + WARP install-flow integration
+# v13.60.38 BBR + WARP install-flow integration
 # Purpose:
 #   - BBR/WARP were available only as menu tools; users expect them in install flow.
 #   - Keep service install cores unchanged; add safe prompts around Xray/sing-box install.
@@ -26184,7 +26184,7 @@ love_v13637_read_tty() {
 }
 
 love_v13637_safe_bbr() {
-  echo "================ Love Safe BBR v13.60.37 ================"
+  echo "================ Love Safe BBR v13.60.38 ================"
   if declare -F love_v13619_safe_bbr >/dev/null 2>&1; then
     love_v13619_safe_bbr || true
   else
@@ -26283,7 +26283,7 @@ install_xray_stable() {
 }
 
 love_v13637_install_flow_check() {
-  echo "================ Love Install Flow Check v13.60.37 ================"
+  echo "================ Love Install Flow Check v13.60.38 ================"
   echo "VERSION=${LOVE_SCRIPT_VERSION}"
   echo
   echo "[BBR]"
@@ -26301,7 +26301,7 @@ love_v13637_install_flow_check() {
   curl -6 -sS --connect-timeout 6 --max-time 10 https://ifconfig.co 2>/dev/null | sed 's/^/IPv6: /' || echo "IPv6: failed"
 }
 
-# Final dispatcher with v13.60.37 aliases.
+# Final dispatcher with v13.60.38 aliases.
 main() {
   case "${1:-}" in
     ""|menu|main|m)
@@ -26340,6 +26340,131 @@ main() {
   esac
 }
 
+
+
+# ------------------------------------------------------------------------------
+# v13.60.38 v2rayN encoded flag remarks
+# Purpose:
+#   - v2rayN on Windows may import raw emoji URI fragments as mojibake like 馃嚭馃嚫.
+#   - Keep Shadowrocket/NekoBox/Raw files with normal emoji if generated that way.
+#   - Normalize v2rayN-only URI files to URL-encoded fragments.
+# ------------------------------------------------------------------------------
+LOVE_SCRIPT_VERSION="$VERSION"
+
+love_v13638_encode_v2rayn_remarks() {
+  python3 - <<'PYV13638' 2>/dev/null || true
+from pathlib import Path
+from urllib.parse import quote, unquote
+files = [
+    Path('/opt/Love/subscribe/clients/v2rayn-uri.txt'),
+    Path('/opt/Love/subscribe/clients/v2rayn-xray-core.txt'),
+    Path('/opt/Love/subscribe/clients/v2rayn-singbox-core-uri.txt'),
+    Path('/opt/Love/subscribe/clients/v2rayn-singbox-core-only.txt'),
+    Path('/opt/Love/subscribe/clients/xray-v2rayn-uri.txt'),
+    Path('/opt/Love/subscribe/clients/singbox-v2rayn-uri.txt'),
+    Path('/opt/Love/subscribe/clients/v2rayn-encoded-remark.txt'),
+]
+for p in files:
+    if not p.exists() or not p.is_file():
+        continue
+    out=[]
+    changed=False
+    for line in p.read_text(encoding='utf-8', errors='ignore').splitlines():
+        if '#' in line and '://' in line:
+            base, frag = line.split('#', 1)
+            # Normalize both raw emoji and existing percent-encoded text.
+            decoded = unquote(frag)
+            encoded = quote(decoded, safe='')
+            newline = base + '#' + encoded
+            if newline != line:
+                changed=True
+            out.append(newline)
+        else:
+            out.append(line)
+    if out:
+        p.write_text('\n'.join(out)+'\n', encoding='utf-8')
+    elif changed:
+        p.write_text('', encoding='utf-8')
+# Sync web copies after local files are normalized.
+web = Path('/var/www/love-admin/clients')
+if web.exists():
+    for p in files:
+        if p.exists() and p.is_file():
+            try:
+                (web / p.name).write_text(p.read_text(encoding='utf-8', errors='ignore'), encoding='utf-8')
+            except Exception:
+                pass
+PYV13638
+}
+
+# Preserve current final exporter and add v2rayN encoded remarks after every export.
+if declare -F love_v13633_final_export >/dev/null 2>&1 && ! declare -F love_v13633_final_export_core_v13638 >/dev/null 2>&1; then
+  eval "$(declare -f love_v13633_final_export | sed '1s/love_v13633_final_export/love_v13633_final_export_core_v13638/')"
+fi
+love_v13633_final_export() {
+  love_v13633_final_export_core_v13638 "$@"
+  love_v13638_encode_v2rayn_remarks || true
+  echo "[OK] v2rayN 专用备注已 URL 编码，避免 Windows/v2rayN 国旗乱码。"
+}
+
+# Compatibility aliases that may be called by older hooks.
+love_v13638_final_export() { love_v13633_final_export "$@"; }
+love_v13632_split_v2rayn_core_files_core_v13638_marker=1
+
+love_v13638_flag_check() {
+  echo "================ Love v2rayN Flag Check v13.60.38 ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  for f in /opt/Love/subscribe/clients/v2rayn-uri.txt /opt/Love/subscribe/clients/v2rayn-xray-core.txt /opt/Love/subscribe/clients/v2rayn-singbox-core-uri.txt /opt/Love/subscribe/clients/xray-v2rayn-uri.txt /opt/Love/subscribe/clients/singbox-v2rayn-uri.txt; do
+    [[ -f "$f" ]] || continue
+    echo "[$f]"
+    grep -E 'LOVE-(XRAY-|HY2|REALITY|VLESS|ANYTLS|NAIVE|TUIC|TROJAN)' "$f" | head -8 || true
+    if grep -q '馃' "$f"; then echo "[BAD] mojibake found"; else echo "[OK] no mojibake"; fi
+    if grep -q '#%F0%9F%87%BA%F0%9F%87%B8%20LOVE' "$f"; then echo "[OK] encoded flag found"; else echo "[WARN] encoded flag not found"; fi
+    echo
+  done
+}
+
+# Final dispatcher with v13.60.38 aliases.
+main() {
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      love_v13619_prepare_dirs 2>/dev/null || prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_v13633_menu
+      ;;
+    version|-v|--version|v13607-version|v13624-version|v13626-version|v13634-version|v13635-version|v13636-version|v13637-version|v13638-version) echo "${LOVE_SCRIPT_VERSION}" ;;
+    update|self-update|online-update) love_v13624_oneclick_update ;;
+    sub|subscribe|subscription|clients|client-export|link-fix|client-fix|fix-links) love_v13633_final_export ;;
+    links|all-links) love_show_links_v13633 ;;
+    v2rayn|v2rayn-links) love_v13633_final_export >/dev/null 2>&1 || true; love_show_v2rayn_v13633 ;;
+    xray-links|xray-sub) love_v13633_final_export >/dev/null 2>&1 || true; love_show_xray_links_v13633 ;;
+    sb-links|singbox-links|sing-box-links) love_v13633_final_export >/dev/null 2>&1 || true; love_show_sb_links_v13633 ;;
+    web|green-web) web_admin_page ;;
+    qr|qrcode) generate_qrcodes ;;
+    check|final-check|v13638-check|v13637-check|v13636-check|v13635-check|v13634-check|v13632-check|v13631-check|v13630-check|v13629-check) love_v13624_check; love_v13638_flag_check ;;
+    flag-check|v2rayn-flag-check|remark-check) love_v13638_flag_check ;;
+    flow-check|install-flow-check|bbr-warp-check) love_v13637_install_flow_check ;;
+    xray-check|xray-test|xray-geo-check) love_v13635_xray_check ;;
+    warp) shift || true; love_v13626_warp_command "$@" ;;
+    warp-install|install-warp-command|warp-command) love_v13626_install_warp_command ;;
+    warp-manager|warp-dual|warp-final) love_v13626_warp_manager ;;
+    warp-status|warp-report) love_v13626_warp_status ;;
+    warp-restore-direct) love_v13626_restore_direct ;;
+    xray-2659) love_v13619_xray_update_version "26.5.9" ;;
+    xray-custom) read -rp "Xray version: " xv; love_v13619_xray_update_version "$xv" ;;
+    optimize|bbr) love_v13637_safe_bbr ;;
+    singbox|sing-box|sb) install_singbox_native ;;
+    xray|reality|xray-hy2) install_xray_stable ;;
+    xray-extended|xray-all|xray-plus|xray-ext) install_xray_extended ;;
+    uninstall|uninstall-menu|remove|clean-uninstall) love_uninstall_menu_v13634 ;;
+    *) echo "[WARN] Unknown command: $1"; echo "Use: Love";;
+  esac
+}
+
 main "$@"
 
-# v13.60.37 note: BBR prompt and WARP dual-stack prompt restored to install flow.
+# v13.60.38 note: BBR prompt and WARP dual-stack prompt restored to install flow.
