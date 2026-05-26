@@ -24297,4 +24297,410 @@ main() {
   esac
 }
 
+
+# ==============================================================================
+# Love v13.60.16 - Config Source Export Final
+# Purpose:
+#   v13.60.15 removed old export chains too early. On fresh install all.txt could
+#   be empty because the new exporter only harvested old files. This version makes
+#   the final exporter read live service configs directly:
+#     - /etc/sing-box/config.json
+#     - /usr/local/etc/xray/config.json
+#   Then it generates all client files from that single config source.
+# Boundaries:
+#   - Do not change sing-box/xray server configs.
+#   - Do not change Green Web style.
+#   - Do not change QR style.
+#   - Do not change menu mapping.
+# ============================================================================== 
+LOVE_SCRIPT_VERSION="Love v13.60.16-config-source-export-final"
+VERSION="$LOVE_SCRIPT_VERSION"
+
+love_v13616_client_export_from_configs() {
+  echo "================ Love Config Source Export v13.60.16 ================"
+  mkdir -p /opt/Love/subscribe/clients /opt/Love/subscribe/sing-box /opt/Love/subscribe/qr /opt/Love/reports /opt/Love/client-info /var/www/love-admin/sub /var/www/love-admin/clients /var/www/love-admin/qr 2>/dev/null || true
+  python3 - <<'PY13616'
+from pathlib import Path
+from urllib.parse import urlencode, quote, unquote, urlsplit, parse_qsl
+import base64, json, re, subprocess, os
+
+LOVE=Path('/opt/Love')
+SUB=LOVE/'subscribe'
+CLIENTS=SUB/'clients'
+WEB=Path('/var/www/love-admin')
+for p in [SUB, CLIENTS, SUB/'sing-box', SUB/'qr', LOVE/'reports', LOVE/'client-info', WEB/'sub', WEB/'clients', WEB/'qr']:
+    p.mkdir(parents=True, exist_ok=True)
+
+def rf(p, default=''):
+    try: return Path(p).read_text(errors='ignore').strip()
+    except Exception: return default
+
+def wf(p, data):
+    p=Path(p); p.parent.mkdir(parents=True, exist_ok=True); p.write_text(data)
+
+def wb(p, data):
+    p=Path(p); p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(data)
+
+def load_json(p):
+    try: return json.loads(Path(p).read_text(errors='ignore'))
+    except Exception: return None
+
+FLAG=rf(LOVE/'node-flag') or '🇺🇸'
+if re.fullmatch(r'[A-Za-z]{2}', FLAG or ''):
+    def cc_to_flag(cc):
+        cc=cc.upper(); return ''.join(chr(0x1F1E6+ord(c)-65) for c in cc)
+    FLAG=cc_to_flag(FLAG)
+CERT_MODE=(rf(LOVE/'cert-mode')+' '+rf(LOVE/'install-cert-case')+' '+rf(LOVE/'source-correct.env')).lower()
+NODE_SNI=rf(LOVE/'node-sni') or 'self.local'
+CLIENT_ADDR=rf(LOVE/'client-address') or rf(LOVE/'node-address') or ''
+if not CLIENT_ADDR:
+    try:
+        CLIENT_ADDR=subprocess.check_output(['bash','-lc','curl -6 -s --max-time 3 https://ifconfig.co || hostname -I | awk \'{print $1}\''], text=True, timeout=5).strip().split()[0]
+    except Exception:
+        CLIENT_ADDR='127.0.0.1'
+CLIENT_ADDR=CLIENT_ADDR.strip()
+CLIENT_ADDR_BARE=CLIENT_ADDR.strip('[]')
+
+def haddr(host):
+    host=(host or CLIENT_ADDR_BARE).strip('[]')
+    return '['+host+']' if ':' in host and not host.startswith('[') else host
+
+def hostport(host,port): return f"{haddr(host)}:{int(port)}"
+
+def q(s): return quote(str(s), safe='')
+
+def b64(s): return base64.b64encode(s.encode()).decode().rstrip('\n')
+
+def label(name):
+    name=name.strip()
+    # strip existing flag/country prefix
+    name=re.sub(r'^[A-Z]{2,3}[ _-]+','',name)
+    name=re.sub(r'^[\U0001F1E6-\U0001F1FF]{2}\s*','',name)
+    return f'{FLAG} {name}'
+
+def untrusted(sni):
+    s=(sni or NODE_SNI or '').lower()
+    if s in ('self.local','localhost') or s.endswith('.local'):
+        return True
+    if any(x in CERT_MODE for x in ['self','self_signed','self-signed','no_domain','nodomain','untrusted','expired','mismatch','custom_cert','custom-cert']):
+        return True
+    if any(x in CERT_MODE for x in ['public_ca','letsencrypt','trusted_ca','ca_cert','official_ca']):
+        return False
+    return False
+
+def oq(d):
+    order=['encryption','flow','security','sni','serverName','fp','pbk','sid','type','path','host','serviceName','authority','mode','congestion_control','udp_relay_mode','insecure','allowInsecure','allow_insecure','skip-cert-verify','alpn']
+    items=[]; used=set()
+    for k in order:
+        if k in d and d[k] is not None and d[k] != '': items.append((k,str(d[k]))); used.add(k)
+    for k in sorted(d):
+        if k not in used and d[k] is not None and d[k] != '': items.append((k,str(d[k])))
+    return urlencode(items, safe=':/[]')
+
+def tls_params(sni, alp=None, force_untrusted=None):
+    u = untrusted(sni) if force_untrusted is None else force_untrusted
+    d={'sni':sni or NODE_SNI}
+    if u:
+        d.update({'insecure':'true','allowInsecure':'true','allow_insecure':'true','skip-cert-verify':'true'})
+    if alp: d['alpn']=alp
+    return d
+
+def reality_pub(priv):
+    priv=(priv or '').strip()
+    if not priv: return ''
+    cmds=[['/usr/local/bin/sing-box','generate','reality-keypair','--private-key',priv],['sing-box','generate','reality-keypair','--private-key',priv],['/usr/local/bin/xray','x25519','-i',priv],['xray','x25519','-i',priv]]
+    for cmd in cmds:
+        try:
+            out=subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT, timeout=8)
+            for line in out.splitlines():
+                if re.search(r'(PublicKey|Public key|Password)', line, re.I):
+                    val=line.split(':',1)[-1].strip()
+                    if val and val != priv: return val
+        except Exception:
+            pass
+    return ''
+
+def short_id(v):
+    if isinstance(v,list): return str(v[0]) if v else ''
+    return str(v or '')
+
+uris=[]
+
+def add(uri):
+    if uri and uri not in uris: uris.append(uri)
+
+# sing-box live config
+sb=load_json('/etc/sing-box/config.json')
+if sb and isinstance(sb.get('inbounds'), list):
+    for ib in sb['inbounds']:
+        typ=ib.get('type',''); tag=ib.get('tag',''); port=ib.get('listen_port') or ib.get('port')
+        if not port: continue
+        tls=ib.get('tls') or {}; sni=tls.get('server_name') or NODE_SNI
+        users=ib.get('users') or []
+        u0=users[0] if users and isinstance(users[0],dict) else {}
+        if typ=='vless':
+            uuid=u0.get('uuid') or u0.get('id') or ''
+            if not uuid: continue
+            tr=ib.get('transport') or {}; sec='reality' if tls.get('reality') else ('tls' if tls.get('enabled') else '')
+            if sec=='reality':
+                r=tls.get('reality') or {}; pub=reality_pub(r.get('private_key','')); sid=short_id(r.get('short_id') or r.get('shortIds'))
+                if 'h2' in tag:
+                    qq={'encryption':'none','security':'reality','sni':sni,'fp':'chrome','pbk':pub,'sid':sid,'type':'http','path':quote(tr.get('path','/h2'),safe=''),'host':(tr.get('host') or [sni])[0] if isinstance(tr.get('host'),list) else tr.get('host',sni),'alpn':'h2'}
+                    add(f"vless://{uuid}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-H2-REALITY')}")
+                elif 'grpc' in tag:
+                    qq={'encryption':'none','security':'reality','sni':sni,'fp':'chrome','pbk':pub,'sid':sid,'type':'grpc','serviceName':tr.get('service_name') or tr.get('serviceName') or 'lovegrpc','authority':sni,'mode':'gun','alpn':'h2'}
+                    add(f"vless://{uuid}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-GRPC-REALITY')}")
+                else:
+                    qq={'encryption':'none','flow':u0.get('flow','xtls-rprx-vision'),'security':'reality','sni':sni,'fp':'chrome','pbk':pub,'sid':sid,'type':'tcp'}
+                    add(f"vless://{uuid}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-REALITY')}")
+            elif sec=='tls':
+                tr=ib.get('transport') or {}; path=tr.get('path') or '/vless'
+                qq={'encryption':'none','security':'tls','type':'ws','path':quote(path,safe='')}
+                qq.update(tls_params(sni))
+                add(f"vless://{uuid}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-VLESS-WS-TLS')}")
+        elif typ=='hysteria2':
+            pwd=u0.get('password') or u0.get('auth') or ''
+            if pwd:
+                qq=tls_params(sni,'h3')
+                add(f"hy2://{q(pwd)}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-HY2')}")
+        elif typ=='tuic':
+            uuid=u0.get('uuid') or ''; pwd=u0.get('password') or ''
+            if uuid and pwd:
+                qq=tls_params(sni,'h3'); qq.update({'congestion_control':ib.get('congestion_control','bbr'),'udp_relay_mode':ib.get('udp_relay_mode','native')})
+                add(f"tuic://{q(uuid)}:{q(pwd)}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-TUIC')}")
+        elif typ=='shadowsocks':
+            method=ib.get('method','aes-128-gcm'); pwd=ib.get('password','')
+            if pwd: add(f"ss://{b64(method+':'+pwd)}@{hostport(CLIENT_ADDR_BARE,port)}#{label('LOVE-SS')}")
+        elif typ=='trojan':
+            pwd=u0.get('password') or ''
+            if pwd:
+                qq={'security':'tls'}; qq.update(tls_params(sni))
+                add(f"trojan://{q(pwd)}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-TROJAN')}")
+        elif typ=='vmess':
+            uuid=u0.get('uuid') or u0.get('id') or ''
+            if uuid:
+                vm={'v':'2','ps':label('LOVE-VMESS-WS'),'add':CLIENT_ADDR_BARE,'port':str(port),'id':uuid,'aid':'0','scy':'auto','net':'ws','type':'none','host':'','path':(ib.get('transport') or {}).get('path','/vmess'),'tls':'','sni':''}
+                add('vmess://'+b64(json.dumps(vm,separators=(',',':'),ensure_ascii=False)))
+        elif typ=='anytls':
+            pwd=u0.get('password') or ''
+            if pwd:
+                qq=tls_params(sni)
+                add(f"anytls://{q(pwd)}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-ANYTLS')}")
+        elif typ=='naive':
+            user=u0.get('username') or 'love'; pwd=u0.get('password') or ''
+            if pwd:
+                qq=tls_params(sni)
+                add(f"https://{q(user)}:{q(pwd)}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-NAIVE')}")
+
+# Xray live config
+xr=load_json('/usr/local/etc/xray/config.json')
+if xr and isinstance(xr.get('inbounds'), list):
+    for ib in xr['inbounds']:
+        proto=ib.get('protocol',''); tag=ib.get('tag',''); port=ib.get('port')
+        if not port: continue
+        ss=ib.get('streamSettings') or {}; security=ss.get('security',''); net=ss.get('network','')
+        settings=ib.get('settings') or {}; clients=settings.get('clients') or []
+        c0=clients[0] if clients and isinstance(clients[0],dict) else {}
+        if proto=='vless' and security=='reality':
+            uuid=c0.get('id') or c0.get('uuid') or ''
+            rs=ss.get('realitySettings') or {}; priv=rs.get('privateKey') or rs.get('private_key') or ''; pub=reality_pub(priv) or rs.get('publicKey','')
+            sid=short_id(rs.get('shortIds') or rs.get('short_id'))
+            sni=(rs.get('serverNames') or [None])[0] if isinstance(rs.get('serverNames'),list) else rs.get('serverName') or rs.get('server_name') or 'www.cloudflare.com'
+            if uuid:
+                qq={'encryption':'none','flow':c0.get('flow','xtls-rprx-vision'),'security':'reality','sni':sni,'fp':'chrome','pbk':pub,'sid':sid,'type':'tcp'}
+                add(f"vless://{uuid}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-XRAY-REALITY')}")
+        elif proto=='hysteria':
+            users=settings.get('users') or []
+            u0=users[0] if users and isinstance(users[0],dict) else {}
+            auth=u0.get('auth') or u0.get('password') or ''
+            tls=ss.get('tlsSettings') or {}; sni=tls.get('serverName') or tls.get('server_name') or NODE_SNI
+            if auth:
+                qq=tls_params(sni,'h3')
+                add(f"hy2://{q(auth)}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-XRAY-HY2')}")
+        elif proto=='trojan':
+            pwd=c0.get('password') or ''
+            tls=ss.get('tlsSettings') or {}; sni=tls.get('serverName') or NODE_SNI
+            if pwd:
+                qq={'security':'tls'}; qq.update(tls_params(sni))
+                add(f"trojan://{q(pwd)}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-XRAY-TROJAN')}")
+        elif proto=='vless' and security=='tls':
+            uuid=c0.get('id') or ''; tls=ss.get('tlsSettings') or {}; sni=tls.get('serverName') or NODE_SNI
+            path=(ss.get('wsSettings') or {}).get('path','/vless')
+            if uuid:
+                qq={'encryption':'none','security':'tls','type':'ws','path':quote(path,safe='')}; qq.update(tls_params(sni))
+                add(f"vless://{uuid}@{hostport(CLIENT_ADDR_BARE,port)}?{oq(qq)}#{label('LOVE-XRAY-VLESS-WS-TLS')}")
+        elif proto=='vmess':
+            uuid=c0.get('id') or ''
+            if uuid:
+                vm={'v':'2','ps':label('LOVE-XRAY-VMESS-WS'),'add':CLIENT_ADDR_BARE,'port':str(port),'id':uuid,'aid':'0','scy':'auto','net':'ws','type':'none','host':'','path':(ss.get('wsSettings') or {}).get('path','/vmess'),'tls':'','sni':''}
+                add('vmess://'+b64(json.dumps(vm,separators=(',',':'),ensure_ascii=False)))
+        elif proto=='shadowsocks':
+            method=settings.get('method','aes-128-gcm'); pwd=settings.get('password','')
+            if pwd: add(f"ss://{b64(method+':'+pwd)}@{hostport(CLIENT_ADDR_BARE,port)}#{label('LOVE-XRAY-SS')}")
+
+# final de-dup and normalize no duplicated sni
+seen=set(); final=[]
+for line in uris:
+    line=line.replace('sni=self.local&sni=self.local&','sni=self.local&').replace('sni=self.local&sni=self.local','sni=self.local')
+    key=line.split('#',1)[0]
+    if key in seen: continue
+    seen.add(key); final.append(line)
+
+def write_lines(path, lines): wf(path, ('\n'.join(lines).strip()+'\n') if lines else '')
+write_lines(SUB/'all.txt', final)
+try: wb(SUB/'all_base64.txt', base64.b64encode(('\n'.join(final)+'\n').encode()))
+except Exception: pass
+# client files currently use same strict URI set; sing-box JSON and Mihomo are field-based below
+for f in ['v2rayn-uri.txt','nekobox-uri.txt','v2rayng-uri.txt','singbox-uri.txt','nodes-clean.txt']:
+    write_lines(CLIENTS/f, final)
+
+# sing-box JSON client
+
+def parse_uri(line):
+    main,name=(line.split('#',1)+[''])[:2] if '#' in line else (line,'')
+    sp=urlsplit(main); return sp, dict(parse_qsl(sp.query)), unquote(name)
+
+def truth(q): return any(str(q.get(k,'')).lower() in ('1','true','yes') for k in ['insecure','allowInsecure','allow_insecure','skip-cert-verify'])
+outs=[]
+for line in final:
+    try:
+        sp,qqq,name=parse_uri(line); scheme=sp.scheme.lower(); host=sp.hostname; port=sp.port
+        if scheme=='hy2': outs.append({'type':'hysteria2','tag':name,'server':host,'server_port':port,'password':unquote(sp.username or ''),'tls':{'enabled':True,'server_name':qqq.get('sni',NODE_SNI),'insecure':truth(qqq),'alpn':['h3']}})
+        elif scheme=='tuic': outs.append({'type':'tuic','tag':name,'server':host,'server_port':port,'uuid':unquote(sp.username or ''),'password':unquote(sp.password or ''),'congestion_control':qqq.get('congestion_control','bbr'),'udp_relay_mode':qqq.get('udp_relay_mode','native'),'tls':{'enabled':True,'server_name':qqq.get('sni',NODE_SNI),'insecure':truth(qqq),'alpn':['h3']}})
+        elif scheme=='trojan': outs.append({'type':'trojan','tag':name,'server':host,'server_port':port,'password':unquote(sp.username or ''),'tls':{'enabled':True,'server_name':qqq.get('sni',NODE_SNI),'insecure':truth(qqq)}})
+        elif scheme=='ss':
+            dec=base64.b64decode((sp.username or '')+'='*((4-len(sp.username or '')%4)%4)).decode(errors='ignore'); method,pwd=(dec.split(':',1) if ':' in dec else ('aes-128-gcm',sp.username or ''))
+            outs.append({'type':'shadowsocks','tag':name,'server':host,'server_port':port,'method':method,'password':pwd})
+        elif scheme=='vless':
+            ob={'type':'vless','tag':name,'server':host,'server_port':port,'uuid':unquote(sp.username or '')}
+            if qqq.get('flow'): ob['flow']=qqq.get('flow')
+            sec=qqq.get('security','')
+            if sec in ('tls','reality'):
+                tls={'enabled':True,'server_name':qqq.get('sni',NODE_SNI)}
+                if sec=='tls': tls['insecure']=truth(qqq)
+                if sec=='reality': tls.update({'utls':{'enabled':True,'fingerprint':qqq.get('fp','chrome')},'reality':{'enabled':True,'public_key':qqq.get('pbk',''),'short_id':qqq.get('sid','')}})
+                if qqq.get('alpn'): tls['alpn']=[qqq.get('alpn')]
+                ob['tls']=tls
+            if qqq.get('type')=='ws': ob['transport']={'type':'ws','path':unquote(qqq.get('path','/')),'headers':{'Host':qqq.get('host',qqq.get('sni',NODE_SNI))}}
+            if qqq.get('type')=='http': ob['transport']={'type':'http','host':[qqq.get('host',qqq.get('sni',NODE_SNI))],'path':unquote(qqq.get('path','/'))}
+            if qqq.get('type')=='grpc': ob['transport']={'type':'grpc','service_name':qqq.get('serviceName','')}
+            outs.append(ob)
+        elif scheme=='anytls': outs.append({'type':'anytls','tag':name,'server':host,'server_port':port,'password':unquote(sp.username or ''),'tls':{'enabled':True,'server_name':qqq.get('sni',NODE_SNI),'insecure':truth(qqq)}})
+        elif scheme=='https': outs.append({'type':'naive','tag':name,'server':host,'server_port':port,'username':unquote(sp.username or ''),'password':unquote(sp.password or ''),'tls':{'enabled':True,'server_name':qqq.get('sni',NODE_SNI),'insecure':truth(qqq)}})
+    except Exception:
+        pass
+sbcli={'log':{'level':'warn','timestamp':True},'inbounds':[{'type':'mixed','tag':'mixed-in','listen':'127.0.0.1','listen_port':2080}], 'outbounds':outs+[{'type':'direct','tag':'direct'}], 'route':{'final':outs[0]['tag'] if outs else 'direct'}}
+for p in [CLIENTS/'sing-box-client.json', SUB/'sing-box-client.json', SUB/'sing-box'/'sing-box-client.json']:
+    wf(p, json.dumps(sbcli,ensure_ascii=False,indent=2))
+
+# Mihomo/Clash simple YAML for common protocols
+lines=['proxies:']
+for line in final:
+    try:
+        sp,qqq,name=parse_uri(line); scheme=sp.scheme.lower(); host=sp.hostname; port=sp.port
+        if scheme=='hy2':
+            lines += [f'  - name: "{name}"','    type: hysteria2',f'    server: {host}',f'    port: {port}',f'    password: "{unquote(sp.username or "")}"',f'    sni: {qqq.get("sni",NODE_SNI)}',f'    skip-cert-verify: {str(truth(qqq)).lower()}','    alpn:','      - h3']
+        elif scheme=='tuic':
+            lines += [f'  - name: "{name}"','    type: tuic',f'    server: {host}',f'    port: {port}',f'    uuid: {unquote(sp.username or "")}',f'    password: "{unquote(sp.password or "")}"',f'    sni: {qqq.get("sni",NODE_SNI)}',f'    skip-cert-verify: {str(truth(qqq)).lower()}','    alpn:','      - h3']
+        elif scheme=='trojan':
+            lines += [f'  - name: "{name}"','    type: trojan',f'    server: {host}',f'    port: {port}',f'    password: "{unquote(sp.username or "")}"',f'    sni: {qqq.get("sni",NODE_SNI)}',f'    skip-cert-verify: {str(truth(qqq)).lower()}']
+        elif scheme=='ss':
+            dec=base64.b64decode((sp.username or '')+'='*((4-len(sp.username or '')%4)%4)).decode(errors='ignore'); method,pwd=(dec.split(':',1) if ':' in dec else ('aes-128-gcm',sp.username or ''))
+            lines += [f'  - name: "{name}"','    type: ss',f'    server: {host}',f'    port: {port}',f'    cipher: {method}',f'    password: "{pwd}"']
+    except Exception:
+        pass
+wf(CLIENTS/'mihomo.yaml','\n'.join(lines)+'\n')
+wf(CLIENTS/'clash-meta.yaml','\n'.join(lines)+'\n')
+wf(SUB/'mihomo.yaml','\n'.join(lines)+'\n')
+wf(SUB/'clash-meta.yaml','\n'.join(lines)+'\n')
+
+# web sync
+for rel in ['all.txt','all_base64.txt','mihomo.yaml','clash-meta.yaml','sing-box-client.json']:
+    src=SUB/rel
+    if src.exists():
+        wf(WEB/rel, src.read_text(errors='ignore')) if src.suffix!='.txt' or rel!='all_base64.txt' else wb(WEB/rel, src.read_bytes())
+if (SUB/'all.txt').exists():
+    for rel in ['node-links.txt','全部节点.txt','推荐节点.txt','节点清晰版.txt']:
+        wf(WEB/rel, (SUB/'all.txt').read_text(errors='ignore'))
+    wf(WEB/'sub'/'all.txt', (SUB/'all.txt').read_text(errors='ignore'))
+for f in CLIENTS.iterdir():
+    if f.is_file():
+        try: wf(WEB/'clients'/f.name, f.read_text(errors='ignore'))
+        except Exception: pass
+wf(LOVE/'reports'/'config-source-export-report.txt', f'Generated {len(final)} URI nodes from live configs.\n')
+print(f'[OK] Generated {len(final)} URI nodes from live configs.')
+PY13616
+
+  if command -v qrencode >/dev/null 2>&1; then
+    mkdir -p /opt/Love/subscribe/qr /var/www/love-admin/qr 2>/dev/null || true
+    for item in all v2rayn nekobox singbox; do
+      case "$item" in
+        all) file=/opt/Love/subscribe/all.txt ;;
+        v2rayn) file=/opt/Love/subscribe/clients/v2rayn-uri.txt ;;
+        nekobox) file=/opt/Love/subscribe/clients/nekobox-uri.txt ;;
+        singbox) file=/opt/Love/subscribe/clients/singbox-uri.txt ;;
+      esac
+      [[ -s "$file" ]] && qrencode -t PNG -s 6 -m 2 -o "/opt/Love/subscribe/qr/${item}.png" < "$file" 2>/dev/null || true
+      [[ -f "/opt/Love/subscribe/qr/${item}.png" ]] && cp -f "/opt/Love/subscribe/qr/${item}.png" "/var/www/love-admin/qr/${item}.png" 2>/dev/null || true
+    done
+  fi
+}
+
+love_v13614_client_export_real_final() { love_v13616_client_export_from_configs; }
+love_v13615_export_final_only() {
+  echo "================ Love Clean Final Export v13.60.16 ================"
+  love_v13616_client_export_from_configs || return 1
+  echo "[OK] 最终输出已直接从 live config 生成，不依赖旧 all.txt/client-info。"
+}
+love_v13615_clean_after_install() {
+  if declare -F love_v1351_open_ports_from_current_configs >/dev/null 2>&1; then
+    love_v1351_open_ports_from_current_configs >/dev/null 2>&1 || true
+  fi
+  love_v13615_export_final_only || true
+  love_v13615_final_links_print || true
+}
+love_after_node_generated_exports() { love_v13615_export_final_only; }
+love_v1360_generate_client_subs() { love_v13615_export_final_only; }
+love_v1348_source_correct_outputs() { love_v13615_export_final_only; }
+love_v13613_export_clients_strict() { love_v13615_export_final_only; }
+love_v1351_regen_qr_web_after_uri() { love_v13615_export_final_only; }
+love_v1351_post_install_guard() { love_v13615_clean_after_install; }
+
+love_v13616_check() {
+  echo "================ Love v13.60.16 Config Source Export Check ================"
+  echo "VERSION=${LOVE_SCRIPT_VERSION}"
+  echo
+  echo "[all.txt count]"; grep -cE '^(vless|hy2|tuic|ss|trojan|vmess|anytls|https)://' /opt/Love/subscribe/all.txt 2>/dev/null || true
+  echo
+  echo "[v2rayN HY2/Naive]"; grep -E 'LOVE-(XRAY-)?HY2|LOVE-NAIVE' /opt/Love/subscribe/clients/v2rayn-uri.txt 2>/dev/null || true
+  echo
+  echo "[sing-box JSON]"; [[ -s /opt/Love/subscribe/clients/sing-box-client.json ]] && echo "[OK] sing-box-client.json" || echo "[MISS] sing-box-client.json"
+  echo
+  if grep -Rqs 'sni=self.local&sni=self.local' /opt/Love/subscribe /var/www/love-admin 2>/dev/null; then
+    echo "[WARN] 仍发现重复 sni。"
+  else
+    echo "[OK] 未发现重复 sni。"
+  fi
+}
+
+# Final command override for v13.60.16
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13616 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_before_v13616/')"
+fi
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.16-config-source-export-final}"
+  case "${1:-}" in
+    sub|subscribe|clients|client-export|source-correct|final-fix|client-output-fix|importable-fix|v2rayn-fix|true-fix|cert-true-fix|client-export-strict|client-export-real|clean-export)
+      love_v13615_export_final_only ;;
+    web|qr|qrcode|qr-fix)
+      love_v13615_export_final_only ;;
+    v13616-check|config-source-check|export-live-check)
+      love_v13616_check ;;
+    version|v13616-version)
+      echo "${LOVE_SCRIPT_VERSION}" ;;
+    *)
+      love_original_main_before_v13616 "$@" ;;
+  esac
+}
+
 main "$@"
