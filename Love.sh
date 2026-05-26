@@ -52,7 +52,7 @@ export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER="${ENABLE_DEPRECATED_MISSING_DO
 #   If a VPS is IPv6-only, direct clients still need IPv6 unless you use Argo/other tunnel mode.
 # ==============================================================================
 
-VERSION="Love v13.60.0-network-cf-cert-sub-speed-final"
+VERSION="Love v13.60.8-version-update-url-fixed-final"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -21949,7 +21949,7 @@ main() {
 # - Fixes menu item 12 to one-click update without asking URL.
 # - Fixes menu item 23 to a stable classic uninstall menu.
 # ============================================================================== 
-LOVE_SCRIPT_VERSION="Love v13.60.7-classic-menu-update-uninstall-fix"
+LOVE_SCRIPT_VERSION="Love v13.60.8-version-update-url-fixed-final"
 LOVE_RAW_URL_DEFAULT="${LOVE_RAW_URL_DEFAULT:-https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh}"
 
 love_v13607_c() {
@@ -22199,7 +22199,7 @@ if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13
 fi
 
 main() {
-  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.7-classic-menu-update-uninstall-fix}"
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.8-version-update-url-fixed-final}"
   case "${1:-}" in
     ""|menu|main|m)
       need_root 2>/dev/null || true
