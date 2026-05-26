@@ -21941,4 +21941,286 @@ main() {
   esac
 }
 
+
+# ============================================================================== 
+# Love v13.60.7 - Classic menu / one-click update / uninstall index fixed
+# - Based on v13.60.4 stable line plus later source-first improvements kept.
+# - No protocol/web/QR/node logic removed.
+# - Fixes menu item 12 to one-click update without asking URL.
+# - Fixes menu item 23 to a stable classic uninstall menu.
+# ============================================================================== 
+LOVE_SCRIPT_VERSION="Love v13.60.7-classic-menu-update-uninstall-fix"
+LOVE_RAW_URL_DEFAULT="${LOVE_RAW_URL_DEFAULT:-https://raw.githubusercontent.com/mingyueqianli/LOVENN/main/Love.sh}"
+
+love_v13607_c() {
+  case "$1" in
+    blue) echo '\033[0;34m' ;;
+    cyan) echo '\033[0;36m' ;;
+    green) echo '\033[0;32m' ;;
+    yellow) echo '\033[1;33m' ;;
+    red) echo '\033[0;31m' ;;
+    bold) echo '\033[1m' ;;
+    reset|*) echo '\033[0m' ;;
+  esac
+}
+
+love_v13607_header() {
+  local b r
+  b="$(love_v13607_c blue)"; r="$(love_v13607_c reset)"
+  clear 2>/dev/null || true
+  printf "%b\n" "${b}╔══════════════════════════════════════════════════════════════════════════════╗${r}"
+  printf "%b  %-74s %b\n" "${b}║" "Love Node Server Manager  ${LOVE_SCRIPT_VERSION}" "║${r}"
+  printf "%b\n" "${b}╚══════════════════════════════════════════════════════════════════════════════╝${r}"
+}
+
+love_v13607_section() {
+  local b r
+  b="$(love_v13607_c blue)"; r="$(love_v13607_c reset)"
+  printf "\n%b[%s]%b\n" "$b" "$1" "$r"
+}
+
+love_v13607_row() {
+  printf "  │ %-36s │ %-36s │\n" "$1" "$2"
+}
+
+love_v13607_pause() {
+  echo
+  read -rp "按回车返回主菜单 / Press Enter to return..." _ || true
+}
+
+love_v13607_update_url() {
+  local url=""
+  if [[ -s /opt/Love/update_url ]]; then
+    url="$(head -n1 /opt/Love/update_url | tr -d '\r\n' || true)"
+  fi
+  if [[ -z "$url" && -n "${LOVE_UPDATE_URL:-}" ]]; then
+    url="${LOVE_UPDATE_URL}"
+  fi
+  if [[ -z "$url" || "$url" == *YOURNAME* ]]; then
+    url="${LOVE_RAW_URL_DEFAULT}"
+  fi
+  echo "$url"
+}
+
+love_v13607_oneclick_update() {
+  need_root 2>/dev/null || true
+  prepare_dirs 2>/dev/null || mkdir -p /opt/Love
+
+  local url tmp backup target stamp
+  url="$(love_v13607_update_url)"
+  target="/opt/Love/Love.sh"
+  tmp="/tmp/Love.update.$$.$RANDOM.sh"
+  stamp="$(date +%F-%H%M%S)"
+  backup="/opt/Love/backup/Love.sh.bak.${stamp}"
+  mkdir -p /opt/Love/backup
+
+  echo "================ Love 一键更新 / One-click update ================"
+  echo "当前版本 / Current: ${LOVE_SCRIPT_VERSION}"
+  echo "更新地址 / URL: ${url}"
+  echo
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fL --connect-timeout 10 --max-time 90 "${url}?t=$(date +%s)" -o "$tmp" || curl -fL --connect-timeout 10 --max-time 90 "$url" -o "$tmp" || true
+  fi
+  if [[ ! -s "$tmp" ]] && command -v wget >/dev/null 2>&1; then
+    wget -T 90 -qO "$tmp" "${url}?t=$(date +%s)" || wget -T 90 -qO "$tmp" "$url" || true
+  fi
+
+  [[ -s "$tmp" ]] || die "下载失败。请检查 GitHub Raw 地址或网络。"
+  bash -n "$tmp" || die "新版脚本语法检查失败，已取消更新。"
+
+  if [[ -f "$target" ]]; then
+    cp -f "$target" "$backup"
+    log "旧版已备份：$backup"
+  fi
+
+  cp -f "$tmp" "$target"
+  chmod +x "$target"
+  ln -sf "$target" /usr/local/bin/Love
+  ln -sf "$target" /usr/local/bin/love
+  echo "$url" > /opt/Love/update_url
+  chmod 600 /opt/Love/update_url 2>/dev/null || true
+
+  log "Love 已更新。重新运行：Love"
+  "$target" v13607-version 2>/dev/null || grep -m1 '^LOVE_SCRIPT_VERSION=' "$target" || true
+}
+
+love_v13607_uninstall_menu() {
+  while true; do
+    love_v13607_header
+    love_v13607_section "卸载菜单 / Uninstall Menu"
+    love_v13607_row "1) 停止 Xray / Stop Xray" "5) 清理订阅 / Clean subs"
+    love_v13607_row "2) 停止 sing-box / Stop sing-box" "6) 清理 Web / Clean Web"
+    love_v13607_row "3) 停止 Web/Argo/Timer" "7) 清理 WARP/WireProxy"
+    love_v13607_row "4) 完整卸载 Love / Full uninstall" "0) 返回 / Back"
+    echo
+    echo "说明：1-3 是软卸载，默认保留配置；4 会删除 /opt/Love 等文件，需要二次确认。"
+    read -rp "请选择 / Select: " u
+    case "$u" in
+      1)
+        systemctl stop xray 2>/dev/null || true
+        systemctl disable xray 2>/dev/null || true
+        log "Xray 已停止/禁用，配置保留。" ;;
+      2)
+        systemctl stop sing-box 2>/dev/null || true
+        systemctl disable sing-box 2>/dev/null || true
+        log "sing-box 已停止/禁用，配置保留。" ;;
+      3)
+        systemctl stop nginx cloudflared love-web love-sub love-status 2>/dev/null || true
+        systemctl disable cloudflared love-web love-sub love-status 2>/dev/null || true
+        rm -f /etc/systemd/system/love-web.service /etc/systemd/system/love-sub.service /etc/systemd/system/love-status.service 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+        log "Web/Argo/Timer 已尝试停止，配置保留。" ;;
+      4)
+        warn "完整卸载会删除 /opt/Love、/var/www/love-admin、Love 命令及相关服务。"
+        read -rp "确认完整卸载？请输入 DELETE LOVE 继续: " ok
+        [[ "$ok" == "DELETE LOVE" ]] || { warn "已取消。"; love_v13607_pause; continue; }
+        systemctl stop xray sing-box nginx cloudflared love-web love-sub love-status 2>/dev/null || true
+        systemctl disable xray sing-box cloudflared love-web love-sub love-status 2>/dev/null || true
+        rm -f /usr/local/bin/Love /usr/local/bin/love 2>/dev/null || true
+        rm -f /etc/systemd/system/love-web.service /etc/systemd/system/love-sub.service /etc/systemd/system/love-status.service 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+        rm -rf /opt/Love /var/www/love-admin 2>/dev/null || true
+        log "Love 已完整卸载。" ;;
+      5)
+        mkdir -p /opt/Love/backup
+        tar -czf "/opt/Love/backup/subscribe-before-clean-${stamp:-$(date +%F-%H%M%S)}.tar.gz" /opt/Love/subscribe 2>/dev/null || true
+        rm -rf /opt/Love/subscribe/* 2>/dev/null || true
+        log "订阅已清理，已尽量备份。" ;;
+      6)
+        mkdir -p /opt/Love/backup
+        tar -czf "/opt/Love/backup/web-before-clean-$(date +%F-%H%M%S).tar.gz" /var/www/love-admin 2>/dev/null || true
+        rm -rf /var/www/love-admin/* 2>/dev/null || true
+        log "Web 文件已清理，已尽量备份。" ;;
+      7)
+        if declare -F love_warp_uninstall >/dev/null 2>&1; then love_warp_uninstall; else warn "未找到 WARP 清理函数。"; fi ;;
+      0|q|Q|back) return 0 ;;
+      *) warn "无效选择。" ;;
+    esac
+    love_v13607_pause
+  done
+}
+
+love_v13607_classic_menu() {
+  while true; do
+    love_v13607_header
+    love_v13607_section "核心安装 / Core Install"
+    love_v13607_row "1) 节点目录 / Node catalog" "26) Xray 补全 / Xray Extended"
+    love_v13607_row "2) Xray 稳定 / Xray Stable" "27) VPS 环境 / VPS env"
+    love_v13607_row "3) sing-box 全协议 / All" "28) BBR/MTU 优化 / Optimize"
+    love_v13607_row "4) Argo 隧道 / Cloudflared" "29) 一键测速 / Speed"
+    love_v13607_row "5) UDP 跳跃 / Port hopping" "30) 重建订阅 / Rebuild sub"
+    love_v13607_row "6) WARP 出站 / WARP help" "31) 客户端订阅 / Client sub"
+
+    love_v13607_section "导出与客户端 / Export & Clients"
+    love_v13607_row "7) 节点信息 / Node info" "32) Clash/Mihomo YAML"
+    love_v13607_row "8) 订阅生成 / Build sub" "33) 证书检查 / Cert check"
+    love_v13607_row "9) 二维码 / QR codes" "34) HTTP-01 证书 / LE cert"
+    love_v13607_row "10) Super Tools / 修复" "35) 证书切换 / Cert switch"
+    love_v13607_row "11) 绿色 Web / Green Web" "36) CF Token / CF config"
+    love_v13607_row "12) 一键更新 / One-click update" "37) CF DNS / DNS upsert"
+    love_v13607_row "13) 客户端导出 / Client export" "38) CF DNS-01 证书 / DNS cert"
+
+    love_v13607_section "旧版工具保留 / Legacy Tools Kept"
+    love_v13607_row "14) v6 Project Tools" "39) H2 Reality v2rayN help"
+    love_v13607_row "15) v7 Stable Tools" "40) 查看旧链接 / Show legacy"
+    love_v13607_row "16) v8 Project Panel" "41) 备份旧链接 / Backup legacy"
+    love_v13607_row "17) Nginx Reverse Proxy" "42) 清空旧链接 / Clean legacy"
+    love_v13607_row "18) HY2/sing-box 修复" "43) 帮助 / Help"
+    love_v13607_row "19) IPv6-only 修复" "44) v13.60 检查 / Final check"
+    love_v13607_row "20) WARP Manager" "45) 端口/防火墙 / Ports"
+    love_v13607_row "21) 运行状态 / Status" "46) 国旗图标 / Flag icon"
+    love_v13607_row "22) 备份配置 / Backup" "47) 自动识别国旗 / Auto flag"
+    love_v13607_row "23) 卸载菜单 / Uninstall" "48) TRUE 手动提醒 / TRUE note"
+    love_v13607_row "24) GitHub 发布说明" "49) Xray 补全检查 / Xray check"
+    love_v13607_row "25) 安装 FS warp 命令" "0) 退出 / Exit"
+
+    echo
+    echo "提示: 12 为一键更新，不再默认要求输入地址；23 为固定卸载菜单。"
+    read -rp "请选择 / Select: " choice
+    case "${choice}" in
+      1) love_call13605 show_all_node_catalog ;;
+      2) love_call13605 install_xray_stable ;;
+      3) love_call13605 install_singbox_native ;;
+      4) love_call13605 argo_helper ;;
+      5) love_call13605 port_hopping_helper ;;
+      6) love_call13605 warp_helper ;;
+      7) love_call13605 show_node_info ;;
+      8) love_v1360_generate_client_subs ;;
+      9) love_call13605 generate_qrcodes ;;
+      10) love_call13605 super_menu ;;
+      11) love_v1360_web ;;
+      12) love_v13607_oneclick_update ;;
+      13) love_v1360_generate_client_subs; love_call13605 love_full_client_pack ;;
+      14) love_call13605 v6_super_menu ;;
+      15) love_call13605 v7_stable_menu ;;
+      16) love_call13605 v8_menu ;;
+      17) love_call13605 nginx_rp_menu ;;
+      18) love_call13605 love_fix_hy2_now ;;
+      19) love_call13605 love_ipv6_outbound_menu ;;
+      20) love_call13605 love_warp_manager_menu ;;
+      21) love_call13605 show_status ;;
+      22) love_call13605 backup_configs ;;
+      23) love_v13607_uninstall_menu ;;
+      24) love_call13605 github_publish_note ;;
+      25) love_call13605 love_install_fs_warp_command ;;
+      26) install_xray_extended ;;
+      27) love_call13605 love_v1360_env_detect ;;
+      28) love_call13605 love_v1360_optimize ;;
+      29) love_call13605 love_v1360_speed ;;
+      30|31) love_v1360_generate_client_subs ;;
+      32) love_v1360_generate_client_subs; generate_mihomo_yaml 2>/dev/null || true ;;
+      33) love_call13605 love_v1360_cert_check ;;
+      34) love_call13605 love_v1360_cert_http01 ;;
+      35) love_call13605 love_v1354_cert_switch ;;
+      36) love_call13605 love_v1360_cf_config ;;
+      37) love_call13605 love_v1360_cf_dns ;;
+      38) love_call13605 love_v1360_cf_cert_dns01 ;;
+      39) love_call13605 love_h2_v2rayn_help13601 ;;
+      40) love_call13605 love_legacy_show13601 ;;
+      41) love_call13605 love_legacy_backup13601 ;;
+      42) love_call13605 love_legacy_clean13601 ;;
+      43) love_call13605 love_color_menu_help13601 ;;
+      44) love_call13605 love_v1360_env_detect; echo; love_call13605 love_v1360_cert_check; echo; love_call13605 love_v1356_source_check ;;
+      45) love_call13605 love_ports_v1334 ;;
+      46) love_call13605 love_flag_set13602 ;;
+      47) love_call13605 love_flag_auto13602; love_v1360_generate_client_subs ;;
+      48) love_call13605 love_v13604_tls_manual_report ;;
+      49) love_v13605_xray_extended_check ;;
+      0|q|Q|exit) exit 0 ;;
+      *) warn "无效选择 / Invalid choice." ;;
+    esac
+    love_v13607_pause
+  done
+}
+
+if declare -F main >/dev/null 2>&1 && ! declare -F love_original_main_before_v13607 >/dev/null 2>&1; then
+  eval "$(declare -f main | sed '1s/^main/love_original_main_before_v13607/')"
+fi
+
+main() {
+  VERSION="${LOVE_SCRIPT_VERSION:-Love v13.60.7-classic-menu-update-uninstall-fix}"
+  case "${1:-}" in
+    ""|menu|main|m)
+      need_root 2>/dev/null || true
+      prepare_dirs 2>/dev/null || true
+      fix_hostname 2>/dev/null || true
+      check_os_soft 2>/dev/null || true
+      install_shortcut 2>/dev/null || true
+      love_v13607_classic_menu ;;
+    update|self-update|online-update)
+      love_v13607_oneclick_update ;;
+    uninstall|uninstall-menu)
+      love_v13607_uninstall_menu ;;
+    v13607-version|version)
+      echo "${LOVE_SCRIPT_VERSION}" ;;
+    xray-extended|xray-all|xray-plus|xray-ext)
+      need_root; prepare_dirs; install_xray_extended ;;
+    xray-ext-check|v13605-check|v13606-check|v13607-check|xray-plus-check)
+      love_v13605_xray_extended_check ;;
+    *)
+      love_original_main_before_v13607 "$@" ;;
+  esac
+}
+
 main "$@"
